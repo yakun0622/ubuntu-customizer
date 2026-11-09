@@ -145,3 +145,18 @@ Source committed is not sufficient evidence that runtime tests passed. Mark feat
   lifecycle automation after explicit consent, and measure progress
   completeness across multistage workflows.
 - The Skill, not the viewer, remains the authoritative orchestration layer.
+
+## Preview lifecycle — current milestone
+
+- Added an Agent-callable helper to start, check, stop or clear a stale
+  local preview instance; no HTTP write/control endpoint is introduced.
+- Collection starts the preview at session creation **only when**
+  `--preview-approved` was provided following user opt-in.
+- Preview startup failures are nonfatal for core collection.
+- Added tests for approval gating, identity verification, stale runtime
+  handling, and the localhost start/status/stop integration path.
+- Added completion-response contract: one precise next task plus an
+  interactive follow-up action when the host chat UI supports it.
+- Remaining: run the new suite on Linux/macOS, lifecycle smoke tests in
+  a real Agent runtime, consent UX validation, and cleanup policies for
+  canceled sessions.
