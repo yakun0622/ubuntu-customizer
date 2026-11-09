@@ -89,3 +89,12 @@ Source committed is not sufficient evidence that runtime tests passed. Mark feat
 - Added interactive command menu, per-device collection sessions and inspection of prior sessions.
 - Reused the existing capability-aware read-only collection engine, without adding write-capable remote execution.
 - Pending: runtime tests on supported host platforms; secure device identity verification; resumable capture; graphical device tree browser; plugin transports; optional archive redaction.
+
+## Device explorer and task workflow (preview)
+
+- Added SHA-256 evidence-backed terminal node browser and relationship lookup.
+- Added choose-task wizard for diagnose / installed-system maintain / image-build planning.
+- Added non-executable JSON task plans including evidence links, missing observations, risks, and approval blockers.
+- Integrated device ID + historical session selection with the device manager.
+- Added synthetic-data tests for graph browsing, evidence tampering, path validation and plan gating.
+- Pending: execute full test suite on supported platforms, interactive graphical graph view, resumable/target-specific deep probes, robust state machine and a separately reviewed safe mutation engine.
