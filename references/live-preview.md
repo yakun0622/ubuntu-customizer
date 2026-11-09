@@ -133,3 +133,39 @@ tunnel; this Skill does not automatically create tunnels or network exposure.
 - A stale record must be handled explicitly; no unchecked PID-kill behavior
   is permitted.
 - The observer is not a test result and does not establish image bootability.
+
+## Automatic progress for image operations
+
+When preview is enabled and its local process identity is verified, these
+scripts update the original session's `skill-status.json` automatically:
+
+| Script | Stage | Actual milestones | Outcomes |
+| --- | --- | --- | --- |
+| `image_plan.py` | `image-plan` | Source checksum, manifest integrity, compatibility result | `complete`, `blocked`, `failed` |
+| `build_image.py` | `image-build` | Input check, format check, offline conversion, output hash, manifest | `complete`, `blocked`, `failed` |
+| `nocloud.py` | `first-boot` | NoCloud seed, optional ISO, final manifest | `complete`, `blocked`, `failed` |
+| `verify_vm.py` | `verify` | Output hash, QEMU metadata, optional boot attempt | `complete`, `blocked`, `failed` |
+
+The image plan carries `discovery.session`. The image-build result
+propagates it as `discovery_session`, so later stages can update the
+same session. `nocloud.py` reads the plan directly. Older reports without
+this field simply cannot auto-report to the same viewer.
+
+A **blocked** image plan is the expected safe outcome for incompatible or
+unverified physical hardware. A failed source checksum, image conversion
+or output validation is **failed**. Static VM verification can be
+`complete` without proving a guest boot. A QEMU timeout or clean exit
+with no confirmed boot is `blocked`; a nonzero QEMU process exit is
+`failed`. These labels concern the stage outcome, not the overall
+device or image portability.
+
+Image-stage counters have their own denominators: old collection skips are
+not added to new image progress. Updates contain only allowlisted stage,
+state and numeric counts. No errors, paths, passwords or image contents are
+sent to the browser. If preview is not running, no automatic status file
+is written and no step is blocked. Closing the preview stops further
+automatic updates even if image work continues.
+
+Existing manual `status.py` commands remain available to the Agent for
+other workflow stages; they are no longer necessary for the four image
+scripts above.
