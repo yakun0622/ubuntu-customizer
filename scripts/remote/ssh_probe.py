@@ -29,12 +29,9 @@ def main():
     if not 1 <= args.timeout <= 120:
         parser.error("Timeout must be between 1 and 120 seconds")
     cmd = [
-        "ssh", "-F", "none", # replaced below: always use user SSH config
-    ]
-    cmd = [
         "ssh", "-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=yes",
         "-o", "ConnectTimeout=8", "-o", "NumberOfPasswordPrompts=0",
-        "--", args.host_alias, PROBE
+        args.host_alias, PROBE
     ]
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=args.timeout, check=False)
