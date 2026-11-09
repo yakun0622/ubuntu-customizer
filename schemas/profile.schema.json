@@ -1,0 +1,137 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ubuntu-customizer SystemProfile",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "apiVersion",
+    "kind",
+    "metadata",
+    "target",
+    "execution"
+  ],
+  "properties": {
+    "apiVersion": {
+      "const": "ubuntu-customizer/v1"
+    },
+    "kind": {
+      "const": "SystemProfile"
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]{1,62}$"
+        }
+      }
+    },
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "distribution",
+        "architecture"
+      ],
+      "properties": {
+        "distribution": {
+          "enum": [
+            "ubuntu",
+            "debian",
+            "armbian"
+          ]
+        },
+        "version": {
+          "type": "string"
+        },
+        "architecture": {
+          "enum": [
+            "amd64",
+            "arm64",
+            "armhf"
+          ]
+        },
+        "board": {
+          "type": "string"
+        }
+      }
+    },
+    "image": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "format": {
+          "enum": [
+            "iso",
+            "img",
+            "qcow2"
+          ]
+        }
+      }
+    },
+    "system": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "hostname": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9][a-zA-Z0-9-]{0,62}$"
+        },
+        "timezone": {
+          "type": "string"
+        }
+      }
+    },
+    "packages": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "install": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9][a-zA-Z0-9+.-]*$"
+          },
+          "uniqueItems": true
+        },
+        "remove": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9][a-zA-Z0-9+.-]*$"
+          },
+          "uniqueItems": true
+        }
+      }
+    },
+    "execution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "dry_run",
+        "reboot"
+      ],
+      "properties": {
+        "dry_run": {
+          "const": true
+        },
+        "backup": {
+          "type": "boolean"
+        },
+        "verify": {
+          "type": "boolean"
+        },
+        "reboot": {
+          "const": "manual"
+        }
+      }
+    }
+  }
+}
