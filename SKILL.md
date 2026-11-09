@@ -21,8 +21,11 @@ Read [Agent workflow](references/agent-workflow.md) first. Then read
 1. **Establish intent.** Ask whether the user needs discovery, diagnosis,
    maintenance, recovery or a portable system image. Distinguish target,
    control host and build host.
-2. **Choose transport.** Offer SSH / ADB / passive TTL / local depending on
-   access. Never assume a device model or claim access that is unavailable.
+2. **Choose transport and optional preview.** Offer SSH / ADB / passive TTL /
+   local depending on access. Before starting work, explicitly offer: "是否开启本地实时运行预览页面？"
+   The default is **no**. Never assume a device model or claim access that is unavailable.
+   If the user opts in, use `scripts/workflow/preview.py` as an optional
+   localhost-only observer; otherwise do not start any web server.
 3. **Discover.** Obtain connection consent and execute only permitted,
    read-only probes. Prefer `scripts/workflow/adaptive.py` when available,
    or give the user precise commands to run locally.
@@ -83,3 +86,36 @@ python3 scripts/workflow/build_image.py image-plan.json \
 - Do not enable bypasses for SSH trust or privilege elevation automatically.
 - Respect no CI execution preference where applicable; submitted test source
   is not proof of passing tests.
+
+## Optional live progress preview (not the Skill UI)
+
+The AI Agent is always the workflow controller. A preview is **opt-in only**:
+ask the user before starting a localhost service and honor "no" without
+reducing any Skill functionality. Do not expose the preview on LAN or
+the public Internet; bind only to `127.0.0.1`. When the collection
+session directory exists, the Agent may start:
+
+```bash
+python3 scripts/workflow/preview.py SESSION_DIR --port 8765
+```
+
+The user can view `http://127.0.0.1:8765/` on the same host. The page
+polls a redacted summary derived from the collector's `manifest.json`
+every two seconds. It never serves raw evidence. During other Skill stages,
+the Agent can write an allowlisted, private checkpoint using:
+
+```bash
+python3 scripts/workflow/status.py SESSION_DIR \
+  --stage image-plan --state running --completed 1 --total 3
+```
+
+Use only factual progress and never record credentials or unbounded logs.
+Allowed stages: connect, bootstrap, capability, collect, analyze, image-plan,
+image-build, verify, finish. The Agent should update stage boundaries
+**only when those operations actually occurred**. The preview displays
+status but does not control work or grant permission for any action.
+
+If a browser server cannot run on the controlling computer, explain that
+preview is unavailable and continue the Skill normally with text progress.
+Never assert that a preview or background process has started unless the
+runtime has actually started it. See `references/live-preview.md`.
