@@ -117,7 +117,15 @@ def record(output, manifest, category, name, status, payload, err, code, stage):
 def collect_probe(transport, target, command, timeout):
     return collect.capture(collect.shell_invocation(transport, target, command), timeout)
 
-def run(transport, target, output, timeout, modules, baud=115200, duration=10):
+def start_preview(folder):
+    """Opt-in localhost observer only. Called when user approval was supplied."""
+    spec = importlib.util.spec_from_file_location("uc_preview_control", HERE / "preview_control.py")
+    control = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(control)
+    return control.start(folder, port=0)
+
+def run(transport, target, output, timeout, modules, baud=115200, duration=10,
+        preview_approved=False):
     folder = collect.safe_output_dir(output)
     manifest = {
         "schema_version": 1, "workflow_version": "adaptive-v1",
@@ -131,6 +139,15 @@ def run(transport, target, output, timeout, modules, baud=115200, duration=10):
                         "No target writes, privilege escalation or automatic upload."]
     }
     checkpoint(folder, manifest)
+    if preview_approved:
+        try:
+            preview_info = start_preview(folder)
+            manifest["preview"] = {"state": "running", "url": preview_info["url"]}
+        except (OSError, ValueError, RuntimeError) as exc:
+            # An optional local UI must never block a read-only collection.
+            manifest["preview"] = {"state": "unavailable"}
+            print(f"Optional preview unavailable ({type(exc).__name__}); continuing collection", file=sys.stderr)
+        checkpoint(folder, manifest)
     try:
         if transport == "ttl":
             result = collect.collect_ttl(target, folder, baud, duration)
@@ -179,6 +196,8 @@ def main(argv=None):
     parser.add_argument("--baud", type=int, default=115200)
     parser.add_argument("--duration", type=int, default=10)
     parser.add_argument("--yes", action="store_true", help="Explicit permission for unattended read-only collection")
+    parser.add_argument("--preview-approved", action="store_true",
+                        help="Start local status preview ONLY after user explicitly opts in")
     args = parser.parse_args(argv)
     transport = args.transport
     if not transport and not args.yes:
@@ -210,12 +229,14 @@ def main(argv=None):
             print("Cancelled")
             return 1
     try:
-        folder, manifest = run(transport, target, output, args.timeout, modules, args.baud, args.duration)
+        folder, manifest = run(transport, target, output, args.timeout, modules, args.baud, args.duration,
+                               preview_approved=args.preview_approved)
     except (OSError, ValueError, RuntimeError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2
     print(json.dumps({"session": str(folder), "state": manifest["state"],
-                      "collected": len(manifest["items"]), "skipped": len(manifest["skipped"])},
+                      "collected": len(manifest["items"]), "skipped": len(manifest["skipped"]),
+                      "preview": manifest.get("preview", {"state": "disabled"})},
                      ensure_ascii=False))
     return 0 if manifest["state"] == "complete" else 2
 
