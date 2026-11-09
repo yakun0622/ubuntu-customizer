@@ -28,6 +28,11 @@ _html_spec = importlib.util.spec_from_file_location("uc_export_html", HERE / "ex
 export_html = importlib.util.module_from_spec(_html_spec)
 _html_spec.loader.exec_module(export_html)
 
+_image_spec = importlib.util.spec_from_file_location("uc_image_plan", HERE / "image_plan.py")
+image_plan = importlib.util.module_from_spec(_image_spec)
+_image_spec.loader.exec_module(image_plan)
+
+
 ID = re.compile(r"^[a-z][a-z0-9-]{1,47}$")
 TRANSPORTS = ("ssh", "adb", "ttl", "local")
 SERIAL_PORT = re.compile(r"^/dev/[A-Za-z0-9_.-]+$")
@@ -246,6 +251,15 @@ def main(argv=None):
     browser.add_argument("id")
     browser.add_argument("session")
     browser.add_argument("--output", help="new offline .html file path")
+    image = sub.add_parser("image-plan")
+    image.add_argument("id")
+    image.add_argument("session")
+    image.add_argument("--target", choices=("virtual-machine", "physical-device"), required=True)
+    image.add_argument("--format", choices=("qcow2", "raw"), required=True)
+    image.add_argument("--source", required=True)
+    image.add_argument("--sha256", required=True)
+    image.add_argument("--source-arch", choices=("amd64", "arm64", "armhf", "riscv64"), required=True)
+    image.add_argument("--output", required=True, help="new image compatibility JSON plan")
     run = sub.add_parser("collect")
     run.add_argument("id")
     run.add_argument("--modules", default="auto")
@@ -277,6 +291,18 @@ def main(argv=None):
             name = getattr(args, "id", None) or input("Device ID: ").strip()
             session = getattr(args, "session", None) or input("Session ID: ").strip()
             output = inspect_session(root, name, session)
+        elif action == "image-plan":
+            folder = session_path(root, args.id, args.session)
+            output = Path(args.output)
+            if output.exists() or output.is_symlink():
+                raise ValueError("Image plan output exists")
+            result = image_plan.plan(folder, args.target, args.format, args.source, args.sha256, args.source_arch)
+            with output.open("x", encoding="utf-8") as f:
+                json.dump(result, f, indent=2, ensure_ascii=False)
+                f.write("\\n")
+            output.chmod(0o600)
+            output = {"plan": str(output), "build_allowed": result["build_allowed"],
+                      "blockers": result["blockers"], "warnings": result["warnings"]}
         elif action == "browse":
             name = getattr(args, "id", None) or input("Device ID: ").strip()
             session_id = getattr(args, "session", None) or input("Session ID: ").strip()
