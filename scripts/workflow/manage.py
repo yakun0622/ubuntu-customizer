@@ -215,7 +215,8 @@ def explore_session(root, name, session_id, task=None, node=None, goal=None):
     return {"device": name, "session": session_id, "nodes": explore.tree_data(graph),
             "edges": len(graph["edges"]), "gaps": len(graph["gaps"])}
 
-def collect_device(root, name, modules, timeout=12, baud=115200, duration=10):
+def collect_device(root, name, modules, timeout=12, baud=115200, duration=10,
+                   preview_approved=False):
     catalog = load_catalog(root)
     if name not in catalog["devices"]:
         raise ValueError("Device is not registered")
@@ -224,7 +225,7 @@ def collect_device(root, name, modules, timeout=12, baud=115200, duration=10):
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     output = parent / (stamp + "-" + uuid.uuid4().hex[:8])
     return adaptive.run(device["transport"], device["target"], str(output),
-                        timeout, modules, baud, duration)
+                        timeout, modules, baud, duration, preview_approved=preview_approved)
 
 def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__)
@@ -265,6 +266,8 @@ def main(argv=None):
     run.add_argument("--modules", default="auto")
     run.add_argument("--yes", action="store_true",
                      help="Authorize only read-only collection")
+    run.add_argument("--preview-approved", action="store_true",
+                     help="Start localhost status page only with explicit opt-in")
     args = p.parse_args(argv)
     try:
         root = _private_dir(args.data_dir)
@@ -334,9 +337,14 @@ def main(argv=None):
                 print("Read-only collection; may store IPs, MACs and hardware IDs locally.")
                 if input("Proceed? [y/N]: ").strip().lower() not in ("y", "yes"):
                     return 1
-            path, manifest = collect_device(root, name, modules)
+            preview_approved = getattr(args, "preview_approved", False)
+            if args.command is None and not preview_approved:
+                preview_approved = input("开启本地实时运行预览？[y/N]: ").strip().lower() in ("y", "yes")
+            path, manifest = collect_device(root, name, modules,
+                                            preview_approved=preview_approved)
             output = {"session_dir": str(path), "state": manifest["state"],
-                      "collected": len(manifest["items"]), "skipped": len(manifest["skipped"])}
+                      "collected": len(manifest["items"]), "skipped": len(manifest["skipped"]),
+                      "preview": manifest.get("preview", {"state": "disabled"})}
         print(json.dumps(output, indent=2, ensure_ascii=False))
         return 0
     except (OSError, ValueError, RuntimeError, KeyError) as exc:
