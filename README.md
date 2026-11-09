@@ -377,3 +377,39 @@ does **not** expose raw capture files. It is not a device manager, and
 is not required for Skill execution. Stop with Ctrl+C. See
 [Optional live preview](references/live-preview.md) for privacy,
 consent and lifecycle rules.
+
+### Skill-managed live preview lifecycle (opt-in)
+
+The Skill asks **是否开启本地实时运行预览？** before collection.
+The default is off. After positive user consent, the Agent can activate
+the preview **during** collection with `--preview-approved` (independent
+from `--yes`, which approves read-only probes):
+
+```bash
+python3 scripts/workflow/adaptive.py \
+  --transport ssh --target trusted-host-alias \
+  --output ./sessions/run-003 --yes --preview-approved
+```
+
+After creating the session directory, the collector starts a localhost-only
+preview, returns the verified URL, and continues probing. A failed preview
+does **not** stop collection. The page remains available for final review
+until the user requests it be closed.
+
+```bash
+python3 scripts/workflow/preview_control.py status ./sessions/run-003
+python3 scripts/workflow/preview_control.py stop ./sessions/run-003
+```
+
+For a preexisting session, `preview_control.py start SESSION_DIR --approved`
+starts a preview without rerunning collection. The helper selects an
+available local port, checks that the observer is responsive, and records
+only private process metadata. A stopped/stale preview cannot authorize
+system actions. If stale, `clear-stale` removes only its local record and
+never sends an unchecked signal. The session directory must be private
+(mode 0700). See [live preview](references/live-preview.md).
+
+After each iteration, the Agent should give a concise completion summary,
+accurate test status, and **one actionable next-step follow-up**. In
+supported chat interfaces, offer a clickable “继续下一步” control rather
+than requiring the user to retype a command.
