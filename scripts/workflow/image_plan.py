@@ -45,16 +45,23 @@ def detect_arch(cpu, kernel):
             return name
     return None
 
-def plan(session, target, fmt, source_path, source_sha256):
+def plan(session, target, fmt, source_path, source_sha256, source_arch):
     if target not in TARGETS or fmt not in FORMATS:
         raise ValueError("Unsupported target or image format")
     if not re.fullmatch(r"[a-fA-F0-9]{64}", source_sha256 or ""):
         raise ValueError("An independently supplied SHA-256 for the base image is required")
-    source = Path(source_path).expanduser().resolve()
-    if not source.is_file() or source.is_symlink():
+    original_source = Path(source_path).expanduser()
+    if original_source.is_symlink():
+        raise ValueError("Symbolic-link sources are not accepted")
+    source = original_source.resolve()
+    if not source.is_file():
         raise ValueError("Base image must be an existing regular file")
     if source.stat().st_size == 0:
         raise ValueError("Base image is empty")
+    if source.parts[:2] in (("/", "dev"), ("/", "proc"), ("/", "sys")):
+        raise ValueError("Pseudo-filesystem sources are not accepted")
+    if source_arch not in ("amd64", "arm64", "armhf", "riscv64"):
+        raise ValueError("Explicit source architecture is required")
     digest = hashlib.sha256()
     with source.open("rb") as f:
         for block in iter(lambda: f.read(1024 * 1024), b""):
@@ -77,6 +84,8 @@ def plan(session, target, fmt, source_path, source_sha256):
     warnings = []
     if arch is None:
         blockers.append("Architecture not established by available bootstrap evidence")
+    elif arch != source_arch:
+        blockers.append("Source image architecture does not match discovered device architecture")
     if not os_release:
         warnings.append("OS distribution/version not verified")
     if manifest.get("state") not in ("complete", None):
@@ -101,7 +110,8 @@ def plan(session, target, fmt, source_path, source_sha256):
     return {
         "schema_version": 1, "type": "ubuntu-customizer/image-plan",
         "target": target, "format": fmt, "architecture": arch,
-        "source": {"path": str(source), "sha256": digest.hexdigest(), "bytes": source.stat().st_size},
+        "source": {"path": str(source), "sha256": digest.hexdigest(), "bytes": source.stat().st_size,
+                   "claimed_architecture": source_arch, "architecture_verified": False},
         "discovery": {"session": str(Path(session).resolve()),
                       "transport": manifest.get("transport"), "evidence": evidence},
         "backend": backend, "build_allowed": target == "virtual-machine" and not blockers,
@@ -127,10 +137,11 @@ def main(argv=None):
     p.add_argument("--format", choices=sorted(FORMATS), required=True)
     p.add_argument("--source", required=True, help="existing locally stored image")
     p.add_argument("--sha256", required=True, help="trusted SHA256 obtained independently")
+    p.add_argument("--source-arch", choices=("amd64", "arm64", "armhf", "riscv64"), required=True)
     p.add_argument("--output", required=True, help="new JSON plan path")
     args = p.parse_args(argv)
     try:
-        result = plan(args.session, args.target, args.format, args.source, args.sha256)
+        result = plan(args.session, args.target, args.format, args.source, args.sha256, args.source_arch)
         output = Path(args.output)
         if output.exists() or output.is_symlink():
             raise ValueError("Output already exists")
