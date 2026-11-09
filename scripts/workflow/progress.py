@@ -57,6 +57,10 @@ class Tracker:
     def _publish(self, state):
         if not self.enabled:
             return
+        if not preview_is_live(self.session):
+            # Stopping the optional preview disables subsequent auto updates.
+            self.enabled = False
+            return
         try:
             load("status").update(self.session, self.stage, state,
                                   self.completed, self.total)
