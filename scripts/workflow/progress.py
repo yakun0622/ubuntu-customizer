@@ -89,6 +89,17 @@ class Tracker:
             self.final_state = "complete"
             self._publish("complete")
 
+def report_error(session, stage):
+    """Override a finished stage if its CLI artifact write subsequently fails."""
+    if stage not in ("image-plan", "image-build", "first-boot", "verify"):
+        raise ValueError("Unsupported image workflow stage")
+    if not preview_is_live(session):
+        return
+    try:
+        load("status").update(session, stage, "failed", 0, 1)
+    except (OSError, ValueError, RuntimeError, TypeError):
+        pass
+
 @contextmanager
 def tracking(session, stage, total):
     tracker = Tracker(session, stage, total)
