@@ -101,3 +101,21 @@ These analysis commands never connect to the target or modify it.
   redaction and cross-transport session merging are still planned.
 - These tools do not implement system mutation, flash, remote reboot or
   automatic rollback.
+
+## Device-to-driver topology (read-only)
+
+New discovery sessions collect limited sysfs binding evidence from network, serial,
+GPIO, platform, I2C, SPI and MDIO devices. Generate the conservative topology:
+
+```bash
+python3 scripts/workflow/collect.py
+python3 scripts/workflow/dossier.py ./devices/w152d/session-001
+python3 scripts/workflow/topology.py ./devices/w152d/session-001
+```
+
+The new `topology.json` stores device and driver nodes, observed `bound_to`
+edges, source evidence path/line, and unavailable or unbound observations.
+Its meaning is **Linux driver bindings only**, not verified physical PCB pinout,
+PHY signaling, electrical voltages, or full SoC pinmux relationships. Existing
+sessions without new probes produce explicit `not_collected` gaps.
+Use [device discovery](references/device-discovery.md) for further context.
