@@ -43,18 +43,27 @@ class ImagePipelineTests(unittest.TestCase):
             root = Path(tmp)
             session = self.create_session(root)
             source, sha = self.source(root)
-            plan = image_plan.plan(session, "virtual-machine", "qcow2", source, sha)
+            plan = image_plan.plan(session, "virtual-machine", "qcow2", source, sha, "amd64")
             self.assertTrue(plan["build_allowed"])
             self.assertEqual(plan["architecture"], "amd64")
             self.assertIn("QEMU", " ".join(plan["verification_required"]))
             self.assertEqual(plan["backend"], "qemu-img-offline-convert")
+
+    def test_source_architecture_mismatch_blocks_build(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            session = self.create_session(root)
+            source, sha = self.source(root)
+            result = image_plan.plan(session, "virtual-machine", "qcow2", source, sha, "arm64")
+            self.assertFalse(result["build_allowed"])
+            self.assertTrue(any("architecture" in item for item in result["blockers"]))
 
     def test_physical_board_never_automatically_buildable(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             session = self.create_session(root)
             source, sha = self.source(root)
-            result = image_plan.plan(session, "physical-device", "raw", source, sha)
+            result = image_plan.plan(session, "physical-device", "raw", source, sha, "amd64")
             self.assertFalse(result["build_allowed"])
             self.assertIsNone(result["backend"])
             self.assertGreaterEqual(len(result["blockers"]), 3)
@@ -65,10 +74,10 @@ class ImagePipelineTests(unittest.TestCase):
             session = self.create_session(root)
             source, sha = self.source(root)
             with self.assertRaises(ValueError):
-                image_plan.plan(session, "virtual-machine", "raw", source, "0" * 64)
+                image_plan.plan(session, "virtual-machine", "raw", source, "0" * 64, "amd64")
             (session / "identity/kernel.txt").write_text("tampered")
             with self.assertRaises(ValueError):
-                image_plan.plan(session, "virtual-machine", "raw", source, sha)
+                image_plan.plan(session, "virtual-machine", "raw", source, sha, "amd64")
 
     def test_builder_rejects_unsupported_target(self):
         with tempfile.TemporaryDirectory() as tmp:
