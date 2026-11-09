@@ -109,3 +109,22 @@ source evidence and gaps. Do not assume a node represents a working
 physical peripheral or accurate connector pin mapping. Collected host
 data may be sensitive: review the report before sharing. The viewer does
 not authorize or execute any system modification.
+
+## Evidence-to-image portability workflow
+
+After collecting a device session, use `scripts/workflow/image_plan.py`
+or `manage.py image-plan` to evaluate a verified **local base image** and
+target format. Demand its independently trusted SHA-256 and operator-provided
+source architecture, and compare that declaration with target evidence. An
+`image-plan.json` is a compatibility gate, not proof of bootability.
+For virtual-machine targets only, if `build_allowed=true`, use
+`scripts/workflow/build_image.py` for offline RAW/QCOW2 conversion using
+`qemu-img` on the build host; record the result hash and insist on a VM boot
+test before claiming success. Source guest architecture is not yet verified
+from the image internals. For physical-device targets the generic pipeline
+always emits blockers until board-specific boot firmware, partition layout,
+kernel/DTB/ACPI, storage and recovery components are validated by an
+independent adapter. Never write to target block devices or clone secrets,
+machine identifiers, SSH host keys or fixed network identities into a
+redistributable system image. Full installed-system capture, first-boot
+repersonalization and physical-device assembly are not implemented.
