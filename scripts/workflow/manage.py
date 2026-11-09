@@ -299,7 +299,7 @@ def main(argv=None):
             result = image_plan.plan(folder, args.target, args.format, args.source, args.sha256, args.source_arch)
             with output.open("x", encoding="utf-8") as f:
                 json.dump(result, f, indent=2, ensure_ascii=False)
-                f.write("\\n")
+                f.write("\n")
             output.chmod(0o600)
             output = {"plan": str(output), "build_allowed": result["build_allowed"],
                       "blockers": result["blockers"], "warnings": result["warnings"]}
