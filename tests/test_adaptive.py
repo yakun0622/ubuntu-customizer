@@ -44,6 +44,16 @@ class AdaptiveTests(unittest.TestCase):
                 self.assertTrue((dest / item["file"]).exists())
                 self.assertEqual(len(item["sha256"]), 64)
 
+    def test_bootstrap_failure_marks_session_incomplete(self):
+        with tempfile.TemporaryDirectory() as root:
+            dest = Path(root) / "capture"
+            with patch.object(adaptive, "collect_probe", return_value=("error", b"", "connection refused", 255)):
+                with self.assertRaises(RuntimeError):
+                    adaptive.run("ssh", "sample-host", str(dest), 3, ["network"])
+            manifest = json.loads((dest / "manifest.json").read_text())
+            self.assertEqual(manifest["state"], "incomplete")
+            self.assertIn("bootstrap failed", manifest["failure"])
+
     def test_existing_directory_is_rejected(self):
         with tempfile.TemporaryDirectory() as root:
             with self.assertRaises(ValueError):
