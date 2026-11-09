@@ -13,7 +13,7 @@ When the user asks to work with a physical target or unknown Ubuntu/Armbian devi
 
 ## Mandatory flow
 
-1. Distinguish controlling/build host from the target; identify OS, architecture, exact board and expected output.
+1. Distinguish controlling/build host from the target; identify OS and architecture from evidence, record the board only if verified, and establish expected output.
 2. Read only relevant reference files: `references/image-building.md`, `references/system-management.md`, `references/arm-hardware.md`, `references/safety.md`, `references/v0.2-operations.md`.
 3. Inspect current state with read-only diagnostics. When execution access is missing, provide commands rather than pretending to have results.
 4. Validate a JSON profile using `scripts/safety/validate_profile.py`. Unrecognized fields and unsafe execution modes are invalid.
@@ -27,7 +27,8 @@ When the user asks to work with a physical target or unknown Ubuntu/Armbian devi
 ## Available executable commands
 
 ```bash
-python3 scripts/workflow/collect.py\nbash scripts/detect/system.sh
+python3 scripts/workflow/collect.py
+bash scripts/detect/system.sh
 bash scripts/detect/network.sh
 python3 scripts/safety/validate_profile.py profiles/base/ubuntu-server.json
 python3 scripts/system/plan.py profiles/base/ubuntu-server.json
@@ -65,3 +66,15 @@ For a new Linux discovery session, run `python3 scripts/workflow/topology.py <se
 ## Device-tree and linked hardware graph
 
 For a newly collected Linux session, use `scripts/workflow/device_tree.py` for software DTS references and `scripts/workflow/link_graph.py` to correlate observed platform device `of_node` symlinks with DTS nodes. Each input is verified through the evidence manifest. Treat missing or truncated DTS, unbound drivers and unresolved phandles as gaps; never infer physical PCB pin numbering, voltage, or a successfully functioning PHY. Numeric phandles are candidates pending binding-specific cell parsing. Do not modify DTB or hardware based only on these graphs.
+
+## Generic device capability negotiation
+
+Always treat the connected target as **unknown hardware** until read-only
+evidence identifies it. Never default to a named board, vendor SoC, GPIO bank,
+PHY, serial controller or physical pin header. After collection run
+`python3 scripts/workflow/capabilities.py <session-dir>`. Choose subsequent
+collection and analysis based on `available`, `partial` or `unknown`
+observations, never guessing that an unknown component is absent. Use
+`profiles/examples/generic-arm64-discovery.yaml` only as documentation for
+ARM64, not as a universal preset or an executable profile. Prefer generic
+analysers and make vendor/board adapters opt-in after identity verification.
