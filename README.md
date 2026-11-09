@@ -80,3 +80,21 @@ python3 scripts/workflow/compare.py ./devices/w152d/session-001/device.json ./de
 Dossier creation verifies each evidence file's SHA-256 digest and distinguishes missing collection from missing hardware. The comparison reports observed identity changes and evidence-file changes; it does not by itself diagnose a fault. Detailed guide: [device discovery](references/device-discovery.md).
 
 The deep device/driver/pin dependency graph is still planned. No target-writing commands are performed by these utilities.
+
+## Device-to-driver topology (read-only)
+
+New discovery sessions collect limited sysfs binding evidence from network, serial,
+GPIO, platform, I2C, SPI and MDIO devices. Generate the conservative topology:
+
+```bash
+python3 scripts/workflow/collect.py
+python3 scripts/workflow/dossier.py ./devices/w152d/session-001
+python3 scripts/workflow/topology.py ./devices/w152d/session-001
+```
+
+The new `topology.json` stores device and driver nodes, observed `bound_to`
+edges, source evidence path/line, and unavailable or unbound observations.
+Its meaning is **Linux driver bindings only**, not verified physical PCB pinout,
+PHY signaling, electrical voltages, or full SoC pinmux relationships. Existing
+sessions without new probes produce explicit `not_collected` gaps.
+Use [device discovery](references/device-discovery.md) for further context.
