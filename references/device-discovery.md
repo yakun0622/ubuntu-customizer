@@ -192,3 +192,51 @@ The new adaptive workflow does not yet support session resumption or automatic
 retries; checkpointing preserves evidence to analyze failures, not a claim of
 resumable execution. Per-module privilege approval and additional probe
 adapters are future work.
+
+## Device catalog and interactive manager
+
+The new `scripts/workflow/manage.py` is the **local device-management
+entry point**. It records a stable user-defined device ID and a connection
+transport/target, then stores each collection session separately. It never
+embeds passwords in its catalog.
+
+```bash
+# Interactive menu
+python3 scripts/workflow/manage.py
+
+# Enumerate candidate configured SSH Host aliases, authorized ADB devices,
+# local serial-port names, and the local target
+python3 scripts/workflow/manage.py discover
+
+# Register a target without contacting it
+python3 scripts/workflow/manage.py add lab-server --transport ssh --target server-alias
+
+# View catalog; collect using the existing staged read-only engine
+python3 scripts/workflow/manage.py list
+python3 scripts/workflow/manage.py collect lab-server --modules hardware,drivers,network
+
+# Inspect stored sessions and category summaries
+python3 scripts/workflow/manage.py sessions lab-server
+python3 scripts/workflow/manage.py inspect lab-server SESSION_ID
+```
+
+The catalog defaults to `~/.local/share/ubuntu-customizer/registry.json` and
+captures are under `~/.local/share/ubuntu-customizer/devices/<id>/sessions/<session>/`.
+Directories and the catalog are created with restrictive permissions.
+`--data-dir` selects a different *private* directory.
+
+Connection discovery enumerates candidates; SSH aliases are read from explicit
+`Host` entries in the primary SSH config (without expanding `Include` or
+wildcards). ADB uses `adb devices` and may start the local ADB server. Serial
+discovery lists device names but does not open serial ports. It does not
+establish connectivity or authenticate to discovered candidates.
+
+The `collect` command asks for confirmation unless given `--yes`;
+`--yes` authorizes only fixed read-only evidence probes. TTL uses passive
+RX capture, without transmitting serial bytes, though opening adapters may
+affect control signals. Raw files may contain identifiers and must not be
+automatically published.
+
+This is a **terminal interaction**: a browser-based dashboard, automatic
+device grouping by serial number, session resumption and physical pin map
+visualization are not yet implemented.
