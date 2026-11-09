@@ -59,8 +59,8 @@ class AdaptiveTests(unittest.TestCase):
             dest = Path(root) / "without-preview"
             def fake_probe(transport, target, command, timeout):
                 if command == adaptive.FEATURE_COMMAND:
-                    return ("ok", b"sysfs=1\\n", "", 0)
-                return ("ok", b"test\\n", "", 0)
+                    return ("ok", b"sysfs=1\n", "", 0)
+                return ("ok", b"test\n", "", 0)
             with patch.object(adaptive, "collect_probe", side_effect=fake_probe), \
                  patch.object(adaptive, "start_preview") as start:
                 _, report = adaptive.run("local", "local", str(dest), 3, [])
@@ -80,7 +80,7 @@ class AdaptiveTests(unittest.TestCase):
     def test_optional_preview_failure_does_not_block_collection(self):
         with tempfile.TemporaryDirectory() as root:
             dest = Path(root) / "preview-fails"
-            with patch.object(adaptive, "collect_probe", return_value=("ok", b"test\\n", "", 0)), \
+            with patch.object(adaptive, "collect_probe", return_value=("ok", b"test\n", "", 0)), \
                  patch.object(adaptive, "start_preview", side_effect=RuntimeError("No listener")):
                 _, report = adaptive.run("local", "local", str(dest), 3, [],
                                          preview_approved=True)
