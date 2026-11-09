@@ -118,6 +118,8 @@ def build(plan, output):
             "type": "ubuntu-customizer/image-build-result",
             "backend": "qemu-img-offline-convert", "boot_tested": False,
             "source_sha256": plan["source"]["sha256"],
+            "architecture": plan.get("architecture"),
+            "source_architecture_verified": plan.get("source", {}).get("architecture_verified", False),
             "output_path": str(output), "output_sha256": digest,
             "output_bytes": output.stat().st_size,
             "format": fmt, "virtual_size": info["virtual-size"],
