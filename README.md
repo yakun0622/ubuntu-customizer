@@ -349,3 +349,31 @@ input formats, and images with a QEMU backing file. Keep source image
 integrity metadata and licensing records. Source architecture is currently
 an operator declaration and is **not** validated from guest filesystems;
 this limitation is explicitly reported.
+
+## Optional real-time Skill status preview
+
+**AI Agent first, browser preview optional.** At the start of a device
+discovery or image-build task the Skill asks whether the user wants to
+enable a local status page. Default is off; declining never blocks the task.
+
+For a session that already exists (or is currently collecting):
+
+```bash
+python3 scripts/workflow/preview.py SESSION_DIR --port 8765
+# Browser: http://127.0.0.1:8765/
+```
+
+The page polls the local checkpoint manifest every 2 seconds. In later
+Agent-led stages (analysis / image planning / conversion / verification),
+the Agent may publish safe stage/count updates:
+
+```bash
+python3 scripts/workflow/status.py SESSION_DIR \
+  --stage image-plan --state running --completed 1 --total 3
+```
+
+Preview is read-only, bound to `127.0.0.1`, has no commands API, and
+does **not** expose raw capture files. It is not a device manager, and
+is not required for Skill execution. Stop with Ctrl+C. See
+[Optional live preview](references/live-preview.md) for privacy,
+consent and lifecycle rules.
