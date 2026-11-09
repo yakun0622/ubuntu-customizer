@@ -66,3 +66,70 @@ image writes or boot.
   the limitation and continue working via Agent text updates.
 - Status files alone do not establish actual success: the Agent must
   verify execution outcomes from evidence, tests and build logs.
+
+## Agent-managed lifecycle (recommended)
+
+The Skill asks the user whether to enable preview. The default is **off**.
+Once the user opts in, the Agent may pass `--preview-approved` to the
+read-only staged collector. The collector creates the session directory,
+starts the localhost observer before collection, and continues probing even
+if the observer cannot start.
+
+```bash
+# Only after user agrees to preview and authorizes read-only probes:
+python3 scripts/workflow/adaptive.py \
+  --transport ssh --target trusted-host-alias \
+  --output ./sessions/run-002 --yes --preview-approved
+
+# The command prints the actual preview URL and session path.
+# Check status later without starting a second server:
+python3 scripts/workflow/preview_control.py status ./sessions/run-002
+
+# Stop the preview when the user is finished:
+python3 scripts/workflow/preview_control.py stop ./sessions/run-002
+```
+
+For a session that already exists, the Agent can start the observer separately:
+
+```bash
+python3 scripts/workflow/preview_control.py start ./sessions/run-002 --approved
+python3 scripts/workflow/preview_control.py status ./sessions/run-002
+python3 scripts/workflow/preview_control.py stop ./sessions/run-002
+```
+
+A random available port is selected by default and the actual URL is
+reported after a successful local readiness check. The child process
+stays on the **controlling/build host**, never on the target device unless
+the user deliberately runs the Skill there. The Agent must not claim a
+preview is running until the start command confirms success.
+
+The runtime record `preview-runtime.json` is stored privately in the
+session directory. To stop, the local helper first matches the HTTP
+instance nonce and PID against that record. If the record is stale, it
+refuses to signal the PID. In that case, after checking no preview is
+running, call:
+
+```bash
+python3 scripts/workflow/preview_control.py clear-stale ./sessions/run-002
+```
+
+The control helper terminates **only the preview observer**; collection,
+image planning or other Skill steps are not stopped. When the user declines
+preview, no browser server is started, and the original Skill workflow
+continues exactly as before.
+
+The status URL is loopback-only. A separate device (including a phone)
+cannot access that address without a deliberately configured, reviewed
+tunnel; this Skill does not automatically create tunnels or network exposure.
+
+## Limitations
+
+- The preview lives beyond the completion of a collection until explicitly
+  stopped, which is useful for reviewing final results.
+- On systems that disallow background child processes or localhost sockets,
+  preview may be unavailable. This never blocks core Skill work.
+- The HTTP service has no remote-control endpoint. `stop` is implemented
+  locally via a verified process signal, not an HTTP command.
+- A stale record must be handled explicitly; no unchecked PID-kill behavior
+  is permitted.
+- The observer is not a test result and does not establish image bootability.
