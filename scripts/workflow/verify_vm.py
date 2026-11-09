@@ -11,6 +11,11 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
+import importlib.util
+
+_progress_spec = importlib.util.spec_from_file_location("uc_verify_progress", Path(__file__).with_name("progress.py"))
+progress = importlib.util.module_from_spec(_progress_spec)
+_progress_spec.loader.exec_module(progress)
 
 def checksum(path):
     h = hashlib.sha256()
@@ -46,55 +51,64 @@ def qemu_info(image):
     return info
 
 def verify(result, boot=False, timeout=45, serial_log=None, seed_iso=None):
-    image = validate_result(result)
-    info = qemu_info(image)
-    if info.get("format") != result["format"] or info.get("virtual-size") != result.get("virtual_size"):
-        raise ValueError("qemu-img metadata differs from build result")
-    report = {
-        "schema_version": 1, "type": "ubuntu-customizer/vm-verification",
-        "image_path": str(image), "image_sha256": result["output_sha256"],
-        "format": result["format"], "static_image_check": "passed",
-        "boot_attempted": False, "boot_confirmed": False,
-        "boot_state": "not_tested",
-        "warnings": ["Static disk checks do not prove guest OS bootability.",
-                     "Guest architecture and firmware have not been established by disk conversion."]
-    }
-    if not boot:
+    session = progress.session_from_build(result)
+    with progress.tracking(session, "verify", 3) as tracker:
+        image = validate_result(result)
+        tracker.advance(1)  # Build result and output SHA256 validated
+        info = qemu_info(image)
+        if info.get("format") != result["format"] or info.get("virtual-size") != result.get("virtual_size"):
+            raise ValueError("qemu-img metadata differs from build result")
+        tracker.advance(2)  # Disk metadata matches build report
+        report = {
+            "schema_version": 1, "type": "ubuntu-customizer/vm-verification",
+            "image_path": str(image), "image_sha256": result["output_sha256"],
+            "format": result["format"], "static_image_check": "passed",
+            "boot_attempted": False, "boot_confirmed": False,
+            "boot_state": "not_tested",
+            "warnings": ["Static disk checks do not prove guest OS bootability.",
+                         "Guest architecture and firmware have not been established by disk conversion."]
+        }
+        if not boot:
+            tracker.advance(3)  # Requested static verification completed
+            return report
+        if result.get("architecture") != "amd64":
+            tracker.blocked()  # Architecture compatibility gate
+            raise ValueError("Automatic x86_64 QEMU smoke test requires an amd64 image report")
+        if not 5 <= timeout <= 300:
+            raise ValueError("Boot timeout must be between 5 and 300 seconds")
+        if not shutil.which("qemu-system-x86_64"):
+            tracker.blocked()  # Required boot smoke tool unavailable
+            raise RuntimeError("qemu-system-x86_64 is not installed")
+        if serial_log is None:
+            raise ValueError("Explicit serial log path required for boot smoke test")
+        if "," in str(image) or "\\n" in str(image):
+            raise ValueError("Image path contains unsupported QEMU drive syntax")
+        serial = Path(serial_log).expanduser()
+        if serial.exists() or serial.is_symlink() or not serial.parent.is_dir() or serial.parent.is_symlink():
+            raise ValueError("Serial output must be a new file in an existing real directory")
+        cmd = ["qemu-system-x86_64", "-machine", "q35", "-accel", "tcg",
+               "-m", "1024", "-smp", "2", "-nic", "none", "-display", "none",
+               "-monitor", "none", "-no-reboot",
+               "-drive", "file=" + str(image) + ",format=" + result["format"] + ",if=virtio,snapshot=on",
+               "-serial", "file:" + str(serial)]
+        if seed_iso is not None:
+            seed = Path(seed_iso).expanduser()
+            if seed.is_symlink() or not seed.is_file() or seed.suffix.lower() != ".iso" or "," in str(seed):
+                raise ValueError("Invalid seed ISO")
+            cmd += ["-drive", "file=" + str(seed.resolve()) + ",media=cdrom,readonly=on"]
+        report["boot_attempted"] = True
+        try:
+            run = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, check=False)
+            report["boot_state"] = "qemu_exited"
+            report["qemu_exit_code"] = run.returncode
+            report["qemu_stderr_excerpt"] = run.stderr[-1000:]
+        except subprocess.TimeoutExpired:
+            report["boot_state"] = "timeout_inconclusive"
+        report["serial_log"] = str(serial)
+        report["warnings"].append("Review serial output manually; QEMU exit/timeout is not a verified boot success signal.")
+        tracker.advance(3)  # QEMU attempt finished, boot evidence still inconclusive
+        tracker.blocked()  # No proven guest boot success from QEMU process state
         return report
-    if result.get("architecture") != "amd64":
-        raise ValueError("Automatic x86_64 QEMU smoke test requires an amd64 image report")
-    if not 5 <= timeout <= 300:
-        raise ValueError("Boot timeout must be between 5 and 300 seconds")
-    if not shutil.which("qemu-system-x86_64"):
-        raise RuntimeError("qemu-system-x86_64 is not installed")
-    if serial_log is None:
-        raise ValueError("Explicit serial log path required for boot smoke test")
-    if "," in str(image) or "\\n" in str(image):
-        raise ValueError("Image path contains unsupported QEMU drive syntax")
-    serial = Path(serial_log).expanduser()
-    if serial.exists() or serial.is_symlink() or not serial.parent.is_dir() or serial.parent.is_symlink():
-        raise ValueError("Serial output must be a new file in an existing real directory")
-    cmd = ["qemu-system-x86_64", "-machine", "q35", "-accel", "tcg",
-           "-m", "1024", "-smp", "2", "-nic", "none", "-display", "none",
-           "-monitor", "none", "-no-reboot",
-           "-drive", "file=" + str(image) + ",format=" + result["format"] + ",if=virtio,snapshot=on",
-           "-serial", "file:" + str(serial)]
-    if seed_iso is not None:
-        seed = Path(seed_iso).expanduser()
-        if seed.is_symlink() or not seed.is_file() or seed.suffix.lower() != ".iso" or "," in str(seed):
-            raise ValueError("Invalid seed ISO")
-        cmd += ["-drive", "file=" + str(seed.resolve()) + ",media=cdrom,readonly=on"]
-    report["boot_attempted"] = True
-    try:
-        run = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, check=False)
-        report["boot_state"] = "qemu_exited"
-        report["qemu_exit_code"] = run.returncode
-        report["qemu_stderr_excerpt"] = run.stderr[-1000:]
-    except subprocess.TimeoutExpired:
-        report["boot_state"] = "timeout_inconclusive"
-    report["serial_log"] = str(serial)
-    report["warnings"].append("Review serial output manually; QEMU exit/timeout is not a verified boot success signal.")
-    return report
 
 def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__)
