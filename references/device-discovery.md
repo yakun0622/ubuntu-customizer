@@ -160,3 +160,35 @@ string; physical pinout requires independent board documentation.
 
 Optional board or vendor plugins can be proposed later but must never be
 loaded automatically without positive identity evidence and user choice.
+
+## Adaptive staged discovery
+
+The new `scripts/workflow/adaptive.py` is the preferred device-agnostic entry
+point. Its deterministic stages are:
+
+1. **Bootstrap:** OS, kernel, CPU and RAM evidence
+2. **Capability checks:** read-only filesystem/tool availability probes
+3. **Selection:** choose applicable probes for hardware, drivers, buses, pins,
+   network, storage and boot; unavailable prerequisites are *skipped with reasons*
+4. **Checkpoint:** persist every probe's stdout, status, hash, and error into
+   an updated `manifest.json` plus its evidence file
+5. **Analysis:** run `dossier.py`, `capabilities.py`, `topology.py`,
+   `device_tree.py` and `link_graph.py` as applicable
+
+Unobserved prerequisites are never interpreted as hardware absence. Partial
+outputs and unsupported tools remain visible as gaps. The initial capability
+checks assess **access**, not actual electrical functionality. The collector
+uses fixed read-only shell commands, existing SSH known-host trust, and no
+privileged commands. TTL performs only passive capture; it cannot discover
+Linux capabilities until an authorized shell transport is selected.
+
+```bash
+python3 scripts/workflow/adaptive.py
+python3 scripts/workflow/adaptive.py --transport ssh --target my-linux-host --output ./session-A --yes
+python3 -m unittest discover -s tests -v
+```
+
+The new adaptive workflow does not yet support session resumption or automatic
+retries; checkpointing preserves evidence to analyze failures, not a claim of
+resumable execution. Per-module privilege approval and additional probe
+adapters are future work.
