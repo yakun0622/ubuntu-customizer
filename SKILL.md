@@ -53,3 +53,7 @@ Do not blindly flash images, install network-unsafe configuration, bypass SSH tr
 ## Reporting
 
 Include host identity, evidence, proposed changes, compatibility blockers, approved operations, snapshot details, performed verifications, outstanding risks and recovery instructions.
+
+## Discovery dossier phase
+
+After a completed discovery session, execute `python3 scripts/workflow/dossier.py <session-dir>` to create a verified, source-linked `device.json`. Read `gaps` and evidence status before asserting any hardware capability. To compare two sessions, run `python3 scripts/workflow/compare.py <old-device.json> <new-device.json>`. Compare device identity and raw evidence, but do not infer that changes in volatile counters prove hardware changes. Physical pin numbers and driver binding graphs remain unverified until separately supported by datasheets, schematics and deeper probes.
