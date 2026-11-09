@@ -8,6 +8,7 @@ Agent request. Runtime metadata remains under the private session directory.
 import argparse
 from datetime import datetime, timezone
 import json
+import re
 import os
 from pathlib import Path
 import secrets
@@ -16,7 +17,7 @@ import socket
 import subprocess
 import sys
 import time
-from urllib.request import Request, urlopen
+from urllib.request import Request, ProxyHandler, build_opener
 
 HERE = Path(__file__).resolve().parent
 PREVIEW = HERE / "preview.py"
@@ -27,6 +28,8 @@ def private_session(session):
     p = Path(session).expanduser()
     if p.is_symlink() or not p.is_dir():
         raise ValueError("A real, existing session directory is required")
+    if p.stat().st_mode & 0o077:
+        raise ValueError("Session directory must be private (mode 0700); raw device evidence may contain identifiers")
     return p.resolve()
 
 def metadata_path(session):
@@ -47,7 +50,7 @@ def read_metadata(session):
         raise ValueError("Invalid preview port")
     if not isinstance(data.get("pid"), int) or data["pid"] <= 0:
         raise ValueError("Invalid preview PID")
-    if not isinstance(data.get("instance_id"), str) or len(data["instance_id"]) != 32:
+    if not isinstance(data.get("instance_id"), str) or not re.fullmatch(r"[a-f0-9]{32}", data["instance_id"]):
         raise ValueError("Invalid preview identity")
     if data.get("session") != str(private_session(session)):
         raise ValueError("Preview belongs to a different session")
@@ -70,7 +73,8 @@ def probe(metadata, timeout=0.5):
     url = f"http://127.0.0.1:{metadata['port']}/api/identity"
     try:
         req = Request(url, headers={"Host": f"127.0.0.1:{metadata['port']}"})
-        with urlopen(req, timeout=timeout) as response:
+        # Never send localhost status probes through environment HTTP proxies.
+        with build_opener(ProxyHandler({})).open(req, timeout=timeout) as response:
             if response.status != 200:
                 return False
             data = json.loads(response.read(512))
@@ -119,10 +123,10 @@ def start(session, port=0):
             raise RuntimeError("Local preview failed its readiness check")
         # Exclusive creation prevents a second manager from overwriting
         # another preview record. On failure, terminate our own child.
-        with path.open("x", encoding="utf-8") as f:
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
             json.dump(data, f, separators=(",", ":"))
             f.write("\n")
-        path.chmod(0o600)
     except Exception:
         if child.poll() is None:
             child.terminate()
