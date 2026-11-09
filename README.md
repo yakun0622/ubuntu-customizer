@@ -11,9 +11,21 @@ Implemented:
 - Local profile-to-host drift plan for packages, hostname, timezone
 - Read-only SSH inventory through an existing OpenSSH host alias
 - Local backups of explicitly named regular files, with SHA-256 manifest
-- Unit tests for profile validation and planning
+- Unit tests for profile validation and planning\n- Interactive device discovery over SSH / ADB / TTL / local with a local evidence manifest
 
 **Not implemented:** applying profile changes, remote writes, automatic rollback, ISO/IMG/QCOW2 building and physical flashing. These are planned, not claimed as operational.
+
+## Interactive device discovery
+
+Start a guided connection and evidence collection workflow:
+
+```bash
+python3 scripts/workflow/collect.py
+```
+
+Select SSH, ADB, TTL (passive RX) or local. The workflow saves raw category-specific evidence and a `manifest.json` with paths and SHA-256 hashes under a new local directory. It does **not** perform hardware modification, device flashing or automatically upload diagnostics. TTL requires optional `pyserial`.
+
+See [Device discovery](references/device-discovery.md) for transport prerequisites, pinmux limitations and the evidence layout.
 
 ## Quick start
 
