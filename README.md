@@ -1,5 +1,17 @@
 # ubuntu-customizer
 
+> **Project identity: AI Agent Skill.** The Agent guides transport selection,
+> evidence collection, compatibility reasoning, image-build planning and
+> approval. All Python commands below are optional supporting tools, **not**
+> an independent device manager product. Start from [SKILL.md](SKILL.md) and
+> [Agent workflow](references/agent-workflow.md).
+>
+> **Build status:** existing image conversion is offline VM RAW/QCOW2 format
+> conversion only; portable physical-device images, complete RootFS creation,
+> installed-system cloning and guaranteed first boot are not yet implemented.
+> No actual device boot validation has been completed.
+>
+
 AI Agent Skill for Ubuntu image customization and safe maintenance of installed Ubuntu, Debian and Armbian systems.
 
 ## Current status: v0.2 (read-only foundation)
