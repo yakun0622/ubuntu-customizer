@@ -1,0 +1,8 @@
+# Raw device evidence may contain private IPs, MACs and serial numbers.
+devices/
+captures/
+sessions/
+*.pyc
+__pycache__/
+.venv/
+.DS_Store
