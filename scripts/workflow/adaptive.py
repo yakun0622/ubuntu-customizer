@@ -117,7 +117,7 @@ def record(output, manifest, category, name, status, payload, err, code, stage):
 def collect_probe(transport, target, command, timeout):
     return collect.capture(collect.shell_invocation(transport, target, command), timeout)
 
-def run(transport, target, output, timeout, modules):
+def run(transport, target, output, timeout, modules, baud=115200, duration=10):
     folder = collect.safe_output_dir(output)
     manifest = {
         "schema_version": 1, "workflow_version": "adaptive-v1",
@@ -132,10 +132,11 @@ def run(transport, target, output, timeout, modules):
     checkpoint(folder, manifest)
     try:
         if transport == "ttl":
-            result = collect.collect_ttl(target, folder, 115200, 10)
+            result = collect.collect_ttl(target, folder, baud, duration)
             manifest["items"] = result["items"]
             manifest["limitations"].extend(result["limitations"])
             manifest["state"] = "complete"
+            manifest["finished_at"] = datetime.now(timezone.utc).isoformat()
             checkpoint(folder, manifest)
             return folder, manifest
         for category, name in BOOTSTRAP:
@@ -155,7 +156,7 @@ def run(transport, target, output, timeout, modules):
             status, payload, err, code = collect_probe(transport, target, PROBES[(category, name)], timeout)
             record(folder, manifest, category, name, status, payload, err, code, "detail")
         manifest["state"] = "complete"
-    except (OSError, ValueError, Exception) as exc:
+    except Exception as exc:
         manifest["state"] = "incomplete"
         manifest["failure"] = str(exc)
         raise
@@ -171,6 +172,8 @@ def main(argv=None):
     parser.add_argument("--output", help="New session directory; parent must exist")
     parser.add_argument("--modules", default="auto", help="auto or comma-separated: " + ",".join(MODULES))
     parser.add_argument("--timeout", type=int, default=12)
+    parser.add_argument("--baud", type=int, default=115200)
+    parser.add_argument("--duration", type=int, default=10)
     parser.add_argument("--yes", action="store_true", help="Explicit permission for unattended read-only collection")
     args = parser.parse_args(argv)
     transport = args.transport
@@ -189,8 +192,8 @@ def main(argv=None):
         parser.error("TTL requires a serial device path under /dev")
     if transport == "local" and target != "local":
         parser.error("Local target must be 'local'")
-    if not 1 <= args.timeout <= 120:
-        parser.error("Invalid timeout")
+    if not 1 <= args.timeout <= 120 or not 1 <= args.duration <= 300 or not 1200 <= args.baud <= 3000000:
+        parser.error("Invalid timeout, serial duration or baud")
     modules = list(MODULES) if args.modules == "auto" else [v.strip() for v in args.modules.split(",")]
     if not modules or len(set(modules)) != len(modules) or any(m not in MODULES for m in modules):
         parser.error("Unknown or repeated collection module")
@@ -203,7 +206,7 @@ def main(argv=None):
             print("Cancelled")
             return 1
     try:
-        folder, manifest = run(transport, target, output, args.timeout, modules)
+        folder, manifest = run(transport, target, output, args.timeout, modules, args.baud, args.duration)
     except (OSError, ValueError, RuntimeError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2
