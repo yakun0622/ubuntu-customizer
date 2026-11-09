@@ -95,6 +95,21 @@ class SkillProgressTests(unittest.TestCase):
                     planner.plan(session, "virtual-machine", "qcow2", source, "0" * 64, "amd64")
                 self.assertEqual(read_state(session)["state"], "failed")
 
+    def test_planner_cli_write_failure_overrides_success(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            session = make_session(root)
+            source, sha = make_source(root)
+            existing = root / "existing-plan.json"
+            existing.write_text("{}")
+            args = [str(session), "--target", "virtual-machine",
+                    "--format", "qcow2", "--source", str(source),
+                    "--sha256", sha, "--source-arch", "amd64",
+                    "--output", str(existing)]
+            with patch.object(planner.progress, "preview_is_live", return_value=True):
+                self.assertEqual(planner.main(args), 2)
+            self.assertEqual(read_state(session)["state"], "failed")
+
     def test_builder_reports_milestones_and_propagates_session(self):
         with tempfile.TemporaryDirectory() as d:
             base = Path(d)
@@ -185,6 +200,34 @@ class SkillProgressTests(unittest.TestCase):
                     report = verifier.verify(result, boot=True, serial_log=str(base / "serial-failed.log"))
                 self.assertEqual(report["boot_state"], "qemu_failed")
                 self.assertEqual(read_state(session)["state"], "failed")
+
+    def test_verify_cli_unconfirmed_boot_returns_failure_exit_code(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            session = make_session(root)
+            image = root / "disk.qcow2"
+            image.write_bytes(b"converted")
+            result = {
+                "schema_version": 1, "type": "ubuntu-customizer/image-build-result",
+                "discovery_session": str(session),
+                "output_path": str(image),
+                "output_sha256": hashlib.sha256(image.read_bytes()).hexdigest(),
+                "output_bytes": image.stat().st_size, "format": "qcow2",
+                "virtual_size": 8192, "architecture": "amd64"
+            }
+            manifest = root / "disk.qcow2.manifest.json"
+            manifest.write_text(json.dumps(result))
+            args = [str(manifest), "--boot", "--serial-log", str(root / "serial.log"),
+                    "--report", str(root / "verify.json")]
+            with patch.object(verifier.progress, "preview_is_live", return_value=True), \
+                 patch.object(verifier, "qemu_info", return_value={"format": "qcow2", "virtual-size": 8192}), \
+                 patch.object(verifier.shutil, "which", return_value="/usr/bin/qemu-system-x86_64"), \
+                 patch.object(verifier.subprocess, "run",
+                              return_value=subprocess.CompletedProcess([], 0, "", "")):
+                self.assertEqual(verifier.main(args), 2)
+            report = json.loads((root / "verify.json").read_text())
+            self.assertFalse(report["boot_confirmed"])
+            self.assertEqual(read_state(session)["state"], "blocked")
 
 if __name__ == "__main__":
     unittest.main()
