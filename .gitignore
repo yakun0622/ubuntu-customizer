@@ -10,3 +10,6 @@ __pycache__/
 # Optional local Skill runtime state must not be published.
 skill-status.json
 manifest.json.tmp
+
+# Managed localhost preview process identity (private session only).
+preview-runtime.json
