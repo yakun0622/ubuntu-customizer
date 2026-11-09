@@ -24,8 +24,9 @@ Read [Agent workflow](references/agent-workflow.md) first. Then read
 2. **Choose transport and optional preview.** Offer SSH / ADB / passive TTL /
    local depending on access. Before starting work, explicitly offer: "是否开启本地实时运行预览页面？"
    The default is **no**. Never assume a device model or claim access that is unavailable.
-   If the user opts in, use `scripts/workflow/preview.py` as an optional
-   localhost-only observer; otherwise do not start any web server.
+   If the user opts in, use `scripts/workflow/adaptive.py --preview-approved`
+   or `scripts/workflow/preview_control.py start SESSION_DIR --approved` to
+   start the localhost observer. Do not start a web server when declined.
 3. **Discover.** Obtain connection consent and execute only permitted,
    read-only probes. Prefer `scripts/workflow/adaptive.py` when available,
    or give the user precise commands to run locally.
@@ -92,14 +93,19 @@ python3 scripts/workflow/build_image.py image-plan.json \
 The AI Agent is always the workflow controller. A preview is **opt-in only**:
 ask the user before starting a localhost service and honor "no" without
 reducing any Skill functionality. Do not expose the preview on LAN or
-the public Internet; bind only to `127.0.0.1`. When the collection
-session directory exists, the Agent may start:
+the public Internet; bind only to `127.0.0.1`. When the session directory exists, the Agent can start it with explicit
+user approval, or add `--preview-approved` to an authorized
+`adaptive.py` collection to launch the observer as soon as the session
+is created:
 
 ```bash
-python3 scripts/workflow/preview.py SESSION_DIR --port 8765
+python3 scripts/workflow/preview_control.py start SESSION_DIR --approved
+python3 scripts/workflow/preview_control.py status SESSION_DIR
+python3 scripts/workflow/preview_control.py stop SESSION_DIR
 ```
 
-The user can view `http://127.0.0.1:8765/` on the same host. The page
+The start command reports the actual `http://127.0.0.1:<port>/` URL on
+the controlling host only. The page
 polls a redacted summary derived from the collector's `manifest.json`
 every two seconds. It never serves raw evidence. During other Skill stages,
 the Agent can write an allowlisted, private checkpoint using:
@@ -119,3 +125,16 @@ If a browser server cannot run on the controlling computer, explain that
 preview is unavailable and continue the Skill normally with text progress.
 Never assert that a preview or background process has started unless the
 runtime has actually started it. See `references/live-preview.md`.
+
+## Completion response contract
+
+After **each development or Skill execution step**, report what changed,
+which repository commit was produced, what tests actually ran (or did not),
+and any remaining blockers. Then propose **one concrete next task** that
+advances the existing user goal. In a host UI supporting interactive
+follow-up actions, offer one visible **“继续下一步”** button which submits
+a specific next-task prompt only when clicked. Otherwise provide the exact
+next-task phrase for the user to send. A button is a follow-up request,
+not permission to perform destructive operations or a claim that
+background work has begun. Never automatically execute the next phase
+without the user's follow-up or another explicitly authorized workflow.
