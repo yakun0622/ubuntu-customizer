@@ -61,12 +61,16 @@ def verify(result, boot=False, timeout=45, serial_log=None, seed_iso=None):
     }
     if not boot:
         return report
+    if result.get("architecture") != "amd64":
+        raise ValueError("Automatic x86_64 QEMU smoke test requires an amd64 image report")
     if not 5 <= timeout <= 300:
         raise ValueError("Boot timeout must be between 5 and 300 seconds")
     if not shutil.which("qemu-system-x86_64"):
         raise RuntimeError("qemu-system-x86_64 is not installed")
     if serial_log is None:
         raise ValueError("Explicit serial log path required for boot smoke test")
+    if "," in str(image) or "\\n" in str(image):
+        raise ValueError("Image path contains unsupported QEMU drive syntax")
     serial = Path(serial_log).expanduser()
     if serial.exists() or serial.is_symlink() or not serial.parent.is_dir() or serial.parent.is_symlink():
         raise ValueError("Serial output must be a new file in an existing real directory")
@@ -77,7 +81,7 @@ def verify(result, boot=False, timeout=45, serial_log=None, seed_iso=None):
            "-serial", "file:" + str(serial)]
     if seed_iso is not None:
         seed = Path(seed_iso).expanduser()
-        if seed.is_symlink() or not seed.is_file() or seed.suffix.lower() != ".iso":
+        if seed.is_symlink() or not seed.is_file() or seed.suffix.lower() != ".iso" or "," in str(seed):
             raise ValueError("Invalid seed ISO")
         cmd += ["-drive", "file=" + str(seed.resolve()) + ",media=cdrom,readonly=on"]
     report["boot_attempted"] = True
