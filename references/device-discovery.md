@@ -61,3 +61,43 @@ Collected files can contain MAC addresses, IPs, hostnames, board identifiers or 
 ## Next phase
 
 Analyze manifest and raw evidence into a normalized device dossier (`device.json`, pin map, buses, bindings, confidence/source provenance) and support selective deep probes with a per-command authorization gate.
+
+
+## Structured dossier and session comparison
+
+After successful collection, transform the immutable evidence bundle into a
+separate indexed dossier:
+
+```bash
+python3 scripts/workflow/dossier.py ./devices/w152d/session-001
+# creates ./devices/w152d/session-001/device.json
+```
+
+`device.json` contains the observed OS, kernel, CPU identifiers, RAM,
+device-tree model/compatible, interface names, evidence category index, and
+collection gaps. It validates all referenced files against manifest SHA-256
+digests before parsing. Uncollected or inaccessible properties are marked
+`not_collected` / `unknown`, **never** assumed to be absent.
+
+For historical comparison (for example before/after a kernel upgrade):
+
+```bash
+python3 scripts/workflow/compare.py \
+  ./devices/w152d/session-001/device.json \
+  ./devices/w152d/session-002/device.json \
+  --output ./devices/w152d/kernel-diff.json
+```
+
+The diff contains field-level identity changes plus changed evidence hashes.
+Dynamic network counters or device listings may change normally; the diff
+does not claim that every evidence change represents a hardware change.
+These analysis commands never connect to the target or modify it.
+
+### Remaining limitations
+
+- GPIO pinmux / IRQ / PHY bindings are presently indexed as **raw evidence**,
+  not a verified SoC register or PCB physical pin map.
+- Structured driver-to-device dependency graph, selective re-probing,
+  redaction and cross-transport session merging are still planned.
+- These tools do not implement system mutation, flash, remote reboot or
+  automatic rollback.
