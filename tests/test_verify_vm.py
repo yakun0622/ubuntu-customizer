@@ -51,8 +51,8 @@ class VMVerificationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             result = self.result(Path(d))
             log = Path(d) / "serial.log"
-            with patch.object(verify_vm, "qemu_info", return_value={"format": "qcow2", "virtual-size": 4096}), \\
-                 patch.object(verify_vm.shutil, "which", return_value="/usr/bin/qemu-system-x86_64"), \\
+            with patch.object(verify_vm, "qemu_info", return_value={"format": "qcow2", "virtual-size": 4096}), \
+                 patch.object(verify_vm.shutil, "which", return_value="/usr/bin/qemu-system-x86_64"), \
                  patch.object(verify_vm.subprocess, "run", return_value=subprocess.CompletedProcess([], 0, "", "")):
                 report = verify_vm.verify(result, boot=True, serial_log=str(log))
             self.assertTrue(report["boot_attempted"])
