@@ -106,8 +106,12 @@ def verify(result, boot=False, timeout=45, serial_log=None, seed_iso=None):
             report["boot_state"] = "timeout_inconclusive"
         report["serial_log"] = str(serial)
         report["warnings"].append("Review serial output manually; QEMU exit/timeout is not a verified boot success signal.")
-        tracker.advance(3)  # QEMU attempt finished, boot evidence still inconclusive
-        tracker.blocked()  # No proven guest boot success from QEMU process state
+        tracker.advance(3)  # QEMU process attempt completed, not guest boot confirmation
+        if report.get("boot_state") == "qemu_exited" and report.get("qemu_exit_code") != 0:
+            report["boot_state"] = "qemu_failed"
+            tracker.failed()  # QEMU itself reported an execution failure
+        else:
+            tracker.blocked()  # No proven guest boot success from process state
         return report
 
 def main(argv=None):
