@@ -16,6 +16,11 @@ import stat
 import subprocess
 import sys
 import uuid
+import importlib.util
+
+_spec = importlib.util.spec_from_file_location("uc_build_progress", Path(__file__).with_name("progress.py"))
+progress = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(progress)
 
 MAX_VIRTUAL_SIZE = 2 * 1024**4
 ACCEPTED_INPUT_FORMATS = {"qcow2", "raw"}
@@ -76,63 +81,76 @@ def inspect_image(path):
     return info
 
 def build(plan, output):
-    source = validate(plan)
-    output = Path(output).expanduser().absolute()
-    if output.exists() or output.is_symlink():
-        raise ValueError("Output already exists")
-    if output.parts[:2] in (("/", "dev"), ("/", "proc"), ("/", "sys")):
-        raise ValueError("Refusing output under /dev, /proc or /sys")
-    if output.suffix.lower() != (".qcow2" if plan["format"] == "qcow2" else ".img"):
-        raise ValueError("Use .qcow2 for QCOW2 or .img for raw outputs")
-    if not output.parent.is_dir() or output.parent.is_symlink():
-        raise ValueError("Output parent must already exist and must not be a symlink")
-    if source == output:
-        raise ValueError("Refusing in-place conversion")
-    info = inspect_image(source)
-    tmp = output.parent / ("." + output.name + "." + uuid.uuid4().hex + ".tmp")
-    manifest_path = output.with_name(output.name + ".manifest.json")
-    if manifest_path.exists() or manifest_path.is_symlink():
-        raise ValueError("Manifest already exists")
-    fmt = plan["format"]
-    try:
-        # qemu-img is invoked with an argv array, never through a shell.
-        # Conversion requires only an offline image source; it does not write to disks.
-        with tmp.open("xb"):
-            pass
-        tmp.chmod(0o600)
-        proc = subprocess.run(["qemu-img", "convert", "-f", info["format"], "-O", fmt,
-                               str(source), str(tmp)],
-                              capture_output=True, text=True, timeout=3600, check=False)
-        if proc.returncode:
-            raise RuntimeError("qemu-img conversion failed: " + proc.stderr[:500])
-        converted = inspect_image(tmp)
-        if converted.get("format") != fmt or converted.get("virtual-size") != info["virtual-size"]:
-            raise RuntimeError("Output image metadata mismatch")
-        digest = hash_file(tmp)
-        # Hard-link creation fails instead of overwriting an output created
-        # concurrently; the output is a newly written regular file.
-        os.link(tmp, output)
-        output.chmod(0o600)
-        report = {
-            "schema_version": 1,
-            "type": "ubuntu-customizer/image-build-result",
-            "backend": "qemu-img-offline-convert", "boot_tested": False,
-            "source_sha256": plan["source"]["sha256"],
-            "architecture": plan.get("architecture"),
-            "source_architecture_verified": plan.get("source", {}).get("architecture_verified", False),
-            "output_path": str(output), "output_sha256": digest,
-            "output_bytes": output.stat().st_size,
-            "format": fmt, "virtual_size": info["virtual-size"],
-            "warning": "Disk conversion only. Bootability, portability and machine identity reset remain unverified."
-        }
-        with manifest_path.open("x", encoding="utf-8") as f:
-            json.dump(report, f, indent=2, ensure_ascii=False)
-            f.write("\n")
-        manifest_path.chmod(0o600)
-        return report
-    finally:
-        if tmp.exists():
-            tmp.unlink()
+    # No status file is written unless a verified, user-approved preview
+    # is currently live for the original discovery session.
+    session = progress.session_from_plan(plan)
+    with progress.tracking(session, "image-build", 5) as tracker:
+        if isinstance(plan, dict) and (plan.get("target") != "virtual-machine" or
+                plan.get("build_allowed") is not True or plan.get("blockers")):
+            tracker.blocked()
+        source = validate(plan)
+        tracker.advance(1)  # Source image/plan integrity checked
+        output = Path(output).expanduser().absolute()
+        if output.exists() or output.is_symlink():
+            raise ValueError("Output already exists")
+        if output.parts[:2] in (("/", "dev"), ("/", "proc"), ("/", "sys")):
+            raise ValueError("Refusing output under /dev, /proc or /sys")
+        if output.suffix.lower() != (".qcow2" if plan["format"] == "qcow2" else ".img"):
+            raise ValueError("Use .qcow2 for QCOW2 or .img for raw outputs")
+        if not output.parent.is_dir() or output.parent.is_symlink():
+            raise ValueError("Output parent must already exist and must not be a symlink")
+        if source == output:
+            raise ValueError("Refusing in-place conversion")
+        info = inspect_image(source)
+        tracker.advance(2)  # Input disk format and backing chain checked
+        tmp = output.parent / ("." + output.name + "." + uuid.uuid4().hex + ".tmp")
+        manifest_path = output.with_name(output.name + ".manifest.json")
+        if manifest_path.exists() or manifest_path.is_symlink():
+            raise ValueError("Manifest already exists")
+        fmt = plan["format"]
+        try:
+            # qemu-img is invoked with an argv array, never through a shell.
+            # Conversion requires only an offline image source; it does not write to disks.
+            with tmp.open("xb"):
+                pass
+            tmp.chmod(0o600)
+            proc = subprocess.run(["qemu-img", "convert", "-f", info["format"], "-O", fmt,
+                                   str(source), str(tmp)],
+                                  capture_output=True, text=True, timeout=3600, check=False)
+            if proc.returncode:
+                raise RuntimeError("qemu-img conversion failed: " + proc.stderr[:500])
+            tracker.advance(3)  # Offline image conversion completed
+            converted = inspect_image(tmp)
+            if converted.get("format") != fmt or converted.get("virtual-size") != info["virtual-size"]:
+                raise RuntimeError("Output image metadata mismatch")
+            digest = hash_file(tmp)
+            tracker.advance(4)  # Output structure and hash checked
+            # Hard-link creation fails instead of overwriting an output created
+            # concurrently; the output is a newly written regular file.
+            os.link(tmp, output)
+            output.chmod(0o600)
+            report = {
+                "schema_version": 1,
+                "type": "ubuntu-customizer/image-build-result",
+                "backend": "qemu-img-offline-convert", "boot_tested": False,
+                "source_sha256": plan["source"]["sha256"],
+                "discovery_session": progress.session_from_plan(plan),
+                "architecture": plan.get("architecture"),
+                "source_architecture_verified": plan.get("source", {}).get("architecture_verified", False),
+                "output_path": str(output), "output_sha256": digest,
+                "output_bytes": output.stat().st_size,
+                "format": fmt, "virtual_size": info["virtual-size"],
+                "warning": "Disk conversion only. Bootability, portability and machine identity reset remain unverified."
+            }
+            with manifest_path.open("x", encoding="utf-8") as f:
+                json.dump(report, f, indent=2, ensure_ascii=False)
+                f.write("\n")
+            manifest_path.chmod(0o600)
+            tracker.advance(5)  # Build result manifest written
+            return report
+        finally:
+            if tmp.exists():
+                tmp.unlink()
 
 def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__)
