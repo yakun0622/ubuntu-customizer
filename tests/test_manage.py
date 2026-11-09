@@ -60,6 +60,22 @@ class DeviceManagementTests(unittest.TestCase):
             self.assertEqual(summary["categories"]["pins"]["failed"], 1)
             self.assertEqual(len(summary["skipped"]), 1)
 
+    def test_explore_session_routes_verified_plan(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = manage._private_dir(Path(d) / "data")
+            manage.register(root, "device-01", "local", "local")
+            folder = root / "devices" / "device-01" / "sessions" / "run-01"
+            folder.mkdir(parents=True)
+            (folder / "manifest.json").write_text(json.dumps({
+                "schema_version": 1, "state": "complete",
+                "transport": "local", "target": "local", "items": []
+            }))
+            result = manage.explore_session(root, "device-01", "run-01", "diagnose")
+            self.assertEqual(result["execution"], "disabled")
+            self.assertEqual(result["task"], "diagnose")
+            with self.assertRaises(ValueError):
+                manage.explore_session(root, "device-01", "../bad", "diagnose")
+
     def test_collect_uses_existing_engine(self):
         with tempfile.TemporaryDirectory() as d:
             root = manage._private_dir(Path(d) / "data")
