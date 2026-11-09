@@ -142,6 +142,9 @@ def run(transport, target, output, timeout, modules, baud=115200, duration=10):
         for category, name in BOOTSTRAP:
             status, payload, err, code = collect_probe(transport, target, PROBES[(category, name)], timeout)
             record(folder, manifest, category, name, status, payload, err, code, "bootstrap")
+        bootstrap = [item for item in manifest["items"] if item.get("stage") == "bootstrap"]
+        if not any(item["status"] == "ok" and item["bytes"] > 0 for item in bootstrap):
+            raise RuntimeError("Connection or bootstrap failed: no usable identity evidence; collection stopped")
         status, payload, err, code = collect_probe(transport, target, FEATURE_COMMAND, timeout)
         record(folder, manifest, "hardware", "feature-check", status, payload, err, code, "capability")
         features = parse_features(payload.decode("utf-8", "replace")) if status == "ok" else {}
