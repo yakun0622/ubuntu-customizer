@@ -254,3 +254,37 @@ must be resolved before relying on the resulting analysis.
 This is currently a text-oriented node list, not a graphical/interactive
 node-edge canvas. Board-specific physical pinout and electrical behavior
 remain outside the scope of software evidence alone.
+
+## Offline graphical hardware explorer (preview)
+
+An interactive **local HTML file** can be exported from a verified evidence
+session. No HTTP service, external libraries, CDN or device connection is
+required to browse it.
+
+```bash
+# From the registered device manager (command 8 in the interactive menu)
+python3 scripts/workflow/manage.py browse lab-server SESSION_ID
+
+# Custom destination (must not exist; never overwrites)
+python3 scripts/workflow/manage.py browse lab-server SESSION_ID --output /tmp/lab-hardware.html
+
+# Directly from an existing collection session
+python3 scripts/workflow/export_html.py SESSION_DIRECTORY --output /tmp/hardware.html
+```
+
+Open the resulting HTML file locally in a browser. The left panel supports
+search and type filtering (device / driver / device-tree node); the right
+panel displays node attributes, related nodes, evidence source and collection
+gaps. Clicking a relationship jumps to that node.
+
+Security and scope:
+- It validates the session's evidence SHA-256 hashes before rendering.
+- Data is embedded as escaped JSON and written with private file permissions.
+- The page has a restrictive Content Security Policy and no network access.
+- Collected source material may include private device identifiers; do **not**
+  upload the HTML without reviewing/redacting its content.
+- This is a browser-based **offline viewer**, not a server application or
+  interactive device controller. Node properties are software evidence, not
+  verified physical header pinout or electrically measured conditions.
+- Task execution remains disabled; diagnose / maintain / image still create
+  plans only.
