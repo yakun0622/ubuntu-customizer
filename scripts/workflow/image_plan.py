@@ -171,6 +171,9 @@ def main(argv=None):
         output.chmod(0o600)
         print(f"Image plan: {output}; build_allowed={result['build_allowed']}; blockers={len(result['blockers'])}")
     except (OSError, ValueError, TypeError, KeyError) as exc:
+        # Plan derivation might have succeeded while persisting the JSON failed.
+        # The CLI outcome must take precedence over the earlier stage result.
+        progress.report_error(args.session, "image-plan")
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2
     return 0
