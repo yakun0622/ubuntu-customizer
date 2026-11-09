@@ -5,38 +5,47 @@ description: Build or plan Ubuntu image customization and safely diagnose, provi
 
 # Ubuntu Customizer
 
-Use this skill for **image**, **provision**, **maintain**, **diagnose**, or **recover** requests. Do not assume these workflows have the same tooling.
+Choose one workflow: **image**, **provision**, **maintain**, **diagnose**, **recover**.
 
-## Mandatory sequence
+## Mandatory flow
 
-1. Clarify target (build host vs deployed target), distribution, version, architecture, board and desired output.
-2. Read relevant reference only: `references/image-building.md`, `references/system-management.md`, `references/arm-hardware.md` or `references/safety.md`.
-3. Inspect system with read-only discovery scripts where execution access exists. When there is no access, provide commands for the operator, not fabricated observations.
-4. Parse and validate the selected profile. Treat any profile as untrusted input.
-5. Build a **dry-run plan** identifying targets, commands, files, prerequisites, dependencies, risk, verification and recovery methods.
-6. Obtain explicit approval for modifications. Escalate SSH, routing, firewall, disk, bootloader, kernel and DTB modifications.
-7. Back up affected assets and prove the recovery mechanism is usable where practical.
-8. Execute only the approved, scoped operations with a trusted execution environment.
-9. Verify resulting service/network/boot behavior and report failures without hiding them.
+1. Distinguish controlling/build host from the target; identify OS, architecture, exact board and expected output.
+2. Read only relevant reference files: `references/image-building.md`, `references/system-management.md`, `references/arm-hardware.md`, `references/safety.md`, `references/v0.2-operations.md`.
+3. Inspect current state with read-only diagnostics. When execution access is missing, provide commands rather than pretending to have results.
+4. Validate a JSON profile using `scripts/safety/validate_profile.py`. Unrecognized fields and unsafe execution modes are invalid.
+5. Generate a local, read-only drift plan with `scripts/system/plan.py` if on the target Linux machine. A blocked plan must not be applied.
+6. For an SSH target, use `scripts/remote/ssh_probe.py` only with a previously configured and trusted Host alias.
+7. Classify proposed changes by R0–R4 risk. Present exact edits, dependencies, service impacts, approval requirements and verification steps.
+8. For local file changes, use explicit file snapshots as a preparation step when appropriate. Never imply that snapshot creation ensures recovery.
+9. Require user approval for modifications and verified recovery before sensitive operations. **There is no general mutation or rollback engine implemented yet.**
+10. Report actual observations and any unverified assumptions.
 
-## Supported tasks today
+## Available executable commands
 
-- Read-only local Linux system/network inventory via `scripts/detect/*.sh`.
-- Validate JSON profiles with `scripts/safety/validate_profile.py`.
-- Generate step-by-step plans using references and profiles.
+```bash
+bash scripts/detect/system.sh
+bash scripts/detect/network.sh
+python3 scripts/safety/validate_profile.py profiles/base/ubuntu-server.json
+python3 scripts/system/plan.py profiles/base/ubuntu-server.json
+python3 scripts/remote/ssh_probe.py configured-host-alias
+python3 scripts/safety/snapshot.py --output-dir /secure/new-directory /etc/hostname
+python3 -m unittest discover -s tests -v
+```
 
-## Not implemented
+## Image behavior
 
-Automatic ISO/IMG/QCOW2 build pipeline, remote SSH execution, configuration application and automatic rollback. Never claim these capabilities ran successfully. Use these references to guide a manual workflow only.
+Image building is **design-only** in v0.2. Select backend by output format and release and describe verifiable instructions; do not claim that ISO, QCOW2, or board-specific IMG generation was completed.
 
-## Risk levels
+## Risk classification
 
-- **R0** read-only discovery: allowed.
-- **R1** offline plan/artifact generation: allowed if inputs are trusted and outputs have safe destinations.
-- **R2** packages and non-critical service changes: show diff and request approval.
-- **R3** network/SSH/firewall/kernel/DTB changes: explicit scoped approval and working recovery path.
-- **R4** partition writes, firmware flashes, bootloader replacement: explicit target-device confirmation and physical recovery plan.
+- R0: read-only discovery
+- R1: offline plan, local artifact or profile validation
+- R2: packages and ordinary service changes — approval
+- R3: remote SSH/network/firewall, kernel or DTB edits — explicit scope, backup and recovery
+- R4: disk writes, firmware flashing, U-Boot replacement — physical recovery plan and exact-device approval
 
-## Reports
+Do not blindly flash images, install network-unsafe configuration, bypass SSH trust, or reboot without approval.
 
-Provide: target identity; evidence collected; proposed or completed changes; approval and backup status; risks; actual validation results; and remaining recovery steps. Do not equate a successful command exit with a successful system boot.
+## Reporting
+
+Include host identity, evidence, proposed changes, compatibility blockers, approved operations, snapshot details, performed verifications, outstanding risks and recovery instructions.
