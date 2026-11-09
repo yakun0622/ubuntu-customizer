@@ -100,8 +100,24 @@ function render() {
     (!q || [n.id,n.name,n.bus,n.type].some(v => String(v || "").toLowerCase().includes(q))));
   document.getElementById("count").textContent = filtered.length + " nodes";
   nodes.replaceChildren();
-  for (const node of filtered.slice(0,1500)) {
-    const b = element("button", (node.name || node.id) + "  ·  " + node.type, nodes);
+  const sorted = filtered.slice().sort((a,b) => {
+    const ka = a.type + ":" + (a.bus || "") + ":" + a.id;
+    const kb = b.type + ":" + (b.bus || "") + ":" + b.id;
+    return ka.localeCompare(kb);
+  });
+  let lastGroup = "";
+  for (const node of sorted.slice(0,1500)) {
+    const group = node.type + (node.bus ? " / " + node.bus : "");
+    if (group !== lastGroup) {
+      element("h2",group,nodes);
+      lastGroup = group;
+    }
+    const label = node.type === "device-tree-node" ? node.id.slice(3) : (node.name || node.id);
+    const b = element("button", label, nodes);
+    if (node.type === "device-tree-node") {
+      const depth = Math.max(0,(node.id.match(/\\//g) || []).length - 1);
+      b.style.paddingLeft = (10 + Math.min(depth,6)*13) + "px";
+    }
     b.setAttribute("aria-pressed",String(selected === node.id));
     b.addEventListener("click",()=>{show(node.id);render();});
   }
