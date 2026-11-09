@@ -7,6 +7,10 @@ description: Build or plan Ubuntu image customization and safely diagnose, provi
 
 Choose one workflow: **image**, **provision**, **maintain**, **diagnose**, **recover**.
 
+## Device discovery first
+
+When the user asks to work with a physical target or unknown Ubuntu/Armbian device, prefer `references/device-discovery.md`. Offer transport choices (SSH, ADB, TTL serial, local), then run `python3 scripts/workflow/collect.py` when the execution environment has access. Use the resulting `manifest.json` and category evidence before suggesting driver, DTB or kernel fixes. Distinguish pinmux evidence from verified physical PCB pinout. TTL access in this version is **passive log capture only**.
+
 ## Mandatory flow
 
 1. Distinguish controlling/build host from the target; identify OS, architecture, exact board and expected output.
@@ -23,7 +27,7 @@ Choose one workflow: **image**, **provision**, **maintain**, **diagnose**, **rec
 ## Available executable commands
 
 ```bash
-bash scripts/detect/system.sh
+python3 scripts/workflow/collect.py\nbash scripts/detect/system.sh
 bash scripts/detect/network.sh
 python3 scripts/safety/validate_profile.py profiles/base/ubuntu-server.json
 python3 scripts/system/plan.py profiles/base/ubuntu-server.json
