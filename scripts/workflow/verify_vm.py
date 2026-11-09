@@ -135,8 +135,11 @@ def main(argv=None):
         path.chmod(0o600)
         print(json.dumps({"report": str(path), "static_image_check": "passed",
                           "boot_state": report["boot_state"], "boot_confirmed": False}))
-        return 0
+        # Inconclusive QEMU output is not a successful boot verification.
+        return 2 if args.boot and not report.get("boot_confirmed") else 0
     except (OSError, ValueError, RuntimeError, TypeError, KeyError, subprocess.TimeoutExpired) as exc:
+        if "result" in locals():
+            progress.report_error(progress.session_from_build(result), "verify")
         print("ERROR: " + str(exc), file=sys.stderr)
         return 2
 
