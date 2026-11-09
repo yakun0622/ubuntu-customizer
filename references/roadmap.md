@@ -52,3 +52,10 @@ Source committed is not sufficient evidence that runtime tests passed. Mark feat
 - Added SHA-256 validated topology parser with provenance per binding edge and missing-evidence gaps
 - Added unit tests for bound/unbound/malformed/tampered evidence
 - Pending: actual integration test on Linux and ARM devices, DT phandle graph, SoC pinctrl mapping, privileged debugfs workflow and structured hardware troubleshooting decisions
+
+## Device-tree deep discovery (experimental)
+
+- Added DTS hierarchy and phandle graph parser from verified collection evidence
+- Added read-only platform `of_node` capture and runtime-to-DTS correlation
+- Added unit test fixtures for DTS labels, pinctrl candidates, integrity and device linkage
+- Pending: executing tests in CI/local Linux; real ARM board validation; robust libfdt-compatible parser; binding-specific clock/reset/IRQ cells; pinctrl groups and SoC pin bank mapping; authorized optional debugfs evidence
