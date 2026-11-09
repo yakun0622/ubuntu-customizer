@@ -38,3 +38,10 @@ Still needed for full v0.2:
 ## Acceptance rule
 
 Source committed is not sufficient evidence that runtime tests passed. Mark features validated only after test logs show successful execution. Never equate markdown instructions with a working build engine.
+
+## Device discovery extension (in progress)
+
+- Existing wizard: SSH / ADB / local read-only collection and TTL passive capture
+- Added: SHA-256 verified `device.json` dossier derived from evidence session
+- Added: comparison of two dossiers with field-level identity changes and evidence digest differences
+- Pending: structured driver bindings, validated pinmux topology, historical device registry, selective deep probes with per-command approval, sensitive-data redaction and runtime integration testing
