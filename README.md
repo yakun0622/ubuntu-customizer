@@ -98,3 +98,25 @@ Its meaning is **Linux driver bindings only**, not verified physical PCB pinout,
 PHY signaling, electrical voltages, or full SoC pinmux relationships. Existing
 sessions without new probes produce explicit `not_collected` gaps.
 Use [device discovery](references/device-discovery.md) for further context.
+
+## Device-tree and runtime graph (experimental)
+
+For **new** Linux/Armbian sessions with `dtc` installed on the target,
+the collector captures a decompiled DTS alongside driver bindings and
+platform-device `of_node` paths. All probes remain read-only.
+
+```bash
+python3 scripts/workflow/collect.py
+python3 scripts/workflow/device_tree.py ./devices/w152d/session-001
+python3 scripts/workflow/topology.py ./devices/w152d/session-001
+python3 scripts/workflow/link_graph.py ./devices/w152d/session-001
+```
+
+Outputs:
+- `device-tree.json`: DTS node hierarchy, selected properties, and supported phandle references.
+- `topology.json`: observed Linux sysfs device ↔ driver bindings.
+- `linked-hardware.json`: combined graph, including observed `of_node` links between platform devices and DTS nodes.
+
+Every input is verified against the session manifest SHA-256. Missing or truncated DTS data yields explicit gaps. Numeric phandle references are marked **candidates**, not confirmed specifier decoding; pinctrl/clock/reset cell counts require binding-specific analysis. Only trusted software topology is represented: physical header pins, PCB routes, electrical levels and functional hardware behavior remain unverified.
+
+The parser supports common `dtc` output syntax; it is not a replacement for libfdt/dtc and does not interpret overlays or vendor-specific properties fully.
