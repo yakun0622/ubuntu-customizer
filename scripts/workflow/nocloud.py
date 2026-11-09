@@ -47,7 +47,7 @@ def read_key(path):
 
 def make_files(plan, hostname, username, key_path, instance_id, output_dir):
     check_image_plan(plan)
-    if not HOST.fullmatch(hostname) or not USER.fullmatch(username):
+    if not HOST.fullmatch(hostname) or not USER.fullmatch(username) or username == "root":
         raise ValueError("Invalid hostname or login name")
     if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,95}", instance_id):
         raise ValueError("Invalid instance ID")
