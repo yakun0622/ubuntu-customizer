@@ -1,0 +1,23 @@
+# Diagnostic-only board profile; hardware identity MUST be verified on-device.
+apiVersion: ubuntu-customizer/v1
+kind: SystemProfile
+metadata:
+  name: w152d-diagnostics
+target:
+  distribution: armbian
+  architecture: arm64
+  board: w152d
+diagnostics:
+  read_only: true
+  collect:
+    - os-release
+    - kernel
+    - boot-arguments
+    - device-tree-compatible
+    - network-interfaces
+    - ethernet-counters
+    - phy-information
+    - kernel-logs
+execution:
+  dry_run: true
+  reboot: manual
