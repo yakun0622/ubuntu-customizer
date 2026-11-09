@@ -1,3 +1,16 @@
+## Product boundary: Skill-first design
+
+The deliverable is the Agent Skill (`SKILL.md` + focused references).
+`scripts/` only contains invoked helpers, not a separate application or
+required UI. Prioritize Agent decision logic, evidence-to-target compatibility
+contracts, backend selection, build gates and verification instructions.
+Standalone device-manager and offline HTML viewer are optional utilities;
+no new feature should require them.
+
+The next development goal is to make the Skill guide a complete
+discovery-to-image conversation without claiming unimplemented rootfs/BSP
+builders, followed by test validation of helper scripts.
+
 # Roadmap and acceptance
 
 ## v0.1 completed: repository foundation
