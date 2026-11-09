@@ -6,3 +6,7 @@ sessions/
 __pycache__/
 .venv/
 .DS_Store
+
+# Optional local Skill runtime state must not be published.
+skill-status.json
+manifest.json.tmp
