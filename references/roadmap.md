@@ -45,3 +45,10 @@ Source committed is not sufficient evidence that runtime tests passed. Mark feat
 - Added: SHA-256 verified `device.json` dossier derived from evidence session
 - Added: comparison of two dossiers with field-level identity changes and evidence digest differences
 - Pending: structured driver bindings, validated pinmux topology, historical device registry, selective deep probes with per-command approval, sensitive-data redaction and runtime integration testing
+
+## Read-only topology milestone
+
+- Added sysfs binding inventory probes for network/serial/GPIO, platform, I2C, SPI and MDIO
+- Added SHA-256 validated topology parser with provenance per binding edge and missing-evidence gaps
+- Added unit tests for bound/unbound/malformed/tampered evidence
+- Pending: actual integration test on Linux and ARM devices, DT phandle graph, SoC pinctrl mapping, privileged debugfs workflow and structured hardware troubleshooting decisions
