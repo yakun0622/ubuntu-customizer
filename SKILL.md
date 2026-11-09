@@ -93,3 +93,7 @@ All follow-up modification plans still require separate risk approval.
 ## Managed device inventory
 
 Use `python3 scripts/workflow/manage.py` as the default interactive command-line entry for multi-device tasks. First `discover` available connection candidates, then `add` a user-approved device ID, `collect` read-only evidence, and `sessions` / `inspect` to review results. Discovery of an SSH alias or USB serial port is not proof of connectivity or identity. Never execute system-changing actions during registration or collection. The local catalog and sessions contain potentially sensitive details and must remain private. This is currently a terminal wizard, not a browser UI.
+
+## Device exploration and task planning
+
+After a registered device has a collection session, prefer `python3 scripts/workflow/manage.py explore DEVICE_ID SESSION_ID` to list verified hardware nodes. Use `--node NODE_ID` to inspect relationships and evidence. The interactive manager's **Explore** menu opens a node/task wizard. For a scoped non-executing plan use `--task diagnose|maintain|image` (optionally `--node` and `--goal`) or `scripts/workflow/explore.py SESSION_DIR --mode plan --task ... --output new-plan.json`. These are offline planning operations only. Do not interpret a plan as permission to run commands, change a device or flash an image; validate evidence gaps and require a separate approved executor before any modification.
