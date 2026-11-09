@@ -132,3 +132,16 @@ Source committed is not sufficient evidence that runtime tests passed. Mark feat
   OS/architecture inspection, package/rootfs personalization, first-boot
   identity reset, cloud-init seed generation, QEMU boot smoke tests and
   backend plugins for verified physical boot targets.
+
+## Optional Skill live status preview
+
+- Added an opt-in, loopback-only HTTP viewer that polls sanitized
+  probe progress from the existing checkpoint manifest.
+- Added a minimal Agent-owned status helper for analyze/image-plan/
+  image-build/verification stage updates (allowlisted fields only).
+- Added focused tests covering summary redaction, status validation,
+  HTTP read-only routes and output privacy.
+- Next: run tests with real local browsers and Unix/macOS hosts, improve
+  lifecycle automation after explicit consent, and measure progress
+  completeness across multistage workflows.
+- The Skill, not the viewer, remains the authoritative orchestration layer.
