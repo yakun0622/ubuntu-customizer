@@ -97,3 +97,15 @@ Use `python3 scripts/workflow/manage.py` as the default interactive command-line
 ## Device exploration and task planning
 
 After a registered device has a collection session, prefer `python3 scripts/workflow/manage.py explore DEVICE_ID SESSION_ID` to list verified hardware nodes. Use `--node NODE_ID` to inspect relationships and evidence. The interactive manager's **Explore** menu opens a node/task wizard. For a scoped non-executing plan use `--task diagnose|maintain|image` (optionally `--node` and `--goal`) or `scripts/workflow/explore.py SESSION_DIR --mode plan --task ... --output new-plan.json`. These are offline planning operations only. Do not interpret a plan as permission to run commands, change a device or flash an image; validate evidence gaps and require a separate approved executor before any modification.
+
+## Offline hardware tree viewer
+
+For browser-based, **offline** exploration of a verified collected session,
+use `python3 scripts/workflow/manage.py browse DEVICE_ID SESSION_ID` or
+`python3 scripts/workflow/export_html.py SESSION_DIR --output NEW_FILE.html`.
+The output is an embedded-data HTML file with no remote connections. It
+shows observed software devices, drivers, device-tree nodes, relationships,
+source evidence and gaps. Do not assume a node represents a working
+physical peripheral or accurate connector pin mapping. Collected host
+data may be sensitive: review the report before sharing. The viewer does
+not authorize or execute any system modification.
