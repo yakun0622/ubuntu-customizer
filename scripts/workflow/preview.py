@@ -127,7 +127,7 @@ def effective_status(session):
     except (OSError, ValueError):
         return report
     allowed_stage = ("connect", "bootstrap", "capability", "collect", "analyze",
-                     "image-plan", "image-build", "verify", "finish")
+                     "image-plan", "image-build", "first-boot", "verify", "finish")
     allowed_state = ("pending", "running", "complete", "failed", "blocked")
     if (status.get("schema_version") != 1 or
             status.get("stage") not in allowed_stage or
