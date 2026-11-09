@@ -240,3 +240,43 @@ automatically published.
 This is a **terminal interaction**: a browser-based dashboard, automatic
 device grouping by serial number, session resumption and physical pin map
 visualization are not yet implemented.
+
+## Hardware explorer and task selection (preview)
+
+The terminal manager now supports **Explore**. It reads the selected
+session's SHA-256 verified evidence to assemble a software hardware graph,
+browse node relationships and prepare an **execution-disabled** plan.
+
+```bash
+# Interactive: choose 7. Explore from device manager
+python3 scripts/workflow/manage.py
+
+# List nodes from a saved session
+python3 scripts/workflow/manage.py explore lab-server SESSION_ID
+
+# Inspect a specific node and its relationships
+python3 scripts/workflow/manage.py explore lab-server SESSION_ID --node 'device:platform:example-controller'
+
+# Generate a diagnosis plan scoped to a verified node (no target actions)
+python3 scripts/workflow/manage.py explore lab-server SESSION_ID \
+  --task diagnose --node 'device:platform:example-controller' \
+  --goal 'Investigate why the controller is not responding'
+
+# Run standalone wizard on a session directory
+python3 scripts/workflow/explore.py ~/.local/share/ubuntu-customizer/devices/lab-server/sessions/SESSION_ID
+
+# Generate a safe JSON plan file without overwriting existing plans
+python3 scripts/workflow/explore.py SESSION_DIRECTORY --mode plan \
+  --task maintain --output ./my-plan.json
+```
+
+Supported plan kinds: `diagnose`, `maintain`, `image`. A plan references
+observed nodes, software relationships and collection gaps, but **does not
+execute commands**, modify configurations, build an image or authorize
+flashing. `maintain` and `image` remain blocked from execution pending
+implementation and separate approval. Evidence gaps and incomplete sessions
+must be resolved before relying on the resulting analysis.
+
+This is currently a text-oriented node list, not a graphical/interactive
+node-edge canvas. Board-specific physical pinout and electrical behavior
+remain outside the scope of software evidence alone.
