@@ -20,6 +20,10 @@ _spec = importlib.util.spec_from_file_location("uc_adaptive", HERE / "adaptive.p
 adaptive = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(adaptive)
 
+_explore_spec = importlib.util.spec_from_file_location("uc_explore", HERE / "explore.py")
+explore = importlib.util.module_from_spec(_explore_spec)
+_explore_spec.loader.exec_module(explore)
+
 ID = re.compile(r"^[a-z][a-z0-9-]{1,47}$")
 TRANSPORTS = ("ssh", "adb", "ttl", "local")
 SERIAL_PORT = re.compile(r"^/dev/[A-Za-z0-9_.-]+$")
@@ -181,6 +185,25 @@ def inspect_session(root, name, session_id):
                             "topology.json", "device-tree.json", "linked-hardware.json")
                           if (folder / name).is_file() and not (folder / name).is_symlink()]}
 
+def session_path(root, name, session_id):
+    if not ID.fullmatch(name) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{1,63}", session_id):
+        raise ValueError("Invalid device/session ID")
+    if name not in load_catalog(root)["devices"]:
+        raise ValueError("Device not registered")
+    parent = (root / "devices" / name / "sessions").resolve()
+    candidate = parent / session_id
+    if candidate.is_symlink() or not candidate.is_dir() or candidate.resolve().parent != parent:
+        raise ValueError("Invalid or missing session directory")
+    return candidate
+
+def explore_session(root, name, session_id, task=None, node=None, goal=None):
+    folder = session_path(root, name, session_id)
+    session, manifest, _, graph = explore.load_session(folder)
+    if task:
+        return explore.build_plan(session, manifest, graph, task, node, goal)
+    return {"device": name, "session": session_id, "nodes": explore.tree_data(graph),
+            "edges": len(graph["edges"]), "gaps": len(graph["gaps"])}
+
 def collect_device(root, name, modules, timeout=12, baud=115200, duration=10):
     catalog = load_catalog(root)
     if name not in catalog["devices"]:
@@ -207,6 +230,12 @@ def main(argv=None):
     inspect = sub.add_parser("inspect")
     inspect.add_argument("id")
     inspect.add_argument("session")
+    browse = sub.add_parser("explore")
+    browse.add_argument("id")
+    browse.add_argument("session")
+    browse.add_argument("--node")
+    browse.add_argument("--task", choices=tuple(explore.TASKS))
+    browse.add_argument("--goal")
     run = sub.add_parser("collect")
     run.add_argument("id")
     run.add_argument("--modules", default="auto")
@@ -217,9 +246,9 @@ def main(argv=None):
         root = _private_dir(args.data_dir)
         action = args.command
         if action is None:
-            print("1. Discover connections  2. List devices  3. Add device  4. Collect  5. Sessions  6. Inspect")
-            index = input("Select [1-6]: ").strip()
-            action = {"1": "discover", "2": "list", "3": "add", "4": "collect", "5": "sessions", "6": "inspect"}.get(index)
+            print("1. Discover connections  2. List devices  3. Add device  4. Collect  5. Sessions  6. Inspect  7. Explore")
+            index = input("Select [1-7]: ").strip()
+            action = {"1": "discover", "2": "list", "3": "add", "4": "collect", "5": "sessions", "6": "inspect", "7": "explore"}.get(index)
             if not action:
                 raise ValueError("Invalid choice")
         if action == "discover":
@@ -238,6 +267,13 @@ def main(argv=None):
             name = getattr(args, "id", None) or input("Device ID: ").strip()
             session = getattr(args, "session", None) or input("Session ID: ").strip()
             output = inspect_session(root, name, session)
+        elif action == "explore":
+            name = getattr(args, "id", None) or input("Device ID: ").strip()
+            session_id = getattr(args, "session", None) or input("Session ID: ").strip()
+            task = getattr(args, "task", None)
+            node = getattr(args, "node", None)
+            goal = getattr(args, "goal", None)
+            output = explore_session(root, name, session_id, task, node, goal)
         else:
             name = getattr(args, "id", None) or input("Device ID: ").strip()
             value = getattr(args, "modules", "auto")
