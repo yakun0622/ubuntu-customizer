@@ -9,6 +9,8 @@ import argparse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 from pathlib import Path
+import os
+import re
 import sys
 
 MAX_MANIFEST = 2 * 1024 * 1024
@@ -141,7 +143,7 @@ def effective_status(session):
                    "completed": done, "total": total})
     return report
 
-def make_handler(session):
+def make_handler(session, instance_id=None):
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self):
             # Reject DNS rebinding / unexpected Host headers even on loopback.
@@ -153,6 +155,12 @@ def make_handler(session):
             if self.path == "/":
                 body = HTML.encode("utf-8")
                 mime = "text/html; charset=utf-8"
+                code = 200
+            elif self.path == "/api/identity" and instance_id is not None:
+                # Identity is used only to verify a locally managed preview
+                # process before signaling it; never exposes session contents.
+                body = json.dumps({"instance_id": instance_id, "pid": os.getpid()}).encode()
+                mime = "application/json; charset=utf-8"
                 code = 200
             elif self.path == "/api/status":
                 try:
@@ -180,13 +188,15 @@ def make_handler(session):
             pass
     return Handler
 
-def serve(session, port):
+def serve(session, port, instance_id=None):
     path = Path(session).expanduser()
     if not path.is_dir() or path.is_symlink():
         raise ValueError("Session directory must exist and not be a symlink")
     if not 1024 <= port <= 65535:
         raise ValueError("Port must be 1024–65535")
-    server = ThreadingHTTPServer(("127.0.0.1", port), make_handler(path))
+    if instance_id is not None and not re.fullmatch(r"[a-f0-9]{32}", instance_id):
+        raise ValueError("Invalid preview instance ID")
+    server = ThreadingHTTPServer(("127.0.0.1", port), make_handler(path, instance_id))
     print("Preview: http://127.0.0.1:%d/ (Ctrl+C to stop)" % port, flush=True)
     try:
         server.serve_forever()
@@ -197,9 +207,10 @@ def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("session", help="existing or about-to-start session directory")
     p.add_argument("--port", type=int, default=8765)
+    p.add_argument("--instance-id", help="internal managed-instance correlation ID")
     args = p.parse_args(argv)
     try:
-        serve(args.session, args.port)
+        serve(args.session, args.port, args.instance_id)
         return 0
     except (OSError, ValueError) as exc:
         print("ERROR: " + str(exc), file=sys.stderr)
