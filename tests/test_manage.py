@@ -45,6 +45,21 @@ class DeviceManagementTests(unittest.TestCase):
             }))
             self.assertEqual(manage.sessions(root, "device-01")[0]["collected"], 1)
 
+    def test_inspect_session_summary(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = manage._private_dir(Path(d) / "data")
+            manage.register(root, "device-01", "local", "local")
+            folder = root / "devices" / "device-01" / "sessions" / "run-01"
+            folder.mkdir(parents=True)
+            (folder / "manifest.json").write_text(json.dumps({
+                "state": "complete",
+                "items": [{"category": "identity", "status": "ok"}, {"category": "pins", "status": "unavailable"}],
+                "skipped": [{"category": "pins", "reason": "not_observed"}]
+            }))
+            summary = manage.inspect_session(root, "device-01", "run-01")
+            self.assertEqual(summary["categories"]["pins"]["failed"], 1)
+            self.assertEqual(len(summary["skipped"]), 1)
+
     def test_collect_uses_existing_engine(self):
         with tempfile.TemporaryDirectory() as d:
             root = manage._private_dir(Path(d) / "data")
