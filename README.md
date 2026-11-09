@@ -413,3 +413,17 @@ After each iteration, the Agent should give a concise completion summary,
 accurate test status, and **one actionable next-step follow-up**. In
 supported chat interfaces, offer a clickable “继续下一步” control rather
 than requiring the user to retype a command.
+
+### Live progress throughout the image pipeline
+
+When a user has explicitly enabled the local preview, the image helpers now
+automatically update the same preview via verified session references.
+Stages: `image-plan`, `image-build`, `first-boot` (NoCloud), and
+`verify`. Each reports concrete milestones and distinguishes completion,
+compatibility blockers and execution failures. A QEMU smoke attempt is
+**not** proof of a guest boot.
+
+No preview means no automatic status-file writes. A closed preview is not
+restarted implicitly. The Skill remains the controller and the browser is
+a passive view. For the phase mapping and privacy rules see
+[Live preview](references/live-preview.md).
