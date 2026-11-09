@@ -54,6 +54,39 @@ class AdaptiveTests(unittest.TestCase):
             self.assertEqual(manifest["state"], "incomplete")
             self.assertIn("bootstrap failed", manifest["failure"])
 
+    def test_optional_preview_is_only_started_on_opt_in(self):
+        with tempfile.TemporaryDirectory() as root:
+            dest = Path(root) / "without-preview"
+            def fake_probe(transport, target, command, timeout):
+                if command == adaptive.FEATURE_COMMAND:
+                    return ("ok", b"sysfs=1\\n", "", 0)
+                return ("ok", b"test\\n", "", 0)
+            with patch.object(adaptive, "collect_probe", side_effect=fake_probe), \
+                 patch.object(adaptive, "start_preview") as start:
+                _, report = adaptive.run("local", "local", str(dest), 3, [])
+                self.assertNotIn("preview", report)
+                start.assert_not_called()
+
+            dest2 = Path(root) / "with-preview"
+            with patch.object(adaptive, "collect_probe", side_effect=fake_probe), \
+                 patch.object(adaptive, "start_preview", return_value={
+                     "state": "running", "url": "http://127.0.0.1:18888/"}) as start:
+                _, report = adaptive.run("local", "local", str(dest2), 3, [],
+                                         preview_approved=True)
+                start.assert_called_once()
+                self.assertEqual(report["preview"]["state"], "running")
+                self.assertEqual(report["preview"]["url"], "http://127.0.0.1:18888/")
+
+    def test_optional_preview_failure_does_not_block_collection(self):
+        with tempfile.TemporaryDirectory() as root:
+            dest = Path(root) / "preview-fails"
+            with patch.object(adaptive, "collect_probe", return_value=("ok", b"test\\n", "", 0)), \
+                 patch.object(adaptive, "start_preview", side_effect=RuntimeError("No listener")):
+                _, report = adaptive.run("local", "local", str(dest), 3, [],
+                                         preview_approved=True)
+            self.assertEqual(report["state"], "complete")
+            self.assertEqual(report["preview"]["state"], "unavailable")
+
     def test_existing_directory_is_rejected(self):
         with tempfile.TemporaryDirectory() as root:
             with self.assertRaises(ValueError):
