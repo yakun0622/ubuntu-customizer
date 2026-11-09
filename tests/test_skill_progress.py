@@ -65,6 +65,22 @@ class SkillProgressTests(unittest.TestCase):
             self.assertEqual(report["state"], "running")
             self.assertEqual(report["completed"], 0)
 
+    def test_image_stage_progress_does_not_count_old_collection_skips(self):
+        with tempfile.TemporaryDirectory() as d:
+            session = Path(d)
+            (session / "manifest.json").write_text(json.dumps({
+                "schema_version": 1, "state": "complete",
+                "items": [{"category": "identity", "status": "ok", "stage": "bootstrap"}],
+                "skipped": [{"name": "unavailable-probe"}] * 10
+            }))
+            with patch.object(progress, "preview_is_live", return_value=True):
+                with progress.tracking(session, "image-plan", 3) as tracker:
+                    tracker.advance(1)
+                    from_preview = load("preview").effective_status(session)
+                    self.assertEqual(from_preview["completed"], 1)
+                    self.assertEqual(from_preview["skipped"], 0)
+                    self.assertEqual(from_preview["total"], 3)
+
     def test_planner_reports_blocked_and_failed(self):
         with tempfile.TemporaryDirectory() as d:
             base = Path(d)
