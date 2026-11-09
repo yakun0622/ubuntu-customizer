@@ -91,7 +91,8 @@ def tracking(session, stage, total):
     try:
         yield tracker
     except BaseException:
-        tracker.failed()
+        if tracker.final_state is None:
+            tracker.failed()
         raise
     else:
         tracker.complete()
