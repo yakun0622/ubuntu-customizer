@@ -77,7 +77,7 @@ class NoCloudTests(unittest.TestCase):
             def fake_iso(args, **kwargs):
                 Path(args[args.index("-output") + 1]).write_bytes(b"fake-iso-bytes")
                 return subprocess.CompletedProcess(args, 0, "", "")
-            with patch.object(seed.shutil, "which", return_value="/usr/bin/genisoimage"), \\
+            with patch.object(seed.shutil, "which", return_value="/usr/bin/genisoimage"), \
                  patch.object(seed.subprocess, "run", side_effect=fake_iso):
                 result = seed.make_iso(folder, root / "seed.iso")
             self.assertEqual(result["sha256"], hashlib.sha256(b"fake-iso-bytes").hexdigest())
