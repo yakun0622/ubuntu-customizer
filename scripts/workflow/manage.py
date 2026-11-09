@@ -201,6 +201,8 @@ def explore_session(root, name, session_id, task=None, node=None, goal=None):
     session, manifest, _, graph = explore.load_session(folder)
     if task:
         return explore.build_plan(session, manifest, graph, task, node, goal)
+    if node:
+        return explore.detail(graph, node)
     return {"device": name, "session": session_id, "nodes": explore.tree_data(graph),
             "edges": len(graph["edges"]), "gaps": len(graph["gaps"])}
 
@@ -273,7 +275,12 @@ def main(argv=None):
             task = getattr(args, "task", None)
             node = getattr(args, "node", None)
             goal = getattr(args, "goal", None)
-            output = explore_session(root, name, session_id, task, node, goal)
+            if args.command is None:
+                folder = session_path(root, name, session_id)
+                session, manifest, _, graph = explore.load_session(folder)
+                output = explore.wizard(session, manifest, graph)
+            else:
+                output = explore_session(root, name, session_id, task, node, goal)
         else:
             name = getattr(args, "id", None) or input("Device ID: ").strip()
             value = getattr(args, "modules", "auto")
