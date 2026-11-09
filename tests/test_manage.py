@@ -93,6 +93,22 @@ class DeviceManagementTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 manage.export_html.export(folder, page)
 
+    def test_managed_image_planning_requires_registered_session(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = manage._private_dir(Path(d) / "data")
+            manage.register(root, "device-01", "local", "local")
+            folder = root / "devices" / "device-01" / "sessions" / "run-01"
+            folder.mkdir(parents=True)
+            (folder / "manifest.json").write_text(json.dumps({
+                "schema_version": 1, "state": "complete", "transport": "local",
+                "target": "local", "items": []
+            }))
+            self.assertEqual(manage.session_path(root, "device-01", "run-01"), folder)
+            with self.assertRaises(ValueError):
+                manage.session_path(root, "unregistered", "run-01")
+            with self.assertRaises(ValueError):
+                manage.session_path(root, "device-01", "../escape")
+
     def test_collect_uses_existing_engine(self):
         with tempfile.TemporaryDirectory() as d:
             root = manage._private_dir(Path(d) / "data")
