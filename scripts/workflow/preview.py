@@ -113,6 +113,34 @@ def load_status(session):
             "total": expected, "completed": len(items),
             "skipped": len(skipped), "categories": grouped}
 
+def effective_status(session):
+    report = load_status(session)
+    status_file = Path(session) / "skill-status.json"
+    if status_file.is_symlink() or not status_file.is_file():
+        return report
+    if status_file.stat().st_size > 4096:
+        return report
+    try:
+        status = json.loads(status_file.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return report
+    allowed_stage = ("connect", "bootstrap", "capability", "collect", "analyze",
+                     "image-plan", "image-build", "verify", "finish")
+    allowed_state = ("pending", "running", "complete", "failed", "blocked")
+    if (status.get("schema_version") != 1 or
+            status.get("stage") not in allowed_stage or
+            status.get("state") not in allowed_state):
+        return report
+    done = status.get("completed")
+    total = status.get("total")
+    if type(done) is not int or type(total) is not int or not 0 <= done <= total <= 1000000:
+        return report
+    # User-selected Agent stage supersedes collector stage; category counters
+    # still summarize only the local manifest and never leak source values.
+    report.update({"stage": status["stage"], "state": status["state"],
+                   "completed": done, "total": total})
+    return report
+
 def make_handler(session):
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self):
@@ -122,7 +150,7 @@ def make_handler(session):
                 code = 200
             elif self.path == "/api/status":
                 try:
-                    body = json.dumps(load_status(session), ensure_ascii=False).encode()
+                    body = json.dumps(effective_status(session), ensure_ascii=False).encode()
                     code = 200
                 except (OSError, ValueError, TypeError, json.JSONDecodeError):
                     body = b'{"state":"incomplete","message":"status unreadable"}'
