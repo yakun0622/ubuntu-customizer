@@ -11,7 +11,8 @@ Implemented:
 - Local profile-to-host drift plan for packages, hostname, timezone
 - Read-only SSH inventory through an existing OpenSSH host alias
 - Local backups of explicitly named regular files, with SHA-256 manifest
-- Unit tests for profile validation and planning\n- Interactive device discovery over SSH / ADB / TTL / local with a local evidence manifest
+- Unit tests for profile validation and planning
+- Interactive device discovery over SSH / ADB / TTL / local with a local evidence manifest
 
 **Not implemented:** applying profile changes, remote writes, automatic rollback, ISO/IMG/QCOW2 building and physical flashing. These are planned, not claimed as operational.
 
@@ -73,13 +74,13 @@ Collect a session with the existing interactive wizard, then build its evidence-
 
 ```bash
 python3 scripts/workflow/collect.py
-python3 scripts/workflow/dossier.py ./devices/w152d/session-001
-python3 scripts/workflow/compare.py ./devices/w152d/session-001/device.json ./devices/w152d/session-002/device.json
+python3 scripts/workflow/dossier.py ./devices/example-device/session-001
+python3 scripts/workflow/compare.py ./devices/example-device/session-001/device.json ./devices/example-device/session-002/device.json
 ```
 
 Dossier creation verifies each evidence file's SHA-256 digest and distinguishes missing collection from missing hardware. The comparison reports observed identity changes and evidence-file changes; it does not by itself diagnose a fault. Detailed guide: [device discovery](references/device-discovery.md).
 
-The deep device/driver/pin dependency graph is still planned. No target-writing commands are performed by these utilities.
+The preliminary device-driver software graph is implemented; a fully verified pin/electrical topology is not yet available. No target-writing commands are performed by these utilities.
 
 ## Device-to-driver topology (read-only)
 
@@ -88,8 +89,8 @@ GPIO, platform, I2C, SPI and MDIO devices. Generate the conservative topology:
 
 ```bash
 python3 scripts/workflow/collect.py
-python3 scripts/workflow/dossier.py ./devices/w152d/session-001
-python3 scripts/workflow/topology.py ./devices/w152d/session-001
+python3 scripts/workflow/dossier.py ./devices/example-device/session-001
+python3 scripts/workflow/topology.py ./devices/example-device/session-001
 ```
 
 The new `topology.json` stores device and driver nodes, observed `bound_to`
@@ -107,9 +108,9 @@ platform-device `of_node` paths. All probes remain read-only.
 
 ```bash
 python3 scripts/workflow/collect.py
-python3 scripts/workflow/device_tree.py ./devices/w152d/session-001
-python3 scripts/workflow/topology.py ./devices/w152d/session-001
-python3 scripts/workflow/link_graph.py ./devices/w152d/session-001
+python3 scripts/workflow/device_tree.py ./devices/example-device/session-001
+python3 scripts/workflow/topology.py ./devices/example-device/session-001
+python3 scripts/workflow/link_graph.py ./devices/example-device/session-001
 ```
 
 Outputs:
@@ -120,3 +121,21 @@ Outputs:
 Every input is verified against the session manifest SHA-256. Missing or truncated DTS data yields explicit gaps. Numeric phandle references are marked **candidates**, not confirmed specifier decoding; pinctrl/clock/reset cell counts require binding-specific analysis. Only trusted software topology is represented: physical header pins, PCB routes, electrical levels and functional hardware behavior remain unverified.
 
 The parser supports common `dtc` output syntax; it is not a replacement for libfdt/dtc and does not interpret overlays or vendor-specific properties fully.
+
+## Generic hardware discovery policy
+
+This project is **device-agnostic**. There is no built-in target board, no preset
+SoC and no assumption that Device Tree, GPIO, MDIO or any other interface exists.
+Collection is evidence-driven; adapters for specific vendors or boards, if added,
+must remain optional extensions.
+
+After a discovery session, determine which classes of diagnostics were available:
+
+```bash
+python3 scripts/workflow/capabilities.py ./devices/example-device/session-001
+```
+
+The output `capabilities.json` describes observation availability (`available`,
+`partial`, `unknown`), **not** a claim that the physical peripheral is present
+or functioning. Example YAML is under `profiles/examples/` and is not yet
+consumed by the JSON profile execution engine.
