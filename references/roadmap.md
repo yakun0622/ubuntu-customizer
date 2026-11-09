@@ -98,3 +98,10 @@ Source committed is not sufficient evidence that runtime tests passed. Mark feat
 - Integrated device ID + historical session selection with the device manager.
 - Added synthetic-data tests for graph browsing, evidence tampering, path validation and plan gating.
 - Pending: execute full test suite on supported platforms, interactive graphical graph view, resumable/target-specific deep probes, robust state machine and a separately reviewed safe mutation engine.
+
+## Offline graphical browser milestone
+
+- Added standalone offline HTML hardware explorer generated from SHA-256 verified session data.
+- Added search, type filtering, node details, relation navigation, evidence reference and gap summaries.
+- Added browser export to multi-device terminal manager and new browser-escaping tests.
+- Pending: actual local and real-device tests, richer hierarchical tree and scalable rendering, approved diagnostic drilldowns, export redaction and signed portable evidence packages.
