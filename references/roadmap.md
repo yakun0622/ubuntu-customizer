@@ -59,3 +59,15 @@ Source committed is not sufficient evidence that runtime tests passed. Mark feat
 - Added read-only platform `of_node` capture and runtime-to-DTS correlation
 - Added unit test fixtures for DTS labels, pinctrl candidates, integrity and device linkage
 - Pending: executing tests in CI/local Linux; real ARM board validation; robust libfdt-compatible parser; binding-specific clock/reset/IRQ cells; pinctrl groups and SoC pin bank mapping; authorized optional debugfs evidence
+
+## Generic device policy (current)
+
+- Removed the named-board diagnostics profile from the core repository.
+- Added an illustrative generic ARM64 discovery profile.
+- Added evidence-driven capability inventory (`capabilities.json`) with
+  available/partial/unknown states and tests.
+- Next: capability-aware probe selection, extensible transport and hardware
+  adapters, structured registry of sessions per device with stable identifiers,
+  and optional vendor plugins separated from the core.
+- No platform-specific flashing or physical pinout assumptions are permitted
+  in the generic workflow.
