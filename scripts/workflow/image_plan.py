@@ -16,6 +16,9 @@ HERE = Path(__file__).resolve().parent
 spec = importlib.util.spec_from_file_location("uc_dossier", HERE / "dossier.py")
 dossier = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(dossier)
+progress_spec = importlib.util.spec_from_file_location("uc_image_progress", HERE / "progress.py")
+progress = importlib.util.module_from_spec(progress_spec)
+progress_spec.loader.exec_module(progress)
 
 ARCH = {
     "x86_64": "amd64", "amd64": "amd64",
@@ -45,7 +48,7 @@ def detect_arch(cpu, kernel):
             return name
     return None
 
-def plan(session, target, fmt, source_path, source_sha256, source_arch):
+def _plan(session, target, fmt, source_path, source_sha256, source_arch, tick=None):
     if target not in TARGETS or fmt not in FORMATS:
         raise ValueError("Unsupported target or image format")
     if not re.fullmatch(r"[a-fA-F0-9]{64}", source_sha256 or ""):
@@ -68,7 +71,11 @@ def plan(session, target, fmt, source_path, source_sha256, source_arch):
             digest.update(block)
     if digest.hexdigest() != source_sha256.lower():
         raise ValueError("Base image checksum mismatch")
+    if tick is not None:
+        tick(1)  # Trusted source image checksum verified
     manifest, entries = dossier.verify_session(session)
+    if tick is not None:
+        tick(2)  # Collected evidence checksum verified
     kernel, kernel_evidence = text_of(entries, "identity", "kernel")
     cpu, cpu_evidence = text_of(entries, "identity", "cpu")
     os_release, os_evidence = text_of(entries, "identity", "os")
@@ -129,6 +136,19 @@ def plan(session, target, fmt, source_path, source_sha256, source_arch):
             "No credentials, SSH host keys or machine identity should be cloned blindly",
         ]
     }
+
+
+def plan(session, target, fmt, source_path, source_sha256, source_arch):
+    # CLI callers and the device manager share exactly one tracked entrypoint.
+    # A compatibility blocker is not a process failure; it is a safe decision.
+    with progress.tracking(session, "image-plan", 3) as tracker:
+        result = _plan(session, target, fmt, source_path, source_sha256,
+                       source_arch, tick=tracker.advance)
+        tracker.advance(3)  # Compatibility decision produced
+        if result["blockers"]:
+            tracker.blocked()
+        return result
+
 
 def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__)
