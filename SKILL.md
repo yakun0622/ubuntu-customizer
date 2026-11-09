@@ -78,3 +78,14 @@ observations, never guessing that an unknown component is absent. Use
 `profiles/examples/generic-arm64-discovery.yaml` only as documentation for
 ARM64, not as a universal preset or an executable profile. Prefer generic
 analysers and make vendor/board adapters opt-in after identity verification.
+
+## Adaptive discovery default
+
+For a target with command-execution access, prefer
+`python3 scripts/workflow/adaptive.py` over the legacy exhaustive collector.
+It performs a minimal bootstrap, availability checks and scoped deeper probes.
+If running unattended, require the user's prior authorization and use
+`--yes` only for read-only probes; this flag must never imply permission to
+modify target systems. Review `manifest.json` for skipped, unavailable,
+truncated and failed observations before producing a hardware diagnosis.
+All follow-up modification plans still require separate risk approval.
