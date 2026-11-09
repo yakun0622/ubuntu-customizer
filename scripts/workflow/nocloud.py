@@ -14,6 +14,11 @@ import shutil
 import subprocess
 import sys
 import uuid
+import importlib.util
+
+_progress_spec = importlib.util.spec_from_file_location("uc_seed_progress", Path(__file__).with_name("progress.py"))
+progress = importlib.util.module_from_spec(_progress_spec)
+_progress_spec.loader.exec_module(progress)
 
 HOST = re.compile(r"^[a-z][a-z0-9-]{0,62}$")
 USER = re.compile(r"^[a-z_][a-z0-9_-]{0,31}$")
@@ -143,14 +148,26 @@ def main(argv=None):
     try:
         with Path(args.plan).open(encoding="utf-8") as f:
             plan = json.load(f)
-        folder, manifest = make_files(plan, args.hostname, args.username,
-                                      args.ssh_public_key, args.instance_id, args.output_dir)
-        if args.iso:
-            manifest["iso"] = make_iso(folder, args.iso)
-            path = folder / "manifest.json"
-            with path.open("w", encoding="utf-8") as f:
-                json.dump(manifest, f, indent=2)
-                f.write("\n")
+        with progress.tracking(progress.session_from_plan(plan), "first-boot",
+                               3 if args.iso else 2) as tracker:
+            if (plan.get("target") != "virtual-machine" or
+                    plan.get("build_allowed") is not True or plan.get("blockers") or
+                    plan.get("backend") != "qemu-img-offline-convert"):
+                tracker.blocked()
+            folder, manifest = make_files(plan, args.hostname, args.username,
+                                          args.ssh_public_key, args.instance_id,
+                                          args.output_dir)
+            tracker.advance(1)  # NoCloud user-data/meta-data generated
+            if args.iso:
+                manifest["iso"] = make_iso(folder, args.iso)
+                tracker.advance(2)  # Optional cidata ISO created
+                path = folder / "manifest.json"
+                with path.open("w", encoding="utf-8") as f:
+                    json.dump(manifest, f, indent=2)
+                    f.write("\n")
+                tracker.advance(3)  # Final seed manifest updated
+            else:
+                tracker.advance(2)  # Seed manifest created by make_files
         print(json.dumps({"output_dir": str(folder), "iso": manifest.get("iso"),
                           "cloud_init_required": True}, indent=2))
         return 0
