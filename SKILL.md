@@ -89,3 +89,7 @@ If running unattended, require the user's prior authorization and use
 modify target systems. Review `manifest.json` for skipped, unavailable,
 truncated and failed observations before producing a hardware diagnosis.
 All follow-up modification plans still require separate risk approval.
+
+## Managed device inventory
+
+Use `python3 scripts/workflow/manage.py` as the default interactive command-line entry for multi-device tasks. First `discover` available connection candidates, then `add` a user-approved device ID, `collect` read-only evidence, and `sessions` / `inspect` to review results. Discovery of an SSH alias or USB serial port is not proof of connectivity or identity. Never execute system-changing actions during registration or collection. The local catalog and sessions contain potentially sensitive details and must remain private. This is currently a terminal wizard, not a browser UI.
