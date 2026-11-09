@@ -62,7 +62,7 @@ def capture(argv, timeout):
         r = subprocess.run(argv, capture_output=True, timeout=timeout, check=False)
         data = r.stdout[:MAX_BYTES]
         error = r.stderr[:8192].decode("utf-8", errors="replace")
-        status = "ok" if r.returncode == 0 else "error"
+        status = "ok" if r.returncode == 0 else "error"\n        if status == "ok" and (data.strip() == b"unavailable" or data.strip().endswith(b"unavailable")):\n            status = "unavailable"
         if len(r.stdout) > MAX_BYTES:
             status = "truncated" if status == "ok" else status
         return status, data, error, r.returncode
