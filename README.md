@@ -66,3 +66,17 @@ Snapshots do not provide an automatic restore capability. They should be stored 
 Profile JSON is validated by a **narrow standard-library validator**; it is not a general-purpose JSON Schema implementation. YAML examples are illustrative and are not executable profiles yet.
 
 Do not include credentials in profiles or commit any machine-generated diagnostics containing secrets.
+
+## Structured device archives (discovery workflow)
+
+Collect a session with the existing interactive wizard, then build its evidence-indexed dossier:
+
+```bash
+python3 scripts/workflow/collect.py
+python3 scripts/workflow/dossier.py ./devices/w152d/session-001
+python3 scripts/workflow/compare.py ./devices/w152d/session-001/device.json ./devices/w152d/session-002/device.json
+```
+
+Dossier creation verifies each evidence file's SHA-256 digest and distinguishes missing collection from missing hardware. The comparison reports observed identity changes and evidence-file changes; it does not by itself diagnose a fault. Detailed guide: [device discovery](references/device-discovery.md).
+
+The deep device/driver/pin dependency graph is still planned. No target-writing commands are performed by these utilities.
