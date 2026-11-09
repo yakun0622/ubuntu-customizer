@@ -61,3 +61,7 @@ After a completed discovery session, execute `python3 scripts/workflow/dossier.p
 ## Linux driver topology phase
 
 For a new Linux discovery session, run `python3 scripts/workflow/topology.py <session-dir>` after evidence collection. Use `topology.json` for **observed sysfs device-driver binding edges only**; source file and line numbers must accompany conclusions. An unbound, missing, malformed or inaccessible driver path is not proof that the physical peripheral is absent. Treat DT pinctrl, IRQ mapping, physical header pinout, PCB routes, PHY electrical signals and voltages as *unverified* unless independently supported. For sessions collected before sysfs binding probes, the parser records explicit collection gaps.
+
+## Device-tree and linked hardware graph
+
+For a newly collected Linux session, use `scripts/workflow/device_tree.py` for software DTS references and `scripts/workflow/link_graph.py` to correlate observed platform device `of_node` symlinks with DTS nodes. Each input is verified through the evidence manifest. Treat missing or truncated DTS, unbound drivers and unresolved phandles as gaps; never infer physical PCB pin numbering, voltage, or a successfully functioning PHY. Numeric phandles are candidates pending binding-specific cell parsing. Do not modify DTB or hardware based only on these graphs.
