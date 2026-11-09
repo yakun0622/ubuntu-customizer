@@ -140,7 +140,10 @@ def effective_status(session):
     # User-selected Agent stage supersedes collector stage; category counters
     # still summarize only the local manifest and never leak source values.
     report.update({"stage": status["stage"], "state": status["state"],
-                   "completed": done, "total": total})
+                   "completed": done, "total": total,
+                   # Image/analysis stages have their own denominator. Old
+                   # collection skips must not inflate progress to 100%.
+                   "skipped": 0})
     return report
 
 def make_handler(session, instance_id=None):
