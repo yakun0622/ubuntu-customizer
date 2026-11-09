@@ -81,3 +81,11 @@ Source committed is not sufficient evidence that runtime tests passed. Mark feat
 - Still required: actual runtime test execution, resumable collection, secure
   privileged probe authorization, progress UI, cross-platform probe adapters,
   stable device identity and plugin extension registry.
+
+## Device management milestone (terminal UI)
+
+- Added local device registry with validated IDs and private on-disk metadata.
+- Added candidate discovery for explicit SSH Host aliases, ADB online serials, and local serial port names.
+- Added interactive command menu, per-device collection sessions and inspection of prior sessions.
+- Reused the existing capability-aware read-only collection engine, without adding write-capable remote execution.
+- Pending: runtime tests on supported host platforms; secure device identity verification; resumable capture; graphical device tree browser; plugin transports; optional archive redaction.
