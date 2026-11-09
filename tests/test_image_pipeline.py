@@ -98,6 +98,30 @@ class ImagePipelineTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 builder.inspect_image(Path("/tmp/base.qcow2"))
 
+    def test_mocked_offline_conversion_writes_manifest_and_hash(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source, sha = self.source(root)
+            plan = {"type": "ubuntu-customizer/image-plan", "schema_version": 1,
+                    "target": "virtual-machine", "format": "qcow2",
+                    "backend": "qemu-img-offline-convert", "build_allowed": True,
+                    "blockers": [], "source": {"path": str(source), "sha256": sha,
+                    "bytes": source.stat().st_size}}
+            def fake_info(path):
+                return {"format": "qcow2" if str(path).endswith(".tmp") else "raw",
+                        "virtual-size": 8192}
+            def fake_convert(args, **kwargs):
+                Path(args[-1]).write_bytes(b"converted disk")
+                return subprocess.CompletedProcess(args, 0, "", "")
+            with patch.object(builder, "inspect_image", side_effect=fake_info), \\
+                 patch.object(builder.subprocess, "run", side_effect=fake_convert):
+                output = root / "portable.qcow2"
+                result = builder.build(plan, str(output))
+            self.assertFalse(result["boot_tested"])
+            self.assertEqual(result["output_sha256"],
+                             hashlib.sha256(output.read_bytes()).hexdigest())
+            self.assertTrue((root / "portable.qcow2.manifest.json").exists())
+
     def test_builder_rejects_output_pseudofs(self):
         with tempfile.TemporaryDirectory() as tmp:
             source, sha = self.source(Path(tmp))
