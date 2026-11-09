@@ -163,6 +163,12 @@ class SkillProgressTests(unittest.TestCase):
                     report = verifier.verify(result, boot=True, serial_log=str(base / "serial.log"))
                 self.assertFalse(report["boot_confirmed"])
                 self.assertEqual(read_state(session)["state"], "blocked")
+                with patch.object(verifier.shutil, "which", return_value="/usr/bin/qemu-system-x86_64"), \
+                     patch.object(verifier.subprocess, "run",
+                                  return_value=subprocess.CompletedProcess([], 2, "", "QEMU startup error")):
+                    report = verifier.verify(result, boot=True, serial_log=str(base / "serial-failed.log"))
+                self.assertEqual(report["boot_state"], "qemu_failed")
+                self.assertEqual(read_state(session)["state"], "failed")
 
 if __name__ == "__main__":
     unittest.main()
