@@ -69,8 +69,8 @@ After successful collection, transform the immutable evidence bundle into a
 separate indexed dossier:
 
 ```bash
-python3 scripts/workflow/dossier.py ./devices/w152d/session-001
-# creates ./devices/w152d/session-001/device.json
+python3 scripts/workflow/dossier.py ./devices/example-device/session-001
+# creates ./devices/example-device/session-001/device.json
 ```
 
 `device.json` contains the observed OS, kernel, CPU identifiers, RAM,
@@ -83,9 +83,9 @@ For historical comparison (for example before/after a kernel upgrade):
 
 ```bash
 python3 scripts/workflow/compare.py \
-  ./devices/w152d/session-001/device.json \
-  ./devices/w152d/session-002/device.json \
-  --output ./devices/w152d/kernel-diff.json
+  ./devices/example-device/session-001/device.json \
+  ./devices/example-device/session-002/device.json \
+  --output ./devices/example-device/kernel-diff.json
 ```
 
 The diff contains field-level identity changes plus changed evidence hashes.
@@ -109,8 +109,8 @@ GPIO, platform, I2C, SPI and MDIO devices. Generate the conservative topology:
 
 ```bash
 python3 scripts/workflow/collect.py
-python3 scripts/workflow/dossier.py ./devices/w152d/session-001
-python3 scripts/workflow/topology.py ./devices/w152d/session-001
+python3 scripts/workflow/dossier.py ./devices/example-device/session-001
+python3 scripts/workflow/topology.py ./devices/example-device/session-001
 ```
 
 The new `topology.json` stores device and driver nodes, observed `bound_to`
@@ -128,9 +128,9 @@ platform-device `of_node` paths. All probes remain read-only.
 
 ```bash
 python3 scripts/workflow/collect.py
-python3 scripts/workflow/device_tree.py ./devices/w152d/session-001
-python3 scripts/workflow/topology.py ./devices/w152d/session-001
-python3 scripts/workflow/link_graph.py ./devices/w152d/session-001
+python3 scripts/workflow/device_tree.py ./devices/example-device/session-001
+python3 scripts/workflow/topology.py ./devices/example-device/session-001
+python3 scripts/workflow/link_graph.py ./devices/example-device/session-001
 ```
 
 Outputs:
@@ -141,3 +141,22 @@ Outputs:
 Every input is verified against the session manifest SHA-256. Missing or truncated DTS data yields explicit gaps. Numeric phandle references are marked **candidates**, not confirmed specifier decoding; pinctrl/clock/reset cell counts require binding-specific analysis. Only trusted software topology is represented: physical header pins, PCB routes, electrical levels and functional hardware behavior remain unverified.
 
 The parser supports common `dtc` output syntax; it is not a replacement for libfdt/dtc and does not interpret overlays or vendor-specific properties fully.
+
+## Hardware-agnostic capability negotiation
+
+Never assume an attached device is an ARM board or that a Device Tree exists.
+Base the next probe stage on prior evidence and recorded permission or tool
+errors. From an existing session:
+
+```bash
+python3 scripts/workflow/capabilities.py ./devices/example-device/session-001
+```
+
+`capabilities.json` records status for system identity, CPU/memory, storage,
+network, kernel driver bindings, peripheral buses, DT, GPIO/pinctrl and boot
+artifacts. `unknown` means not successfully observed, not absent. A generic
+adapter must not select a board-specific pin map solely from a compatible
+string; physical pinout requires independent board documentation.
+
+Optional board or vendor plugins can be proposed later but must never be
+loaded automatically without positive identity evidence and user choice.
