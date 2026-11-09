@@ -1,0 +1,34 @@
+{
+  "apiVersion": "ubuntu-customizer/v1",
+  "kind": "SystemProfile",
+  "metadata": {
+    "name": "ubuntu-server-baseline"
+  },
+  "target": {
+    "distribution": "ubuntu",
+    "version": "24.04",
+    "architecture": "amd64"
+  },
+  "image": {
+    "enabled": false,
+    "format": "iso"
+  },
+  "system": {
+    "hostname": "ubuntu-server",
+    "timezone": "Etc/UTC"
+  },
+  "packages": {
+    "install": [
+      "openssh-server",
+      "curl",
+      "git"
+    ],
+    "remove": []
+  },
+  "execution": {
+    "dry_run": true,
+    "backup": true,
+    "verify": true,
+    "reboot": "manual"
+  }
+}
