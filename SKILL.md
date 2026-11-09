@@ -57,3 +57,7 @@ Include host identity, evidence, proposed changes, compatibility blockers, appro
 ## Discovery dossier phase
 
 After a completed discovery session, execute `python3 scripts/workflow/dossier.py <session-dir>` to create a verified, source-linked `device.json`. Read `gaps` and evidence status before asserting any hardware capability. To compare two sessions, run `python3 scripts/workflow/compare.py <old-device.json> <new-device.json>`. Compare device identity and raw evidence, but do not infer that changes in volatile counters prove hardware changes. Physical pin numbers and driver binding graphs remain unverified until separately supported by datasheets, schematics and deeper probes.
+
+## Linux driver topology phase
+
+For a new Linux discovery session, run `python3 scripts/workflow/topology.py <session-dir>` after evidence collection. Use `topology.json` for **observed sysfs device-driver binding edges only**; source file and line numbers must accompany conclusions. An unbound, missing, malformed or inaccessible driver path is not proof that the physical peripheral is absent. Treat DT pinctrl, IRQ mapping, physical header pinout, PCB routes, PHY electrical signals and voltages as *unverified* unless independently supported. For sessions collected before sysfs binding probes, the parser records explicit collection gaps.
