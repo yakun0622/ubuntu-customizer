@@ -76,6 +76,23 @@ class DeviceManagementTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 manage.explore_session(root, "device-01", "../bad", "diagnose")
 
+    def test_browser_export_routes_verified_session(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = manage._private_dir(Path(d) / "data")
+            manage.register(root, "device-01", "local", "local")
+            folder = root / "devices" / "device-01" / "sessions" / "run-01"
+            folder.mkdir(parents=True)
+            (folder / "manifest.json").write_text(json.dumps({
+                "schema_version": 1, "transport": "local",
+                "target": "local", "state": "complete", "items": []
+            }))
+            page = folder / "hardware-explorer.html"
+            manage.export_html.export(folder, page)
+            self.assertTrue(page.is_file())
+            self.assertIn("Hardware Explorer", page.read_text())
+            with self.assertRaises(ValueError):
+                manage.export_html.export(folder, page)
+
     def test_collect_uses_existing_engine(self):
         with tempfile.TemporaryDirectory() as d:
             root = manage._private_dir(Path(d) / "data")
