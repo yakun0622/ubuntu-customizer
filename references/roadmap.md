@@ -71,3 +71,13 @@ Source committed is not sufficient evidence that runtime tests passed. Mark feat
   and optional vendor plugins separated from the core.
 - No platform-specific flashing or physical pinout assumptions are permitted
   in the generic workflow.
+
+## Adaptive discovery preview
+
+- Added staged read-only bootstrap, capability checks, module selection, and
+  per-probe manifest checkpoints with skipped-reason recording.
+- Added CLI module selection for SSH/ADB/local, passive TTL remains separate.
+- Added tests for prerequisite gating, skip semantics and checkpoint outputs.
+- Still required: actual runtime test execution, resumable collection, secure
+  privileged probe authorization, progress UI, cross-platform probe adapters,
+  stable device identity and plugin extension registry.
