@@ -105,3 +105,17 @@ Source committed is not sufficient evidence that runtime tests passed. Mark feat
 - Added search, type filtering, node details, relation navigation, evidence reference and gap summaries.
 - Added browser export to multi-device terminal manager and new browser-escaping tests.
 - Pending: actual local and real-device tests, richer hierarchical tree and scalable rendering, approved diagnostic drilldowns, export redaction and signed portable evidence packages.
+
+## Image portability assessment and offline VM converter (initial)
+
+- Added SHA-256 verified discovery-to-image plan for a local base image,
+  explicit source architecture and target type/format.
+- Added physical device blockers: boot chain, partitioning, kernel/DTB
+  compatibility, firmware and restore procedure.
+- Added guarded `qemu-img` RAW/QCOW2 offline conversion for VM targets,
+  output checksum/build metadata, no direct block device writes.
+- Added source mismatch, architecture, backing chain and output-path tests.
+- Pending: confirmed test execution, upstream signature verification, guest
+  OS/architecture inspection, package/rootfs personalization, first-boot
+  identity reset, cloud-init seed generation, QEMU boot smoke tests and
+  backend plugins for verified physical boot targets.
