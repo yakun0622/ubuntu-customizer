@@ -104,39 +104,39 @@ python3 scripts/workflow/preview_control.py status SESSION_DIR
 python3 scripts/workflow/preview_control.py stop SESSION_DIR
 ```
 
-The start command reports the actual \`http://127.0.0.1:<port>/\` URL on
+The start command reports the actual `http://127.0.0.1:<port>/` URL on
 the controlling host only. The page polls sanitized local checkpoint status
 every two seconds. It never serves raw evidence.
 
 **Image helpers now report automatically when the preview is live**:
-- \`image_plan.py\` → \`image-plan\`: source checksum, evidence integrity,
-  compatibility decision (\`blocked\` when prerequisites are missing).
-- \`build_image.py\` → \`image-build\`: source verification, format inspection,
+- `image_plan.py` → `image-plan`: source checksum, evidence integrity,
+  compatibility decision (`blocked` when prerequisites are missing).
+- `build_image.py` → `image-build`: source verification, format inspection,
   conversion, output verification, result manifest.
-- \`nocloud.py\` → \`first-boot\`: NoCloud files, optional seed ISO, final manifest.
-- \`verify_vm.py\` → \`verify\`: output hash, metadata, optional QEMU attempt.
-  Static verification \`complete\` is **not** a verified guest boot;
-  inconclusive boot attempts are \`blocked\` and nonzero QEMU exits \`failed\`.
+- `nocloud.py` → `first-boot`: NoCloud files, optional seed ISO, final manifest.
+- `verify_vm.py` → `verify`: output hash, metadata, optional QEMU attempt.
+  Static verification `complete` is **not** a verified guest boot;
+  inconclusive boot attempts are `blocked` and nonzero QEMU exits `failed`.
 
-The image plan contains the original \`discovery.session\`, and the build
-result carries it as \`discovery_session\`, so the same user-approved preview
+The image plan contains the original `discovery.session`, and the build
+result carries it as `discovery_session`, so the same user-approved preview
 follows sequential phases. The helper verifies the local running preview
-before updating \`skill-status.json\`. No live preview means **no automatic
+before updating `skill-status.json`. No live preview means **no automatic
 status file writes** and no change to image-building behavior. Stopping
 preview stops subsequent automatic status updates.
 
 For other Agent-led stages not implemented as image scripts, an authorized
 Agent can still explicitly publish factual progress:
 
-\`\`\`bash
+```bash
 python3 scripts/workflow/status.py SESSION_DIR \
   --stage analyze --state running --completed 1 --total 3
-\`\`\`
+```
 
 Only allowlisted stage/state names and integer counters are persisted;
 never include credentials, paths, error text or command output in the
-browser status. Recognized image phases are \`image-plan\`, \`image-build\`,
-\`first-boot\`, and \`verify\`. The preview observes status but does not
+browser status. Recognized image phases are `image-plan`, `image-build`,
+`first-boot`, and `verify`. The preview observes status but does not
 control or approve execution.
 
 If a browser server cannot run on the controlling computer, explain that
