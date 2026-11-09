@@ -113,7 +113,7 @@ class ImagePipelineTests(unittest.TestCase):
             def fake_convert(args, **kwargs):
                 Path(args[-1]).write_bytes(b"converted disk")
                 return subprocess.CompletedProcess(args, 0, "", "")
-            with patch.object(builder, "inspect_image", side_effect=fake_info), \\
+            with patch.object(builder, "inspect_image", side_effect=fake_info), \
                  patch.object(builder.subprocess, "run", side_effect=fake_convert):
                 output = root / "portable.qcow2"
                 result = builder.build(plan, str(output))
