@@ -48,6 +48,8 @@ def validate(plan):
     if not isinstance(source_name, str) or not source_name.startswith("/"):
         raise ValueError("Source path must be an absolute path")
     path = safe_regular(source_name)
+    if path.parts[:2] in (("/", "dev"), ("/", "proc"), ("/", "sys")):
+        raise ValueError("Refusing source under /dev, /proc or /sys")
     if not re.fullmatch(r"[a-f0-9]{64}", source_info.get("sha256", "")):
         raise ValueError("Missing SHA256")
     if hash_file(path) != source_info["sha256"] or path.stat().st_size != source_info.get("bytes"):
@@ -78,6 +80,8 @@ def build(plan, output):
     output = Path(output).expanduser().absolute()
     if output.exists() or output.is_symlink():
         raise ValueError("Output already exists")
+    if output.parts[:2] in (("/", "dev"), ("/", "proc"), ("/", "sys")):
+        raise ValueError("Refusing output under /dev, /proc or /sys")
     if output.suffix.lower() != (".qcow2" if plan["format"] == "qcow2" else ".img"):
         raise ValueError("Use .qcow2 for QCOW2 or .img for raw outputs")
     if not output.parent.is_dir() or output.parent.is_symlink():
@@ -105,7 +109,9 @@ def build(plan, output):
         if converted.get("format") != fmt or converted.get("virtual-size") != info["virtual-size"]:
             raise RuntimeError("Output image metadata mismatch")
         digest = hash_file(tmp)
-        os.replace(tmp, output)
+        # Hard-link creation fails instead of overwriting an output created
+        # concurrently; the output is a newly written regular file.
+        os.link(tmp, output)
         output.chmod(0o600)
         report = {
             "schema_version": 1,
