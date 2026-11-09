@@ -288,3 +288,52 @@ Security and scope:
   verified physical header pinout or electrically measured conditions.
 - Task execution remains disabled; diagnose / maintain / image still create
   plans only.
+
+## Image portability pipeline (initial working backend)
+
+Once a target's evidence session is collected, select **virtual-machine**
+or **physical-device**. The planner verifies every source evidence file hash
+and separately checks a *locally supplied base image* against an independently
+obtained SHA-256. It records observed target architecture, the operator-declared
+source architecture, readiness gaps, and the intended output format.
+
+```bash
+# Generate plan for an existing verified base image and a VM target
+python3 scripts/workflow/image_plan.py SESSION_DIRECTORY \
+  --target virtual-machine --format qcow2 \
+  --source /srv/images/base.img \
+  --sha256 VERIFIED_64_HEX_SHA256 --source-arch amd64 \
+  --output ./image-plan.json
+
+# The same plan can be created from a registered device
+python3 scripts/workflow/manage.py image-plan lab-server SESSION_ID \
+  --target virtual-machine --format qcow2 \
+  --source /srv/images/base.img \
+  --sha256 VERIFIED_64_HEX_SHA256 --source-arch amd64 \
+  --output ./image-plan.json
+
+# Once the plan reports build_allowed=true, perform OFFLINE conversion
+# (requires qemu-img installed on the build host)
+python3 scripts/workflow/build_image.py ./image-plan.json \
+  --output ./output.qcow2
+```
+
+This generates an image and `output.qcow2.manifest.json`, including the
+SHA-256 digest and virtual size. It **converts an already bootable source
+image**; it does not automatically capture the running system, install
+drivers, customize packages, reset machine identities, or make the output
+bootable on arbitrary hardware. The created image requires a separate VM
+boot test (machine type, firmware and virtual drivers) before deployment.
+
+For `--target physical-device --format raw`, the planner returns explicit
+blockers and **does not allow assembly** until a board-specific bootloader,
+kernel/DTB or ACPI support, firmware, storage partition scheme and recovery
+path are verified. A generic ARM64 system cannot be made universally
+bootable merely by changing an image format.
+
+Never pass block devices as input or output. The converter rejects paths
+under `/dev`, `/proc` and `/sys`, output overwrites, unsupported
+input formats, and images with a QEMU backing file. Keep source image
+integrity metadata and licensing records. Source architecture is currently
+an operator declaration and is **not** validated from guest filesystems;
+this limitation is explicitly reported.
