@@ -160,3 +160,17 @@ Source committed is not sufficient evidence that runtime tests passed. Mark feat
 - Remaining: run the new suite on Linux/macOS, lifecycle smoke tests in
   a real Agent runtime, consent UX validation, and cleanup policies for
   canceled sessions.
+
+## Four-stage image progress integration
+
+- Implemented best-effort, opt-in status reporting for image-plan, offline
+  image-build, NoCloud first-boot seed and VM verification scripts.
+- Reuses a single original discovery session through plan and build-result
+  metadata. No change to existing disk/image formats or write approvals.
+- Maintains `complete`, `blocked`, `failed` distinctions; unproven VM
+  boot does not count as successful boot verification.
+- Prevented old collection skips from inflating image-stage progress.
+- Added `tests/test_skill_progress.py` for opt-out, closed preview,
+  success, failure, blocked, source-session propagation and progress counts.
+- Pending: run new and existing tests on Linux/macOS, review CLI artifact
+  write failures and verify against real qemu-img/QEMU sessions (not CI).
