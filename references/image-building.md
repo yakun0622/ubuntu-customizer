@@ -78,3 +78,22 @@ input formats, and images with a QEMU backing file. Keep source image
 integrity metadata and licensing records. Source architecture is currently
 an operator declaration and is **not** validated from guest filesystems;
 this limitation is explicitly reported.
+
+## Automatic Skill status bridge (optional)
+
+The four image helpers now write a minimal progress checkpoint **only when
+the user has opened a verified local preview**. The Agent need not invoke
+`status.py` between every stage. A common session is linked by the
+`discovery.session` field in the plan and the `discovery_session`
+field in the build result.
+
+`image-plan` reports trusted source hashing, evidence verification and the
+compatibility decision. `image-build` reports source validation, format
+inspection, conversion, verification and the output manifest. The
+`first-boot` stage covers NoCloud files and optional ISO. `verify`
+covers static image validation and optionally a QEMU smoke attempt.
+Physical targets remain blocked; this change adds **observability, not new
+physical-device image-building support**.
+
+Use `python3 -m unittest discover -s tests -v` locally to validate the
+stage integration; no CI is triggered by the Skill itself.
