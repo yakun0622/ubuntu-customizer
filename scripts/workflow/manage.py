@@ -24,6 +24,10 @@ _explore_spec = importlib.util.spec_from_file_location("uc_explore", HERE / "exp
 explore = importlib.util.module_from_spec(_explore_spec)
 _explore_spec.loader.exec_module(explore)
 
+_html_spec = importlib.util.spec_from_file_location("uc_export_html", HERE / "export_html.py")
+export_html = importlib.util.module_from_spec(_html_spec)
+_html_spec.loader.exec_module(export_html)
+
 ID = re.compile(r"^[a-z][a-z0-9-]{1,47}$")
 TRANSPORTS = ("ssh", "adb", "ttl", "local")
 SERIAL_PORT = re.compile(r"^/dev/[A-Za-z0-9_.-]+$")
@@ -238,6 +242,10 @@ def main(argv=None):
     browse.add_argument("--node")
     browse.add_argument("--task", choices=tuple(explore.TASKS))
     browse.add_argument("--goal")
+    browser = sub.add_parser("browse")
+    browser.add_argument("id")
+    browser.add_argument("session")
+    browser.add_argument("--output", help="new offline .html file path")
     run = sub.add_parser("collect")
     run.add_argument("id")
     run.add_argument("--modules", default="auto")
@@ -248,9 +256,9 @@ def main(argv=None):
         root = _private_dir(args.data_dir)
         action = args.command
         if action is None:
-            print("1. Discover connections  2. List devices  3. Add device  4. Collect  5. Sessions  6. Inspect  7. Explore")
-            index = input("Select [1-7]: ").strip()
-            action = {"1": "discover", "2": "list", "3": "add", "4": "collect", "5": "sessions", "6": "inspect", "7": "explore"}.get(index)
+            print("1. Discover connections  2. List devices  3. Add device  4. Collect  5. Sessions  6. Inspect  7. Explore  8. Browse HTML")
+            index = input("Select [1-8]: ").strip()
+            action = {"1": "discover", "2": "list", "3": "add", "4": "collect", "5": "sessions", "6": "inspect", "7": "explore", "8": "browse"}.get(index)
             if not action:
                 raise ValueError("Invalid choice")
         if action == "discover":
@@ -269,6 +277,15 @@ def main(argv=None):
             name = getattr(args, "id", None) or input("Device ID: ").strip()
             session = getattr(args, "session", None) or input("Session ID: ").strip()
             output = inspect_session(root, name, session)
+        elif action == "browse":
+            name = getattr(args, "id", None) or input("Device ID: ").strip()
+            session_id = getattr(args, "session", None) or input("Session ID: ").strip()
+            folder = session_path(root, name, session_id)
+            output_file = getattr(args, "output", None)
+            if not output_file:
+                output_file = str(folder / "hardware-explorer.html")
+            output = {"html": str(export_html.export(folder, output_file)),
+                      "note": "Open locally in a browser; no web server or remote connection."}
         elif action == "explore":
             name = getattr(args, "id", None) or input("Device ID: ").strip()
             session_id = getattr(args, "session", None) or input("Session ID: ").strip()
