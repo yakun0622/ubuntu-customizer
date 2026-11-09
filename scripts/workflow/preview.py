@@ -144,6 +144,12 @@ def effective_status(session):
 def make_handler(session):
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self):
+            # Reject DNS rebinding / unexpected Host headers even on loopback.
+            host = self.headers.get("Host", "")
+            host_name = host.split(":", 1)[0].lower()
+            if host_name not in ("localhost", "127.0.0.1"):
+                self.send_error(403, "Localhost host only")
+                return
             if self.path == "/":
                 body = HTML.encode("utf-8")
                 mime = "text/html; charset=utf-8"
