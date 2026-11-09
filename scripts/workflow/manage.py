@@ -156,6 +156,31 @@ def sessions(root, name):
                       "skipped": len(data.get("skipped", []))})
     return found
 
+def inspect_session(root, name, session_id):
+    if not ID.fullmatch(name) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{1,63}", session_id):
+        raise ValueError("Invalid device or session ID")
+    folder = root / "devices" / name / "sessions" / session_id
+    manifest = folder / "manifest.json"
+    if manifest.is_symlink() or not manifest.is_file():
+        raise ValueError("Session manifest not found")
+    data = json.loads(manifest.read_text(encoding="utf-8"))
+    items = data.get("items", [])
+    if not isinstance(items, list):
+        raise ValueError("Invalid session manifest")
+    categories = {}
+    for item in items:
+        category = item.get("category", "unknown")
+        categories.setdefault(category, {"collected": 0, "failed": 0})
+        categories[category]["collected"] += 1
+        if item.get("status") not in ("ok",):
+            categories[category]["failed"] += 1
+    return {"device_id": name, "session": session_id,
+            "state": data.get("state", "legacy"), "categories": categories,
+            "skipped": data.get("skipped", []),
+            "artifacts": [name for name in ("device.json", "capabilities.json",
+                            "topology.json", "device-tree.json", "linked-hardware.json")
+                          if (folder / name).is_file() and not (folder / name).is_symlink()]}
+
 def collect_device(root, name, modules, timeout=12, baud=115200, duration=10):
     catalog = load_catalog(root)
     if name not in catalog["devices"]:
@@ -179,6 +204,9 @@ def main(argv=None):
     add.add_argument("--target", required=True)
     history = sub.add_parser("sessions")
     history.add_argument("id")
+    inspect = sub.add_parser("inspect")
+    inspect.add_argument("id")
+    inspect.add_argument("session")
     run = sub.add_parser("collect")
     run.add_argument("id")
     run.add_argument("--modules", default="auto")
@@ -189,9 +217,9 @@ def main(argv=None):
         root = _private_dir(args.data_dir)
         action = args.command
         if action is None:
-            print("1. Discover connections  2. List devices  3. Add device  4. Collect  5. Sessions")
-            index = input("Select [1-5]: ").strip()
-            action = {"1": "discover", "2": "list", "3": "add", "4": "collect", "5": "sessions"}.get(index)
+            print("1. Discover connections  2. List devices  3. Add device  4. Collect  5. Sessions  6. Inspect")
+            index = input("Select [1-6]: ").strip()
+            action = {"1": "discover", "2": "list", "3": "add", "4": "collect", "5": "sessions", "6": "inspect"}.get(index)
             if not action:
                 raise ValueError("Invalid choice")
         if action == "discover":
@@ -206,6 +234,10 @@ def main(argv=None):
         elif action == "sessions":
             name = getattr(args, "id", None) or input("Device ID: ").strip()
             output = sessions(root, name)
+        elif action == "inspect":
+            name = getattr(args, "id", None) or input("Device ID: ").strip()
+            session = getattr(args, "session", None) or input("Session ID: ").strip()
+            output = inspect_session(root, name, session)
         else:
             name = getattr(args, "id", None) or input("Device ID: ").strip()
             value = getattr(args, "modules", "auto")
