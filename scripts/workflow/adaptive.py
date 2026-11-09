@@ -125,6 +125,7 @@ def run(transport, target, output, timeout, modules, baud=115200, duration=10):
         "collected_at": datetime.now(timezone.utc).isoformat(),
         "state": "running", "read_only": True,
         "selected_modules": modules, "items": [], "skipped": [],
+        "expected_probes": len(BOOTSTRAP) + 1 + sum(len(MODULES[m]) for m in modules),
         "limitations": ["Probes can be denied or truncated; unknown is not absent.",
                         "Raw evidence can include device identifiers, IP and MAC information.",
                         "No target writes, privilege escalation or automatic upload."]
