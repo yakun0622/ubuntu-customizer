@@ -1,32 +1,40 @@
-# Implementation roadmap
+# Roadmap and acceptance
 
-## v0.1 Foundation (this repository baseline)
+## v0.1 completed: repository foundation
 
-- Skill entry point and reference runbooks
-- JSON profile schema and validated example
-- Read-only Linux system and network discovery
-- Smoke tests and explicit safety boundary
+- Agent SKILL.md and reference runbooks
+- JSON safe-subset profile validator
+- Read-only Linux inventory
+- Validation smoke tests
 
-## v0.2 Installed systems
+## v0.2 in progress: safe installed-system workflow
 
-- Structured plan/diff engine and idempotent apply interface
-- SSH execution adapter with host identity and access protection
-- Transactional backup and per-resource restore tests
-- Package and systemd adapters
+Implemented in source:
+- Read-only local profile drift plan
+- Remote read-only inventory with OpenSSH
+- Local explicit-file snapshots and SHA-256 manifest
+- Unit tests for the plan
 
-## v0.3 Image pipeline
+Still needed for full v0.2:
+- Verified local test execution and automated integration tests
+- Structured plan/diff engine beyond packages and hostname/timezone
+- Idempotent approved mutation adapters
+- Tested per-resource restore and remote network recovery
+- Remote compatibility verification, structured SSH error reporting
+
+## v0.3 planned: image pipeline
 
 - Version-pinned Ubuntu Server Autoinstall ISO renderer
-- QCOW2/cloud-init renderer
-- Source signature/hash verification and QEMU automated smoke tests
-- Reproducible manifest
+- Official cloud image / QCOW2 + cloud-init workflow
+- Source signature/hash verification and QEMU smoke tests
+- Reproducibility manifest
 
-## v0.4 ARM/Armbian
+## v0.4 planned: ARM/Armbian
 
 - Board plugin discovery and BSP metadata
-- Device tree read/diff support and UART/PHY diagnostics
-- Board-specific image builds and external recovery checks
+- Device tree read/diff support, UART/PHY diagnostics
+- Board-specific image builds and verified external recovery
 
 ## Acceptance rule
 
-No component is marked implemented until integration tests verify actual behavior. Never treat markdown design notes as a working build or execution engine.
+Source committed is not sufficient evidence that runtime tests passed. Mark features validated only after test logs show successful execution. Never equate markdown instructions with a working build engine.
