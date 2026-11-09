@@ -139,3 +139,30 @@ The output `capabilities.json` describes observation availability (`available`,
 `partial`, `unknown`), **not** a claim that the physical peripheral is present
 or functioning. Example YAML is under `profiles/examples/` and is not yet
 consumed by the JSON profile execution engine.
+
+## Adaptive, capability-aware discovery (preview)
+
+Use the staged workflow to avoid trying every deep probe blindly. It first
+collects basic OS/kernel/CPU/RAM data, then checks read-only availability of
+DT, sysfs, pinctrl, buses and diagnostic utilities. Only supported detailed
+probes run; skipped probes and reasons are recorded. Each probe writes a
+checkpointed `manifest.json` so interrupted sessions can be inspected.
+
+```bash
+# Interactive SSH / ADB / TTL / local wizard
+python3 scripts/workflow/adaptive.py
+
+# Explicitly approved unattended read-only collection (preconfigured SSH alias)
+python3 scripts/workflow/adaptive.py --transport ssh --target my-linux-host \\
+  --output ./new-session-001 --modules auto --yes
+
+# Select only specific modules
+python3 scripts/workflow/adaptive.py --transport local --target local \\
+  --modules network,drivers --output ./new-session-002 --yes
+```
+
+**Restrictions:** `--yes` explicitly authorizes only read-only probes; it does
+not authorize writes. TTL is still passive serial RX only. Session directories
+must be new, and their parent directory must already exist. Collected files may
+contain sensitive host/network identifiers and are never auto-uploaded.
+The older `collect.py` remains available for fully exhaustive baseline probes.
