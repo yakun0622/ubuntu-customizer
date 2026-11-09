@@ -34,6 +34,7 @@ PROBES = [
     ("drivers", "sysfs-bindings", "for class in net tty gpio; do for node in /sys/class/$class/*; do test -e \"$node\" || continue; device=$(readlink -f \"$node/device\" 2>/dev/null) || device=; driver=$(readlink -f \"$node/device/driver\" 2>/dev/null) || driver=; printf '%s\\t%s\\t%s\\t%s\\n' \"$class\" \"${node##*/}\" \"${driver##*/}\" \"$device\"; done; done"),
     ("drivers", "platform-bindings", "for node in /sys/bus/platform/devices/*; do test -e \"$node\" || continue; driver=$(readlink -f \"$node/driver\" 2>/dev/null) || driver=; test -n \"$driver\" || continue; printf 'platform\\t%s\\t%s\\t%s\\n' \"${node##*/}\" \"${driver##*/}\" \"$(readlink -f \"$node\")\"; done"),
     ("hardware", "bus-devices", "for bus in i2c spi mdio_bus; do for node in /sys/bus/$bus/devices/*; do test -e \"$node\" || continue; driver=$(readlink -f \"$node/driver\" 2>/dev/null) || driver=; printf '%s\\t%s\\t%s\\t%s\\n' \"$bus\" \"${node##*/}\" \"${driver##*/}\" \"$(readlink -f \"$node\")\"; done; done"),
+    ("drivers", "of-node-bindings", "for node in /sys/bus/platform/devices/*; do test -e \"$node\" || continue; of=$(readlink -f \"$node/of_node\" 2>/dev/null) || of=; case \"$of\" in /sys/firmware/devicetree/base/*|/proc/device-tree/*) printf 'platform\\t%s\\t%s\\n' \"${node##*/}\" \"$of\";; esac; done"),
     ("drivers", "modules", "cat /proc/modules"),
     ("drivers", "tty", "ls -l /sys/class/tty/"),
     ("drivers", "network-drivers", "ls -l /sys/class/net/"),
