@@ -365,14 +365,13 @@ def verify_first_boot(bundle, timeout=240, ovmf_code=None, ovmf_vars=None):
                             try:
                                 with GuestAgent(qga_socket) as agent:
                                     agent.call("guest-ping")
-                            except (OSError, RuntimeError, TimeoutError, ValueError):
+                                    report["qga_connected"] = True
+                                    tracker.advance(4)
+                                    guest = agent.exec(nonce, recipe["hostname"],
+                                                       recipe["first_boot"]["instance_id"], deadline)
+                            except (OSError, TimeoutError):
                                 time.sleep(1)
                                 continue
-                            report["qga_connected"] = True
-                            tracker.advance(4)
-                            with GuestAgent(qga_socket) as agent:
-                                guest = agent.exec(nonce, recipe["hostname"],
-                                                   recipe["first_boot"]["instance_id"], deadline)
                             checks = evaluate_probe(guest, nonce)
                             report["checks"] = checks
                             last_checks = checks
