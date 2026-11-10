@@ -215,6 +215,8 @@ def run(args):
         raise ValueError("Invalid hostname")
     if not 30 <= args.boot_timeout <= 900:
         raise ValueError("Boot timeout must be 30–900 seconds")
+    if not 1 <= args.minimum_gib <= 128:
+        raise ValueError("Minimum free workspace GiB must be between 1 and 128")
     work = require_new_workdir(args.workdir)
     result = {"schema_version": 1, "type": "ubuntu-customizer/ubuntu-cloud-e2e",
               "status": "blocked", "boot_confirmed": False,
@@ -247,9 +249,17 @@ def run(args):
             result["blockers"].append("Source guest image inspection has missing evidence")
             step("source_inspection", "blocked", missing=[x.get("check") for x in inspection.get("gaps", [])])
             return result
+        supported_modes = observations.get("boot_details", {}).get("boot_modes") or [
+            observations.get("boot_details", {}).get("boot_mode")]
+        chosen_mode = args.boot_mode or observations.get("boot_details", {}).get("boot_mode")
+        if chosen_mode not in ("bios", "uefi") or chosen_mode not in supported_modes:
+            result["blockers"].append("Choose an observed BIOS/UEFI mode explicitly when image supports multiple modes")
+            step("firmware_selection", "blocked", supported_modes=supported_modes)
+            return result
         step("source_inspection", "passed", format=fmt,
-             guest_architecture=observations.get("guest_os", {}).get("architecture"))
-        host = host_preflight(work, observations.get("boot_details", {}).get("boot_mode"),
+             guest_architecture=observations.get("guest_os", {}).get("architecture"),
+             supported_boot_modes=supported_modes, selected_boot_mode=chosen_mode)
+        host = host_preflight(work, chosen_mode,
                               args.ovmf_code, args.ovmf_vars, args.minimum_gib)
         if host["blockers"]:
             result["blockers"].extend(host["blockers"])
@@ -264,7 +274,8 @@ def run(args):
             return result
         step("guest_dependencies", "passed", packages=guest["packages"])
         planner = sibling("image_plan")
-        plan = planner.plan(args.session, "virtual-machine", "qcow2", base, trusted, "amd64")
+        plan = planner.plan(args.session, "virtual-machine", "qcow2", base, trusted,
+                            "amd64", selected_firmware=chosen_mode)
         if not plan["build_allowed"]:
             result["blockers"].extend(plan["blockers"])
             step("image_plan", "blocked", check_results=plan.get("compatibility", {}).get("checks", []))
@@ -338,6 +349,8 @@ def parser():
     p.add_argument("--sha256", help="independently verified SHA256 for local source")
     p.add_argument("--public-key", help="real OpenSSH public key path")
     p.add_argument("--hostname", default="uc-e2e")
+    p.add_argument("--boot-mode", choices=("bios", "uefi"),
+                   help="explicitly choose BIOS/UEFI when inspection reports both")
     p.add_argument("--ovmf-code")
     p.add_argument("--ovmf-vars")
     p.add_argument("--minimum-gib", type=int, default=MIN_AVAILABLE_GIB)
