@@ -101,7 +101,8 @@ class FirstBootHealthTests(unittest.TestCase):
             self.assertTrue(any("org.qemu.guest_agent.0" in x for x in args))
             self.assertFalse(any("hostfwd" in x or "tap," in x or "bridge," in x for x in args))
             self.assertEqual(args[args.index("-accel")+1],"tcg")
-            self.assertIn("file="+str(image)+",format=qcow2,if=virtio", args)
+            # The verifier intentionally resolves macOS /var -> /private/var.
+            self.assertIn("file="+str(image.resolve())+",format=qcow2,if=virtio", args)
 
     def test_uefi_requires_explicit_trusted_firmware(self):
         with tempfile.TemporaryDirectory() as tmp:
