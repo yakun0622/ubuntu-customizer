@@ -125,6 +125,7 @@ def stable_guest(observed):
         "partitions": observed.get("partitions"),
         "bootloader": boot.get("bootloader"),
         "boot_mode": boot.get("boot_mode"),
+        "boot_modes": boot.get("boot_modes"),
         "kernels": boot.get("kernels"),
     }
 
@@ -273,6 +274,7 @@ def assemble(plan, config, output_dir, approved=False):
                 "schema_version": 1, "type": "ubuntu-customizer/rootfs-build-result",
                 "source_sha256": plan["source"]["sha256"],
                 "source_plan_architecture": plan.get("architecture"),
+                "selected_firmware": plan.get("boot_compatibility", {}).get("selected"),
                 "discovery_session": progress.session_from_plan(plan),
                 "recipe_sha256": cfg_sha,
                 "image_plan_sha256": hashlib.sha256(json.dumps(
