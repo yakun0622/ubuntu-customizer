@@ -91,6 +91,8 @@ def safe_destination(output_dir):
             raise ValueError("Symlink output ancestors are not allowed")
     if not target.parent.is_dir():
         raise ValueError("Output parent must already exist")
+    if any(ch in str(target) for ch in (":", ",", "\n", "\r")):
+        raise ValueError("Unsupported characters in output path")
     return target
 
 def tool_env():
@@ -202,6 +204,8 @@ def assemble(plan, config, output_dir, approved=False):
             run_checked(["qemu-img", "convert", "-f", original_info["format"], "-O", "raw",
                          str(source), str(scratch)])
             scratch.chmod(0o600)
+            if sha256_file(source) != plan["source"]["sha256"]:
+                raise ValueError("Original source image changed during staging")
             tracker.advance(2)
             # If the original guest is not cloud-init capable, a NoCloud seed
             # would be silently ignored. Fail closed before any guest edit.
@@ -249,6 +253,7 @@ def assemble(plan, config, output_dir, approved=False):
                            "bytes": staged_image.stat().st_size,
                            "format": plan["format"], "virtual_size": output_info["virtual-size"]},
                 "seed": {"directory": "seed", "files": seed_manifest["files"],
+                         "manifest_sha256": sha256_file(seed / "manifest.json"),
                          "iso": {"file": "seed.iso", **{k:v for k,v in iso_metadata.items() if k in ("sha256","bytes")}}
                          if iso_metadata else None},
                 "guest_evidence": {"image_sha256": verification["source"]["sha256"],
@@ -274,6 +279,7 @@ def assemble(plan, config, output_dir, approved=False):
                     json.dump(manifest, f, indent=2, ensure_ascii=False)
                     f.write("\n")
                 (output / "build-manifest.json").chmod(0o600)
+                verify_bundle(output)
             except BaseException:
                 if created:
                     shutil.rmtree(output)
@@ -309,12 +315,15 @@ def verify_bundle(path):
         p = bundle / "seed" / file
         if p.is_symlink() or not p.is_file():
             raise ValueError("Missing or unsafe seed artifact")
+        if file == "manifest.json" and sha256_file(p) != seed.get("manifest_sha256"):
+            raise ValueError("NoCloud manifest hash mismatch")
         if item and (sha256_file(p) != item["sha256"] or p.stat().st_size != item["bytes"]):
             raise ValueError("NoCloud artifact hash mismatch")
     iso = seed.get("iso")
     if iso:
         p = bundle / iso["file"]
-        if p.is_symlink() or not p.is_file() or sha256_file(p) != iso["sha256"]:
+        if (p.is_symlink() or not p.is_file() or sha256_file(p) != iso["sha256"]
+                or p.stat().st_size != iso["bytes"]):
             raise ValueError("Seed ISO hash mismatch")
     return {"hash_verified": True, "boot_tested": False,
             "image_sha256": info["sha256"], "format": info["format"]}
