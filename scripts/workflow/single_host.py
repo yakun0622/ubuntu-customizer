@@ -71,8 +71,12 @@ def command_for(action, args, lima=False):
     out = lambda p: path(p, output=True)
     outdir = lambda p: path(p, output=True, directory=True)
     if action == "inspect":
+        if not re.fullmatch(r"[0-9a-fA-F]{64}", args.sha256 or ""):
+            raise ValueError("Trusted SHA-256 is required for source inspection")
         cmd += [inp(args.source), "--sha256", args.sha256, "--output", out(args.output)]
     elif action == "plan":
+        if not re.fullmatch(r"[0-9a-fA-F]{64}", args.sha256 or ""):
+            raise ValueError("Trusted SHA-256 is required for image planning")
         cmd += [path(args.session, directory=True), "--target", args.target,
                 "--format", args.format, "--source", inp(args.source),
                 "--sha256", args.sha256, "--source-arch", args.source_arch,
@@ -125,9 +129,12 @@ def prepare(action, args, backend=None, instance="default", *,
     if backend == "native":
         return {"backend": "native-linux", "status": "ready", "command": cmd}
     # Never start a previously stopped Lima VM.
+    destination = (args.output_dir if action == "rootfs" and not args.dry_run else
+                   args.report if action == "verify-boot" else
+                   args.output if action in ("inspect", "plan") else None)
+    output_parent = Path(destination).expanduser().absolute().parent if destination else Path.home()
     capabilities = module("host_capabilities").probe_lima(
-        instance, args.output_dir or (Path(args.output).parent if args.output else Path.home()),
-        HERE / ACTIONS[action], runner=runner)
+        instance, output_parent, HERE / ACTIONS[action], runner=runner)
     if not capabilities.get("available"):
         raise ValueError("Existing local Lima VM is unavailable: " + capabilities.get("reason", "unknown"))
     if not capabilities["shared_input_readable"]:
