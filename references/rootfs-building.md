@@ -81,7 +81,8 @@ The output directory must be **new** and has this shape:
 ~~~text
 rootfs-bundle-001/
 ├── image.qcow2                  # or image.img for RAW target format
-├── build-manifest.json          # source+recipe+output checksums
+├── build-manifest.json          # source+recipe+plan+output checksums
+├── build-config.json            # sanitized declarative recipe; no local key path
 └── seed/
     ├── user-data
     ├── meta-data
@@ -104,7 +105,8 @@ rootfs-bundle-001/
 - Reinspect image partition scheme, Linux guest architecture/distro,
   kernel and boot information; compare against original plan evidence.
   Read back /etc/hostname and /etc/motd to verify customization.
-- SHA-256 the image and seed, write build-manifest.json in a private
+- SHA-256 the image, sanitized build configuration and seed; record the
+  exact image-plan digest, then write build-manifest.json in a private
   newly created output directory. Verify the bundle and only then publish
   a complete result. Remove temporary staging and newly created partial
   output on failure. Never overwrite an existing bundle.
