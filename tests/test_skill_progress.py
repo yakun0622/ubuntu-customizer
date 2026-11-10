@@ -7,6 +7,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 import subprocess
+from image_fixtures import inspection, plan as verified_plan
 
 ROOT = Path(__file__).resolve().parents[1] / "scripts" / "workflow"
 
@@ -86,7 +87,8 @@ class SkillProgressTests(unittest.TestCase):
             base = Path(d)
             session = make_session(base)
             source, sha = make_source(base)
-            with patch.object(planner.progress, "preview_is_live", return_value=True):
+            with patch.object(planner.progress, "preview_is_live", return_value=True), \
+                 patch.object(planner.image_inspect, "inspect", return_value=inspection(source)):
                 result = planner.plan(session, "physical-device", "raw", source, sha, "amd64")
                 self.assertTrue(result["blockers"])
                 self.assertEqual(read_state(session)["state"], "blocked")
@@ -106,7 +108,8 @@ class SkillProgressTests(unittest.TestCase):
                     "--format", "qcow2", "--source", str(source),
                     "--sha256", sha, "--source-arch", "amd64",
                     "--output", str(existing)]
-            with patch.object(planner.progress, "preview_is_live", return_value=True):
+            with patch.object(planner.progress, "preview_is_live", return_value=True), \
+                 patch.object(planner.image_inspect, "inspect", return_value=inspection(source)):
                 self.assertEqual(planner.main(args), 2)
             self.assertEqual(read_state(session)["state"], "failed")
 
@@ -115,14 +118,7 @@ class SkillProgressTests(unittest.TestCase):
             base = Path(d)
             session = make_session(base)
             source, sha = make_source(base)
-            plan = {
-                "schema_version": 1, "type": "ubuntu-customizer/image-plan",
-                "target": "virtual-machine", "format": "qcow2",
-                "backend": "qemu-img-offline-convert", "build_allowed": True,
-                "blockers": [], "architecture": "amd64",
-                "discovery": {"session": str(session)},
-                "source": {"path": str(source), "sha256": sha, "bytes": source.stat().st_size}
-            }
+            plan = verified_plan(source, session)
             def info(path):
                 return {"format": "qcow2" if str(path).endswith(".tmp") else "raw",
                         "virtual-size": 16384}
@@ -130,6 +126,7 @@ class SkillProgressTests(unittest.TestCase):
                 Path(args[-1]).write_bytes(b"converted")
                 return subprocess.CompletedProcess(args, 0, "", "")
             with patch.object(builder.progress, "preview_is_live", return_value=True), \
+                 patch.object(builder.image_inspect, "inspect", return_value=inspection(source)), \
                  patch.object(builder, "inspect_image", side_effect=info), \
                  patch.object(builder.subprocess, "run", side_effect=convert):
                 result = builder.build(plan, base / "out.qcow2")
