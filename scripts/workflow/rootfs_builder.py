@@ -82,6 +82,8 @@ def validate_config(config):
 
 def safe_destination(output_dir):
     target = Path(output_dir).expanduser().absolute()
+    if ".." in target.parts:
+        raise ValueError("Parent-directory traversal is not allowed for output bundles")
     if target.exists() or target.is_symlink():
         raise ValueError("Output bundle directory must be new")
     if target.parts[:2] in (("/", "dev"), ("/", "proc"), ("/", "sys")):
