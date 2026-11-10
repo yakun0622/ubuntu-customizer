@@ -95,22 +95,25 @@ def parse_drivers_xml(text):
     guests = root.findall("operatingsystem")
     if root.tag != "operatingsystems" or len(guests) != 1:
         raise ValueError("Exactly one guest must be present in driver report")
-    guest = guests[0]
-    boot = guest.find("bootloader")
-    boot_type = boot.get("type") if boot is not None else None
-    if not boot_type:
-        boot_type = xml_value(guest, "bootloader")
+    # virt-drivers places firmware at /operatingsystems/firmware and Linux
+    # kernel entries within /operatingsystem/bootloader/kernel.
+    firmware = [x.get("type") for x in root.findall("firmware")
+                if x.get("type") in ("uefi", "bios")]
+    bootloader = guests[0].find("bootloader")
+    boot_type = bootloader.get("type") if bootloader is not None else None
     kernels = []
-    for node in guest.findall(".//kernel"):
-        candidate = node.get("version") or xml_value(node, "version")
-        if candidate and candidate not in kernels:
-            kernels.append(candidate[:160])
-    return {
-        "bootloader": boot_type if boot_type and len(boot_type) <= 120 else None,
-        "kernels": kernels[:30],
-        "boot_mode": ("uefi" if boot_type and "uefi" in boot_type.lower() else
-                      "bios" if boot_type and ("bios" in boot_type.lower() or "grub" in boot_type.lower()) else None)
-    }
+    if bootloader is not None:
+        for node in bootloader.findall("kernel"):
+            version = xml_value(node, "version")
+            path = xml_value(node, "vmlinuz")
+            if version and path:
+                kernels.append({"version": version[:160], "path": path[:256],
+                                "virtio_blk": node.find("supports_virtio_blk") is not None})
+    return {"bootloader": boot_type if boot_type and len(boot_type) <= 120 else None,
+            "kernels": kernels[:30],
+            "boot_modes": sorted(set(firmware)),
+            "boot_mode": firmware[0] if len(set(firmware)) == 1 else None}
+
 
 def parse_partition_csv(text):
     rows = list(csv.reader(io.StringIO(text)))
@@ -154,7 +157,7 @@ def inspect(path, expected_sha256=None):
     if fmt not in ("raw", "qcow2") or type(virtual) is not int or not 0 < virtual <= MAX_SIZE:
         report["gaps"].append({"check": "disk_format", "reason": "unsupported_disk_format_or_size"})
         return report
-    if any(x in data for x in ("backing-filename", "full-backing-filename", "encrypted")):
+    if any(x in data for x in ("backing-filename", "full-backing-filename")) or data.get("encrypted") is True:
         report["gaps"].append({"check": "disk_format", "reason": "backing_or_encrypted_image"})
         return report
     report["observations"].update({"format": fmt, "virtual_size": virtual})
