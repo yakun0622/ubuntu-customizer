@@ -71,3 +71,19 @@ their CLI prompts are not the primary user interface.
 - Do not present raw-to-qcow2 conversion as successful image portability.
 - Do not store credentials or automatically upload captured device data.
 - Do not promote the optional terminal/web viewer into a required product layer.
+
+
+### Portable RootFS customization (opt-in)
+
+After evidence and `image-plan.json` are validated, prefer
+`rootfs_builder.py --dry-run` to show the user fixed operations and missing
+offline tools. The Agent must request separate consent for `--approved`,
+and must not infer approval from read-only device collection or optional
+preview consent. Only Linux VM/cloud images with cloud-init configuration
+and matching guest/target evidence qualify. Physical device images are still
+blocked pending independent BSP/bootloader/DTB/firmware/recovery validation.
+Keep source images shut down and immutable; the builder operates exclusively
+on a temporary clone and provides a new hash-verified artifact bundle.
+Run `--verify-bundle` and separately verify QEMU boot before suggesting
+deployment. Document remaining identity/privacy limitations and
+undemonstrated cloud-init first boot.
