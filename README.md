@@ -26,7 +26,10 @@ Implemented:
 - Unit tests for profile validation and planning
 - Interactive device discovery over SSH / ADB / TTL / local with a local evidence manifest
 
-**Not implemented:** applying profile changes, remote writes, automatic rollback, ISO/IMG/QCOW2 building and physical flashing. These are planned, not claimed as operational.
+**Not implemented:** applying profile changes, remote writes, automatic rollback,
+full installer ISO or physical-board IMG assembly, installed-system cloning
+and physical flashing. Existing RAW/QCOW2 *offline conversion* is available
+behind conservative guest inspection gates, but is not a complete OS builder.
 
 ## Interactive device discovery
 
