@@ -82,8 +82,11 @@ class BackendTests(unittest.TestCase):
                 return {"type":"ubuntu-customizer/first-boot-health",
                         "boot_confirmed":True,"first_boot_confirmed":True,
                         "status":"passed","checks":{"network":False}}
+        class Required:
+            REQUIRED=("linux_boot", "network")
         def mocked_module(name):
-            return Dispatcher if name=="single_host" else Reader
+            return {"single_host":Dispatcher, "rootfs_builder":Reader,
+                    "verify_first_boot":Required}[name]
         with patch.object(verify,"module",side_effect=mocked_module):
             result=verify.execute(args(("backend","qemu-health"),
                                        ("bundle","bundle"),("report","report.json"),
