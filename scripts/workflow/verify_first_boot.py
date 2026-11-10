@@ -356,6 +356,7 @@ def verify_first_boot(bundle, timeout=240, ovmf_code=None, ovmf_vars=None):
                 while time.monotonic() < deadline:
                     if proc.poll() is not None:
                         report["reason"] = "qemu_exited_before_health"
+                        report["status"] = "failed"
                         tracker.failed()
                         break
                     if qga_socket.exists():
@@ -390,7 +391,9 @@ def verify_first_boot(bundle, timeout=240, ovmf_code=None, ovmf_vars=None):
                             time.sleep(1)
                         except (OSError, RuntimeError, ValueError) as exc:
                             report["reason"] = "guest_agent_protocol_or_health_failure"
+                            report["status"] = "failed"
                             report["check_error_type"] = type(exc).__name__
+                            tracker.failed()
                             break
                     time.sleep(0.5)
                 else:
