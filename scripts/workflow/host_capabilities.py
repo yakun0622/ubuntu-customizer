@@ -82,10 +82,17 @@ def decide(host_os, host_arch, tools, target, target_arch, lima=None):
     else:
         build["reason"] = ("requires_local_linux_guest" if host_os == "darwin"
                            else "native_tools_unavailable")
-    # Static device-evidence inspection is Python-only on all host OSes.
+    # Read-only source inspection is independent of permission to build a
+    # physical device. A blocked BSP must not hide already available tools.
+    static_tools = (lima["tools"] if host_os == "darwin" and lima and
+                    lima.get("available") else tools)
+    can_inspect = (host_os == "linux" or (host_os == "darwin" and
+                   lima and lima.get("available"))) and all(
+                       static_tools.get(name) for name in
+                       ("qemu-img", "virt-inspector", "virt-filesystems",
+                        "virt-drivers", "guestfish"))
     inspections = {"device_evidence": "available",
-                   "source_image": ("available" if build["status"] == "available"
-                                    else "needs_libguestfs_backend"),
+                   "source_image": "available" if can_inspect else "needs_libguestfs_backend",
                    "arm_boot_log": "available"}
     backend_tools = (lima["tools"] if build["backend"] == "lima-local-linux"
                      else tools)
