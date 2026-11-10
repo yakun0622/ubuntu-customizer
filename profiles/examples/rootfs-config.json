@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "hostname": "portable-guest",
+  "motd": "Managed by Ubuntu Customizer\n",
+  "first_boot": {
+    "mode": "nocloud",
+    "username": "ubuntu",
+    "instance_id": "REPLACE-WITH-UNIQUE-INSTANCE-ID",
+    "ssh_public_key": "/absolute/path/to/YOUR_PUBLIC_KEY.pub",
+    "seed_iso": false
+  }
+}
