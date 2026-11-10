@@ -412,6 +412,20 @@ def verify_first_boot(bundle, timeout=240, ovmf_code=None, ovmf_vars=None):
                 raise ValueError("Original image changed despite QEMU snapshot isolation")
             return report
 
+def save_report(path, result):
+    destination = Path(path).expanduser()
+    if destination.is_symlink() or destination.exists() or not destination.parent.is_dir():
+        raise ValueError("Verification report must be a new regular file")
+    fd = os.open(destination, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(result, f, indent=2, ensure_ascii=False)
+            f.write("\n")
+    except BaseException:
+        destination.unlink(missing_ok=True)
+        raise
+    return destination
+
 def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--bundle", required=True, help="RootFS Builder output directory")
@@ -428,15 +442,32 @@ def main(argv=None):
         if destination.exists() or destination.is_symlink() or not destination.parent.is_dir():
             raise ValueError("Health report must be new in an existing directory")
         result = verify_first_boot(args.bundle, args.timeout, args.ovmf_code, args.ovmf_vars)
-        with destination.open("x", encoding="utf-8") as f:
-            json.dump(result, f, indent=2, ensure_ascii=False)
-            f.write("\n")
-        destination.chmod(0o600)
+        save_report(destination, result)
         print(json.dumps({"report": str(destination), "status": result["status"],
                           "boot_confirmed": result["boot_confirmed"]}))
         return 0 if result["status"] == "passed" else 2
     except (OSError, ValueError, RuntimeError, TypeError, KeyError,
             subprocess.TimeoutExpired) as exc:
+        # Only after explicit user approval and a valid, new destination:
+        # preserve a machine-readable failure report without guest stdout,
+        # private machine IDs, SSH key data, image paths or exception text.
+        if args.approved:
+            destination = Path(args.report).expanduser()
+            if (not destination.exists() and not destination.is_symlink()
+                    and destination.parent.is_dir()):
+                failure = {
+                    "schema_version": 1,
+                    "type": "ubuntu-customizer/first-boot-health",
+                    "boot_attempted": False, "boot_confirmed": False,
+                    "first_boot_confirmed": False,
+                    "status": "failed", "reason": "verification_error",
+                    "error_type": type(exc).__name__,
+                    "checks": {name: False for name in REQUIRED},
+                }
+                try:
+                    save_report(destination, failure)
+                except (OSError, ValueError):
+                    pass
         print("ERROR: " + str(exc), file=sys.stderr)
         return 2
 
