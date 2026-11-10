@@ -299,6 +299,8 @@ def verify_bundle(path):
     if result.get("type") != "ubuntu-customizer/rootfs-build-result" or result.get("schema_version") != 1:
         raise ValueError("Unsupported build manifest")
     info = result.get("output", {})
+    if not isinstance(info, dict):
+        raise ValueError("Invalid image manifest")
     name = info.get("file")
     if name not in GUEST_FORMATS.values():
         raise ValueError("Unexpected image name")
@@ -311,6 +313,12 @@ def verify_bundle(path):
     if image_info.get("format") != info.get("format") or image_info.get("virtual-size") != info.get("virtual_size"):
         raise ValueError("Output disk header mismatch")
     seed = result.get("seed", {})
+    if (not isinstance(seed, dict) or seed.get("directory") != "seed"
+            or not isinstance(seed.get("files"), dict)):
+        raise ValueError("Invalid NoCloud seed manifest")
+    seed_folder = bundle / "seed"
+    if seed_folder.is_symlink() or not seed_folder.is_dir():
+        raise ValueError("NoCloud seed directory must not be a symbolic link")
     for file in ("user-data", "meta-data", "manifest.json"):
         item = (seed.get("files") or {}).get(file)
         if file == "manifest.json":
@@ -325,6 +333,8 @@ def verify_bundle(path):
             raise ValueError("NoCloud artifact hash mismatch")
     iso = seed.get("iso")
     if iso:
+        if not isinstance(iso, dict) or iso.get("file") != "seed.iso":
+            raise ValueError("Unexpected or unsafe ISO artifact path")
         p = bundle / iso["file"]
         if (p.is_symlink() or not p.is_file() or sha256_file(p) != iso["sha256"]
                 or p.stat().st_size != iso["bytes"]):
