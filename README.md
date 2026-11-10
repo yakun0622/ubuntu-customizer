@@ -497,3 +497,36 @@ The RootFS artifact bundle also contains a sanitized `build-config.json`
 (no original public-key filesystem path) and the `image_plan_sha256`
 provenance field for reproducibility. The build manifest verifies both
 configuration and image hashes.
+
+### QEMU first-boot health verification (amd64 VM only)
+
+The Skill now offers a separately approved, isolated **first-boot health
+check** for a completed Portable RootFS Builder bundle:
+
+```bash
+python3 scripts/workflow/rootfs_builder.py --verify-bundle ./rootfs-bundle
+python3 scripts/workflow/verify_first_boot.py \
+  --bundle ./rootfs-bundle --timeout 300 \
+  --report ./first-boot-health.json --approved
+
+# For UEFI guests additionally supply:
+# --ovmf-code /trusted/OVMF_CODE.fd --ovmf-vars /trusted/OVMF_VARS.fd
+```
+
+This runs a disposable QEMU TCG snapshot with restricted guest DHCP,
+no Internet/host routing or forwarded ports, a private UNIX Guest Agent
+socket and a verified NoCloud seed ISO. It requires preinstalled
+qemu-guest-agent and Python 3 in the guest. A fresh challenge and a fixed
+read-only guest script check Linux boot, systemd, cloud-init and expected
+instance ID, hostname, initialized machine-id and SSH host keys, SSH
+service, and a configured guest network interface. All must pass for
+`boot_confirmed=true`. Exit codes and serial output are **not** proof.
+Missing prerequisites, timeout or failed checks remain blocked/failed.
+The report stores only boolean checks, not machine IDs, keys, secrets or
+raw guest command output. The original disk is re-hashed after shutdown.
+
+RootFS staging now removes stale `/var/lib/cloud` state **only in the
+private cloned image**, allowing fresh NoCloud instance initialization.
+The build result also retains its original discovery session link for
+optional Skill preview status. No physical-board BSP, firmware or flash
+support was added. See [First boot validation](references/first-boot-verification.md).
