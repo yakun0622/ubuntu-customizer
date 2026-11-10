@@ -51,7 +51,7 @@ def detect_arch(cpu, kernel):
             return name
     return None
 
-def _plan(session, target, fmt, source_path, source_sha256, source_arch, tick=None):
+def _plan(session, target, fmt, source_path, source_sha256, source_arch, tick=None, selected_firmware=None):
     if target not in TARGETS or fmt not in FORMATS:
         raise ValueError("Unsupported target or image format")
     if not re.fullmatch(r"[a-fA-F0-9]{64}", source_sha256 or ""):
@@ -143,8 +143,12 @@ def _plan(session, target, fmt, source_path, source_sha256, source_arch, tick=No
     check("kernel", bool(boot_details.get("kernels")),
           "No installed, bootloader-referenced kernel was verified",
           ["virt-drivers:operatingsystem/bootloader/kernel"])
-    check("boot_firmware", boot_details.get("boot_mode") in ("uefi", "bios"),
-          "Source boot firmware (UEFI/BIOS) is unknown or ambiguous",
+    observed_modes = sorted(set(mode for mode in
+        (boot_details.get("boot_modes") or [boot_details.get("boot_mode")])
+        if mode in ("uefi", "bios")))
+    chosen_mode = selected_firmware or boot_details.get("boot_mode")
+    check("boot_firmware", chosen_mode in observed_modes,
+          "Guest firmware choice is absent, unsupported or ambiguous; select one inspected BIOS/UEFI mode explicitly",
           ["virt-drivers:firmware"])
     check("bootloader", bool(boot_details.get("bootloader")),
           "Source image bootloader could not be identified",
@@ -165,6 +169,7 @@ def _plan(session, target, fmt, source_path, source_sha256, source_arch, tick=No
                    "inspection": inspected},
         "discovery": {"session": str(Path(session).resolve()),
                       "transport": manifest.get("transport"), "evidence": evidence},
+        "boot_compatibility": {"supported_modes": observed_modes, "selected": chosen_mode},
         "backend": backend, "build_allowed": target == "virtual-machine" and not blockers,
         "blockers": blockers, "warnings": warnings,
         "compatibility": {"status": "blocked" if blockers else "candidate",
@@ -184,12 +189,12 @@ def _plan(session, target, fmt, source_path, source_sha256, source_arch, tick=No
     }
 
 
-def plan(session, target, fmt, source_path, source_sha256, source_arch):
+def plan(session, target, fmt, source_path, source_sha256, source_arch, selected_firmware=None):
     # CLI callers and the device manager share exactly one tracked entrypoint.
     # A compatibility blocker is not a process failure; it is a safe decision.
     with progress.tracking(session, "image-plan", 4) as tracker:
         result = _plan(session, target, fmt, source_path, source_sha256,
-                       source_arch, tick=tracker.advance)
+                       source_arch, tick=tracker.advance, selected_firmware=selected_firmware)
         tracker.advance(3)  # Read-only guest image inspection completed
         tracker.advance(4)  # Compatibility decision produced
         if result["blockers"]:
@@ -205,10 +210,12 @@ def main(argv=None):
     p.add_argument("--source", required=True, help="existing locally stored image")
     p.add_argument("--sha256", required=True, help="trusted SHA256 obtained independently")
     p.add_argument("--source-arch", choices=("amd64", "arm64", "armhf", "riscv64"), required=True)
+    p.add_argument("--boot-mode", choices=("bios", "uefi"), help="select one mode reported by guest inspection")
     p.add_argument("--output", required=True, help="new JSON plan path")
     args = p.parse_args(argv)
     try:
-        result = plan(args.session, args.target, args.format, args.source, args.sha256, args.source_arch)
+        result = plan(args.session, args.target, args.format, args.source, args.sha256,
+                      args.source_arch, selected_firmware=args.boot_mode)
         output = Path(args.output)
         if output.exists() or output.is_symlink():
             raise ValueError("Output already exists")
