@@ -174,3 +174,18 @@ Source committed is not sufficient evidence that runtime tests passed. Mark feat
   success, failure, blocked, source-session propagation and progress counts.
 - Pending: run new and existing tests on Linux/macOS, review CLI artifact
   write failures and verify against real qemu-img/QEMU sessions (not CI).
+
+## Source guest inspection and compatibility milestone
+
+- Added `image_inspect.py`: qemu-img format, read-only GPT/MBR probing,
+  partition/filesystem inventory and libguestfs OS/architecture/kernel/boot
+  analysis, all with SHA-256 evidence provenance and missing-tool gaps.
+- Integrated an eight-check evidence matrix into image planning. No
+  user-claimed architecture may authorize conversion without inspection.
+- Build helper now enforces a verified inspection matrix and re-inspects
+  the source before conversion; unsupported images/physical boards block.
+- Added synthetic parser, malformed XML, missing tool, tamper and
+  cross-check tests. Existing unit tests use explicit synthetic inspections.
+- Next: run tests on Linux/macOS with qemu-img/libguestfs actually installed;
+  then add QEMU boot confirmation from a read-only guest readiness signal,
+  plus hardware-specific BSP plugin selection after verified board identity.
