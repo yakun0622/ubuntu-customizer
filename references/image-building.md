@@ -155,3 +155,30 @@ Reference documentation:
 - https://libguestfs.org/virt-filesystems.1.html
 - https://libguestfs.org/virt-drivers.1.html
 - https://libguestfs.org/guestfish.1.html
+
+## VM RootFS artifact customization (supported minimal backend)
+
+After the image compatibility plan has been approved and checked,
+`rootfs_builder.py` can construct a *new local, offline, VM-only bundle*.
+It cannot turn a generic VM image into a bootable physical-board image.
+
+The recipe is strictly restricted to a hostname, a MOTD and a public-key-only
+NoCloud first-boot specification. It is validated before any operation.
+`--dry-run` reports the exact fixed steps and missing tools; only a
+separate `--approved` allows writing a NEW output bundle. Internally it
+converts the source into a private RAW scratch file, calls
+`virt-customize --no-network` for the fixed file/hostname edits, calls
+`virt-sysprep --operations machine-id,ssh-hostkeys` for clone identity
+cleanup, produces NoCloud files (optional seed ISO), then converts to the
+requested RAW/QCOW2 disk. The working scratch is deleted after publishing
+or a failure. It never writes the original source or host block devices.
+
+After assembly it compares partition/OS/kernel/boot evidence, verifies the
+guest hostname and MOTD, writes SHA-256 build metadata, and verifies the
+published bundle contents. This is **artifact integrity**, not boot proof.
+Cloud-init configuration existence is checked, but first boot is not run.
+Physical BSP boot components, drive installation, packages, services and
+custom scripts remain outside this backend.
+
+See [Portable RootFS Builder workflow](rootfs-building.md) for example
+commands, the strict JSON recipe and safety gates.
