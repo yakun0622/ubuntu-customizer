@@ -12,6 +12,7 @@ browser exports and image tools are optional helpers, never prerequisites.
 Read [Agent workflow](references/agent-workflow.md) first. Then read
 [Device discovery](references/device-discovery.md),
 [Image building](references/image-building.md),
+[Offline RootFS building](references/rootfs-building.md),
 [System management](references/system-management.md),
 [ARM hardware](references/arm-hardware.md), or
 [Safety](references/safety.md) *only for relevant stages*.
@@ -49,13 +50,18 @@ Read [Agent workflow](references/agent-workflow.md) first. Then read
    A successful plan is a **candidate for offline format conversion**, not
    proof of bootability. Physical-device IMG assembly remains blocked.
 7. **Execute only supported, authorized work.** For an approved VM image,
-   `build_image.py` provides offline RAW/QCOW2 conversion. Optional
-   `nocloud.py` renders NoCloud seed files for cloud-init-capable guests;
-   `verify_vm.py` provides static checks and opt-in isolated boot attempt.
-   Neither conversion nor a smoke attempt proves portable bootability.
-   Full rootfs customization, installer ISO creation, installed-system
-   cloning, first-boot identity scrubbing, physical IMG assembly and
-   flashing are **not implemented**.
+   `build_image.py` provides offline RAW/QCOW2 conversion.
+   `rootfs_builder.py` can **preview** a fixed offline RootFS recipe and,
+   after explicit separate `--approved` authorization, make a private clone
+   and apply an allowlisted hostname/MOTD/NoCloud initialization recipe.
+   It runs virt-customize and narrowly scoped virt-sysprep *only on that
+   private cloned image*, then validates the output and publishes a
+   checksum-backed bundle. Require an inspected Linux VM image with
+   cloud-init; missing support blocks work. `verify_vm.py` remains an
+   optional isolated VM verification attempt. Full arbitrary RootFS package
+   installation, installer ISO creation, installed-system cloning, complete
+   first-boot identity personalization, physical IMG/BSP assembly and
+   flashing are **not implemented**. Build output is **not** proof of bootability.
 8. **Verify and report.** Record actual results, source/evidence hashes,
    image hash, remaining compatibility blockers, tests performed and
    recovery path. Do not claim tests or builds that were not run.
@@ -83,6 +89,19 @@ python3 scripts/workflow/image_plan.py SESSION_DIR \
 # verified plan says build_allowed=true:
 python3 scripts/workflow/build_image.py image-plan.json \
   --output portable.qcow2
+
+# Optional fixed offline RootFS customization (requires approved image-plan):
+# Copy profiles/examples/rootfs-config.json and update public key, instance-id.
+python3 scripts/workflow/rootfs_builder.py image-plan.json \
+  --config rootfs-config.json --dry-run
+
+# Separate explicit approval is required to write an isolated image bundle:
+python3 scripts/workflow/rootfs_builder.py image-plan.json \
+  --config rootfs-config.json --output-dir ./new-rootfs-bundle --approved
+
+# Recheck the published image/seed hashes and qemu metadata, read-only:
+python3 scripts/workflow/rootfs_builder.py \
+  --verify-bundle ./new-rootfs-bundle
 ```
 
 ## Safety invariants
@@ -183,3 +202,27 @@ Never run host-side mount, mkfs, parted write commands or firmware flashing
 as part of source inspection. For a physical target, source guest boot
 components still need a separately verified board-specific BSP and recovery
 path. Successful checks do not substitute for boot testing.
+
+
+## RootFS Builder Skill rules (VM only)
+
+The Agent must first inspect both source image and target device evidence.
+The RootFS recipe has a strict schema; only hostname, MOTD and a
+public-key-only NoCloud first-boot seed are supported. Never accept
+arbitrary executable commands, scripts, network package installation,
+passwords, embedded private keys or custom guest file paths in the recipe.
+Always run dry-run first and present the exact operations and dependencies
+before seeking separate approval. No preview UI consent implies build
+consent. Refuse any physical-device image plan without its independent
+verified BSP/bootloader/DTB/firmware approval and suitable builder adapter.
+
+RootFS customization uses only a private staging copy; never apply
+virt-customize or virt-sysprep to the original image or a running VM disk.
+Regenerating SSH host keys and machine-id is requested by virt-sysprep;
+actual first-boot behavior and the absence of all device-specific secrets
+remain **unverified** until separately audited. The optional NoCloud
+seed assumes cloud-init support; the builder checks that the guest has
+an installed cloud-init configuration but does not claim it was applied
+on boot. Final bundles include image, seed, hashes and a build manifest;
+verify these before attempting isolated VM boot testing. See
+references/rootfs-building.md for the exact contract.
