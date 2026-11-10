@@ -178,9 +178,11 @@ def validate_bundle(bundle):
     expected = (recipe["hostname"], boot["instance_id"])
     if not all(isinstance(s, str) and re.fullmatch(r"[A-Za-z0-9_.-]{1,100}", s) for s in expected):
         raise ValueError("Invalid expected guest first-boot identity")
-    firmware = report.get("guest_evidence", {}).get("observations", {}).get("boot_mode")
-    if firmware not in ("uefi", "bios"):
-        raise ValueError("Guest firmware boot mode not independently known")
+    observed = report.get("guest_evidence", {}).get("observations", {})
+    advertised = observed.get("boot_modes") or [observed.get("boot_mode")]
+    firmware = report.get("selected_firmware") or observed.get("boot_mode")
+    if firmware not in ("uefi", "bios") or firmware not in advertised:
+        raise ValueError("Verified guest firmware must be explicitly selected from inspected supported modes")
     if report.get("source_plan_architecture") != "amd64":
         raise ValueError("Only x86_64 VM first-boot verification is implemented")
     return folder, path, report, recipe, firmware
