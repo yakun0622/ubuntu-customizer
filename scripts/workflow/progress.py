@@ -42,7 +42,7 @@ def preview_is_live(session):
 
 class Tracker:
     def __init__(self, session, stage, total):
-        if stage not in ("image-plan", "image-build", "first-boot", "verify"):
+        if stage not in ("image-plan", "image-build", "rootfs-build", "first-boot", "verify"):
             raise ValueError("Unsupported image workflow stage")
         if type(total) is not int or not 1 <= total <= 1000000:
             raise ValueError("Invalid workflow total")
@@ -91,7 +91,7 @@ class Tracker:
 
 def report_error(session, stage):
     """Override a finished stage if its CLI artifact write subsequently fails."""
-    if stage not in ("image-plan", "image-build", "first-boot", "verify"):
+    if stage not in ("image-plan", "image-build", "rootfs-build", "first-boot", "verify"):
         raise ValueError("Unsupported image workflow stage")
     if not preview_is_live(session):
         return
