@@ -492,3 +492,8 @@ first boot/SSH regeneration, VM boot, and machine-specific secret
 sanitization remain unverified until separately audited. The output is
 not suitable for direct physical flashing. Full constraints are in
 [RootFS Builder Skill workflow](references/rootfs-building.md).
+
+The RootFS artifact bundle also contains a sanitized `build-config.json`
+(no original public-key filesystem path) and the `image_plan_sha256`
+provenance field for reproducibility. The build manifest verifies both
+configuration and image hashes.
