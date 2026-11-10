@@ -50,7 +50,7 @@ def run_tool(tool, args, timeout=120):
         env = {**os.environ, "LIBGUESTFS_BACKEND": "direct",
                "LIBGUESTFS_NETWORK": "0", "LIBGUESTFS_DEBUG": "0"}
         result = subprocess.run([tool, *args], capture_output=True, timeout=timeout,
-                                env=env, check=False)
+                                stdin=subprocess.DEVNULL, env=env, check=False)
         if len(result.stdout) > MAX_OUTPUT:
             return None, "output_too_large"
         if result.returncode:
