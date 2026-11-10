@@ -427,3 +427,29 @@ No preview means no automatic status-file writes. A closed preview is not
 restarted implicitly. The Skill remains the controller and the browser is
 a passive view. For the phase mapping and privacy rules see
 [Live preview](references/live-preview.md).
+
+### Read-only source image introspection
+
+The Agent Skill can now inspect an existing RAW/QCOW2 disk source and create
+a traceable compatibility decision, **before** invoking the image conversion
+helper. It uses `qemu-img` and optional read-only libguestfs utilities to
+establish GPT/MBR partitioning, guest Linux architecture/OS, installed kernel
+and BIOS/UEFI + bootloader. Missing evidence blocks conversion.
+
+```bash
+python3 scripts/workflow/image_inspect.py /srv/images/base.img \
+  --sha256 TRUSTED_SOURCE_SHA256 \
+  --output ./source-inspection.json
+
+python3 scripts/workflow/image_plan.py SESSION_DIR \
+  --target virtual-machine --format qcow2 --source /srv/images/base.img \
+  --sha256 TRUSTED_SOURCE_SHA256 --source-arch amd64 \
+  --output ./image-plan.json
+```
+
+`image-plan.json` now includes observed source details and a per-check
+compatibility matrix with evidence. `build_image.py` refuses uninspected
+or changed images even if an editable JSON plan claims they are allowed.
+Physical device builds still require independent board-specific components.
+See [image building](references/image-building.md). Tests were added but
+require execution on a supported build host; no CI was automatically run.
