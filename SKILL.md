@@ -5,11 +5,20 @@ description: Agent-led, evidence-first discovery and customization of Ubuntu, De
 
 # Ubuntu Customizer — AI Agent Skill
 
-**This is a Skill, not a standalone application.** The AI Agent guides the
-conversation and invokes only the scripts it needs. Device manager menus,
-browser exports and image tools are optional helpers, never prerequisites.
+**This is a Skill, not a standalone application.** Users start by saying
+**“开始定制系统”** or **“开始检查设备”**. The AI Agent performs each
+supported stage using the tools actually available to its runtime, asks one
+short question only when a choice or permission is needed, and resumes
+automatically after the answer. Users should never be made to select
+Python commands, QEMU/Lima adapters, directories, or command-line flags
+unless no authorized execution connection exists.
 
-Read [Agent workflow](references/agent-workflow.md) first. Then read
+The Agent remains the sole workflow controller. The optional dashboard,
+device manager, image scripts and CLI examples are implementation tools,
+**not** separate products or required user entrypoints.
+
+Read [One-start interactive Agent flow](references/interactive-agent-flow.md)
+and [Agent workflow](references/agent-workflow.md) first. Then read
 [Device discovery](references/device-discovery.md),
 [Image building](references/image-building.md),
 [Offline RootFS building](references/rootfs-building.md),
@@ -17,6 +26,48 @@ Read [Agent workflow](references/agent-workflow.md) first. Then read
 [System management](references/system-management.md),
 [ARM hardware](references/arm-hardware.md), or
 [Safety](references/safety.md) *only for relevant stages*.
+
+## One-start Agent entrypoint (highest priority)
+
+**When the user says “开始” or requests customization, START the guided
+conversation and available safe host inspection immediately**. Never first
+respond with a long CLI checklist. Use the existing goal/target information
+from the conversation; ask only for the single essential missing decision.
+
+The Agent may use `scripts/workflow/agent_journey.py` as a **pure decision
+helper**, not as a user-facing app. Its `start → next_step → transition`
+policy returns a fixed next action or one short question. It never executes
+commands or grants approvals. The Agent invokes the appropriate existing
+Python helpers only when its host execution tool is actually connected,
+records observed outcomes and automatically continues to the next safe stage.
+
+A normal journey is **host detection → choose only missing intent/target →
+optional preview choice → request read-only device access → evidence collection
+→ SHA-256 analysis → source inspection/compatibility plan → recipe preview →
+separate offline-build consent → image build + verification → optional QEMU
+choice and separate consent → final evidence summary**. Physical ARM targets
+instead use read-only static/image/UART evidence and end with BSP, DTB,
+bootloader, storage and recovery blockers clearly stated. QEMU must never
+be forced on physical-device flows.
+
+Keep interactions in the conversation: one question at a time, with a
+recommended/default safe option. Do not ask users to pick between
+`qemu-img`, libguestfs, Lima, SSH flags or backend names. Do not silently
+connect to a device, install tools, boot a VM, or create/write an image:
+the general “开始” message grants **none** of those permissions.
+
+For a one-computer setup, the Agent may use native Linux tools or an
+**already-running**, explicitly authorized local Lima Linux guest on macOS.
+The latter stays on the same physical Mac; never create/start Lima or change
+a filesystem mount without explicit approval. If no execution bridge
+is available, explain that limitation truthfully and propose the single
+relevant setup action rather than pretending local work ran.
+
+**All decisions are revocable at later stages**, and one approval applies
+only to its described risk boundary. After any failed or blocked stage,
+stop automatic progression and present the blocker and a supported remedy.
+Report verified operations accurately and finish with ONE concrete next-step
+follow-up button where the client supports it.
 
 ## Primary workflow
 
@@ -76,7 +127,12 @@ Read [Agent workflow](references/agent-workflow.md) first. Then read
    image hash, remaining compatibility blockers, tests performed and
    recovery path. Do not claim tests or builds that were not run.
 
-## Examples (optional helpers)
+## Developer / Agent helper examples (NOT user onboarding)
+
+These commands exist for debugging or for an Agent with authorized host
+execution access. **Do not present this sequence as the user-facing
+startup experience.** For normal use, users say “开始定制系统” and the
+Agent owns the progression, choices and tool invocation.
 
 ```bash
 # First collect evidence, with the user's approval:
