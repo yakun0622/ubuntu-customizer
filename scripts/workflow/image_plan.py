@@ -19,6 +19,9 @@ spec.loader.exec_module(dossier)
 progress_spec = importlib.util.spec_from_file_location("uc_image_progress", HERE / "progress.py")
 progress = importlib.util.module_from_spec(progress_spec)
 progress_spec.loader.exec_module(progress)
+inspect_spec = importlib.util.spec_from_file_location("uc_source_image", HERE / "image_inspect.py")
+image_inspect = importlib.util.module_from_spec(inspect_spec)
+inspect_spec.loader.exec_module(image_inspect)
 
 ARCH = {
     "x86_64": "amd64", "amd64": "amd64",
@@ -112,17 +115,60 @@ def _plan(session, target, fmt, source_path, source_sha256, source_arch, tick=No
         warnings.append("VM portability needs a compatible hypervisor machine model and virtual drivers")
         if not boot:
             warnings.append("No boot files collected; source image bootability must be checked in an isolated VM")
+    # Read-only introspection of the IMAGE ITSELF. A declaration is not proof.
+    inspected = image_inspect.inspect(source, digest.hexdigest())
+    actual = inspected["observations"]
+    guest = actual.get("guest_os", {})
+    boot_details = actual.get("boot_details", {})
+    partition_rows = actual.get("partitions", [])
+    measured_arch = guest.get("architecture")
+    checks = []
+    def check(name, ok, reason, sources):
+        checks.append({"name": name, "status": "passed" if ok else "blocked",
+                       "reason": None if ok else reason, "evidence": sources})
+        if not ok:
+            blockers.append(reason)
+    check("disk_format", actual.get("format") in ("raw", "qcow2"),
+          "Image disk format could not be verified", ["qemu-img:format"])
+    check("partition_table", actual.get("partition_table") in ("gpt", "mbr"),
+          "Image partition table (GPT/MBR) could not be verified", ["guestfish:part-get-parttype"])
+    check("partitions", any(row.get("type", "").lower() == "partition" for row in partition_rows),
+          "Image has no verified partition inventory", ["virt-filesystems:partitions"])
+    check("guest_architecture", bool(measured_arch and measured_arch == source_arch and measured_arch == arch),
+          "Guest architecture cannot be proven to match both declaration and target",
+          ["virt-inspector:operatingsystem/arch", *evidence["architecture"]])
+    check("guest_os", guest.get("os_class") == "linux" and bool(guest.get("distribution")),
+          "Source guest Linux distribution could not be established",
+          ["virt-inspector:operatingsystem/name", "virt-inspector:operatingsystem/distro"])
+    check("kernel", bool(boot_details.get("kernels")),
+          "No installed, bootloader-referenced kernel was verified",
+          ["virt-drivers:operatingsystem/bootloader/kernel"])
+    check("boot_firmware", boot_details.get("boot_mode") in ("uefi", "bios"),
+          "Source boot firmware (UEFI/BIOS) is unknown or ambiguous",
+          ["virt-drivers:firmware"])
+    check("bootloader", bool(boot_details.get("bootloader")),
+          "Source image bootloader could not be identified",
+          ["virt-drivers:operatingsystem/bootloader"])
+    if guest.get("distribution") and os_release:
+        if guest["distribution"].lower() not in os_release.lower():
+            warnings.append("Source Linux distribution differs from inspected target distribution; cross-distribution configuration not validated")
+    for gap in inspected["gaps"]:
+        warnings.append("Image inspection gap: " + gap["check"] + " (" + gap["reason"] + ")")
     # Offline, verified image conversion is allowed only for the VM path.
     backend = "qemu-img-offline-convert" if target == "virtual-machine" else None
     return {
         "schema_version": 1, "type": "ubuntu-customizer/image-plan",
         "target": target, "format": fmt, "architecture": arch,
         "source": {"path": str(source), "sha256": digest.hexdigest(), "bytes": source.stat().st_size,
-                   "claimed_architecture": source_arch, "architecture_verified": False},
+                   "claimed_architecture": source_arch,
+                   "architecture_verified": bool(measured_arch and measured_arch == source_arch),
+                   "inspection": inspected},
         "discovery": {"session": str(Path(session).resolve()),
                       "transport": manifest.get("transport"), "evidence": evidence},
         "backend": backend, "build_allowed": target == "virtual-machine" and not blockers,
         "blockers": blockers, "warnings": warnings,
+        "compatibility": {"status": "blocked" if blockers else "candidate",
+                          "checks": checks, "note": "Candidate for offline conversion, not proof of target bootability"},
         "verification_required": [
             "Inspect source partition table and expected boot mode",
             "Confirm source image architecture, bootloader and guest OS against target",
@@ -141,10 +187,11 @@ def _plan(session, target, fmt, source_path, source_sha256, source_arch, tick=No
 def plan(session, target, fmt, source_path, source_sha256, source_arch):
     # CLI callers and the device manager share exactly one tracked entrypoint.
     # A compatibility blocker is not a process failure; it is a safe decision.
-    with progress.tracking(session, "image-plan", 3) as tracker:
+    with progress.tracking(session, "image-plan", 4) as tracker:
         result = _plan(session, target, fmt, source_path, source_sha256,
                        source_arch, tick=tracker.advance)
-        tracker.advance(3)  # Compatibility decision produced
+        tracker.advance(3)  # Read-only guest image inspection completed
+        tracker.advance(4)  # Compatibility decision produced
         if result["blockers"]:
             tracker.blocked()
         return result
