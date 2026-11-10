@@ -530,3 +530,24 @@ private cloned image**, allowing fresh NoCloud instance initialization.
 The build result also retains its original discovery session link for
 optional Skill preview status. No physical-board BSP, firmware or flash
 support was added. See [First boot validation](references/first-boot-verification.md).
+
+### macOS local test path compatibility
+
+Python `tempfile.TemporaryDirectory()` may return paths under
+`/var/folders` while macOS resolves those files to `/private/var/folders`.
+The offline RootFS builder and Cloud Image E2E runner now canonicalize
+these **verified, system-owned** aliases when creating new local output
+directories. The restrictions on user-created symlinks, pre-existing
+destinations, directory traversal and block-device/pseudo-filesystem
+targets remain unchanged. The unit tests compare resolved paths where
+the collector or QEMU intentionally canonicalizes them.
+
+```bash
+cd ubuntu-customizer
+git pull --ff-only origin main
+python3 -m unittest discover -s tests -v
+```
+
+The macOS unit tests use mocks for QEMU and libguestfs. Real Ubuntu Cloud
+Image end-to-end boots still require a suitable Linux build host and a
+guest image with the required QEMU Guest Agent dependencies.
