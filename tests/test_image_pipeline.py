@@ -6,6 +6,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 import subprocess
+from image_fixtures import inspection, plan as verified_plan
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -43,7 +44,8 @@ class ImagePipelineTests(unittest.TestCase):
             root = Path(tmp)
             session = self.create_session(root)
             source, sha = self.source(root)
-            plan = image_plan.plan(session, "virtual-machine", "qcow2", source, sha, "amd64")
+            with patch.object(image_plan.image_inspect, "inspect", return_value=inspection(source)):
+                plan = image_plan.plan(session, "virtual-machine", "qcow2", source, sha, "amd64")
             self.assertTrue(plan["build_allowed"])
             self.assertEqual(plan["architecture"], "amd64")
             self.assertIn("QEMU", " ".join(plan["verification_required"]))
@@ -54,7 +56,8 @@ class ImagePipelineTests(unittest.TestCase):
             root = Path(tmp)
             session = self.create_session(root)
             source, sha = self.source(root)
-            result = image_plan.plan(session, "virtual-machine", "qcow2", source, sha, "arm64")
+            with patch.object(image_plan.image_inspect, "inspect", return_value=inspection(source)):
+                result = image_plan.plan(session, "virtual-machine", "qcow2", source, sha, "arm64")
             self.assertFalse(result["build_allowed"])
             self.assertTrue(any("architecture" in item for item in result["blockers"]))
 
@@ -63,7 +66,8 @@ class ImagePipelineTests(unittest.TestCase):
             root = Path(tmp)
             session = self.create_session(root)
             source, sha = self.source(root)
-            result = image_plan.plan(session, "physical-device", "raw", source, sha, "amd64")
+            with patch.object(image_plan.image_inspect, "inspect", return_value=inspection(source)):
+                result = image_plan.plan(session, "physical-device", "raw", source, sha, "amd64")
             self.assertFalse(result["build_allowed"])
             self.assertIsNone(result["backend"])
             self.assertGreaterEqual(len(result["blockers"]), 3)
@@ -102,11 +106,7 @@ class ImagePipelineTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             source, sha = self.source(root)
-            plan = {"type": "ubuntu-customizer/image-plan", "schema_version": 1,
-                    "target": "virtual-machine", "format": "qcow2",
-                    "backend": "qemu-img-offline-convert", "build_allowed": True,
-                    "blockers": [], "source": {"path": str(source), "sha256": sha,
-                    "bytes": source.stat().st_size}}
+            plan = verified_plan(source)
             def fake_info(path):
                 return {"format": "qcow2" if str(path).endswith(".tmp") else "raw",
                         "virtual-size": 8192}
@@ -114,6 +114,7 @@ class ImagePipelineTests(unittest.TestCase):
                 Path(args[-1]).write_bytes(b"converted disk")
                 return subprocess.CompletedProcess(args, 0, "", "")
             with patch.object(builder, "inspect_image", side_effect=fake_info), \
+                 patch.object(builder.image_inspect, "inspect", return_value=inspection(source)), \
                  patch.object(builder.subprocess, "run", side_effect=fake_convert):
                 output = root / "portable.qcow2"
                 result = builder.build(plan, str(output))
