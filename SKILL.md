@@ -13,6 +13,7 @@ Read [Agent workflow](references/agent-workflow.md) first. Then read
 [Device discovery](references/device-discovery.md),
 [Image building](references/image-building.md),
 [Offline RootFS building](references/rootfs-building.md),
+[QEMU first-boot verification](references/first-boot-verification.md),
 [System management](references/system-management.md),
 [ARM hardware](references/arm-hardware.md), or
 [Safety](references/safety.md) *only for relevant stages*.
@@ -57,11 +58,20 @@ Read [Agent workflow](references/agent-workflow.md) first. Then read
    It runs virt-customize and narrowly scoped virt-sysprep *only on that
    private cloned image*, then validates the output and publishes a
    checksum-backed bundle. Require an inspected Linux VM image with
-   cloud-init; missing support blocks work. `verify_vm.py` remains an
-   optional isolated VM verification attempt. Full arbitrary RootFS package
-   installation, installer ISO creation, installed-system cloning, complete
-   first-boot identity personalization, physical IMG/BSP assembly and
-   flashing are **not implemented**. Build output is **not** proof of bootability.
+   cloud-init; missing support blocks work. `verify_vm.py` retains
+   static verification and a legacy inconclusive smoke attempt.
+   `verify_first_boot.py` is the **separately approved** RootFS bundle
+   boot-health backend: it starts an isolated x86_64 QEMU snapshot and
+   uses a challenge-bound, fixed read-only QEMU Guest Agent probe to check
+   Linux boot, healthy systemd, completed cloud-init with matching NoCloud
+   instance ID, hostname, initialized machine-id, regenerated SSH host keys,
+   SSH service and local network. All checks must pass before
+   `boot_confirmed=true`. Missing Guest Agent/Python or UEFI firmware
+   is a blocker; never inject dependencies or infer guest boot from QEMU
+   exit codes. Full arbitrary RootFS package installation, installer ISO
+   creation, installed-system cloning, complete first-boot identity
+   personalization, physical IMG/BSP assembly and flashing remain
+   **not implemented**.
 8. **Verify and report.** Record actual results, source/evidence hashes,
    image hash, remaining compatibility blockers, tests performed and
    recovery path. Do not claim tests or builds that were not run.
@@ -102,6 +112,12 @@ python3 scripts/workflow/rootfs_builder.py image-plan.json \
 # Recheck the published image/seed hashes and qemu metadata, read-only:
 python3 scripts/workflow/rootfs_builder.py \
   --verify-bundle ./new-rootfs-bundle
+
+# Only after separate approval, for a VM with QEMU Guest Agent/Python.
+# Add --ovmf-code and --ovmf-vars for verified UEFI guests.
+python3 scripts/workflow/verify_first_boot.py \
+  --bundle ./new-rootfs-bundle \
+  --timeout 300 --report first-boot-health.json --approved
 ```
 
 ## Safety invariants
@@ -226,3 +242,19 @@ an installed cloud-init configuration but does not claim it was applied
 on boot. Final bundles include image, seed, hashes and a build manifest;
 verify these before attempting isolated VM boot testing. See
 references/rootfs-building.md for the exact contract.
+
+## Verified guest boot acceptance rule
+
+Do not treat QEMU process exit status, boot messages or a Guest Agent ping
+as successful boot. Use `verify_first_boot.py` only after explicitly
+obtaining VM-launch authorization. It validates a RootFS bundle, boots a
+temporary snapshot with TCG, offline restricted-DHCP virtual networking,
+and a private local QEMU Guest Agent socket. The Agent obtains a fresh
+challenge-bound, fixed read-only guest health report. Only if every check
+passes may the report set `boot_confirmed=true`. Record incomplete
+cloud-init, mismatched NoCloud instance ID, missing/old machine-id, invalid
+SSH host key state, network errors or absent QGA as blocked/failed.
+Do not infer physical board compatibility from an x86_64 VM result.
+The optional status preview observes only sanitized states and cannot
+approve or initiate this verification. See
+`references/first-boot-verification.md`.
