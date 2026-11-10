@@ -250,3 +250,23 @@ Source committed is not sufficient evidence that runtime tests passed. Mark feat
   alias behavior and malicious user-controlled symlinks.
 - Pending: rerun the full suite on the user's Mac and fix any newly
   unmasked failures; real QEMU/libguestfs integration remains unverified.
+
+## Guided Agent-first startup and interaction
+
+- Added `AGENTS.md` and `references/interactive-agent-flow.md` as
+  clear entrypoints: user says “开始”; Agent owns all stages and chooses
+  local tools, while the user only responds to necessary questions.
+- Added pure `agent_journey.py` policy for read-only host detection,
+  user intent/target choices, optional preview, device access approval,
+  automated evidence-to-image analysis, offline-build approval, optional
+  QEMU boot approval and verified final summary.
+- Failures pause automatically; later steps cannot be marked complete
+  out of sequence. Physical ARM evidence never authorizes flashing and
+  incomplete QEMU guest-health reports never prove boot.
+- Added conversational policy tests covering the start, prompts, separate
+  approvals, refusal, retry and no false boot confirmation.
+- The existing native Linux / local Mac Lima helpers and static/ARM/QEMU
+  backends remain internal, not a user-run command sequence.
+- Pending: run new pure-Python tests locally, validate real Agent runtime
+  tool/permission handoffs, and test one-click experience with actual
+  connected Mac/Linux execution.
