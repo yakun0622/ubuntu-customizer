@@ -37,10 +37,17 @@ Read [Agent workflow](references/agent-workflow.md) first. Then read
 5. **Decide next task.** Present evidence and options. For portable images,
    distinguish VM/cloud, installer ISO and **physical-hardware IMG** before
    choosing a backend.
-6. **Plan and gate.** Use `scripts/workflow/image_plan.py` only for the
-   supported base-image VM/physical compatibility assessment. Confirm source
-   hash, architecture, target boot firmware, disk layout, kernel and driver
-   requirements. Report blockers rather than inventing support.
+6. **Inspect, plan and gate.** First use `scripts/workflow/image_inspect.py`
+   to inspect the existing RAW/QCOW2 source **read-only** (qemu-img,
+   virt-filesystems, virt-inspector, virt-drivers and guestfish). Then use
+   `image_plan.py` for verified device-to-image compatibility decisions.
+   The plan automatically re-inspects the image and requires proven partition
+   table (GPT/MBR), partitions, Linux OS, measured guest architecture, kernel,
+   firmware boot mode and bootloader. The declared source architecture alone
+   can never authorize a build. Unknown tooling, unreadable filesystems,
+   encrypted/backing-chain images or mismatches become explicit blockers.
+   A successful plan is a **candidate for offline format conversion**, not
+   proof of bootability. Physical-device IMG assembly remains blocked.
 7. **Execute only supported, authorized work.** For an approved VM image,
    `build_image.py` provides offline RAW/QCOW2 conversion. Optional
    `nocloud.py` renders NoCloud seed files for cloud-init-capable guests;
@@ -62,13 +69,18 @@ python3 scripts/workflow/adaptive.py
 python3 scripts/workflow/dossier.py SESSION_DIR
 python3 scripts/workflow/capabilities.py SESSION_DIR
 
+# Optional standalone source inspection report (no image modification):
+python3 scripts/workflow/image_inspect.py /safe/base.img \
+  --sha256 TRUSTED_SHA256 --output source-inspection.json
+
 # Analyze an existing trusted base image against a collected session:
 python3 scripts/workflow/image_plan.py SESSION_DIR \
   --target virtual-machine --format qcow2 \
   --source /safe/base.img --sha256 TRUSTED_SHA256 \
   --source-arch amd64 --output image-plan.json
 
-# Only when the verified plan says build_allowed=true:
+# Only when every mandatory guest inspection check passed AND the
+# verified plan says build_allowed=true:
 python3 scripts/workflow/build_image.py image-plan.json \
   --output portable.qcow2
 ```
@@ -156,3 +168,18 @@ next-task phrase for the user to send. A button is a follow-up request,
 not permission to perform destructive operations or a claim that
 background work has begun. Never automatically execute the next phase
 without the user's follow-up or another explicitly authorized workflow.
+
+## Source image inspection invariants
+
+See `references/image-building.md`. Prefer a locally stored immutable base
+image and a separately trusted SHA-256. Inspection runs Linux libguestfs
+tools with a fixed image format, read-only guestfish access, no guest
+networking, bounded tool output and timeouts. Treat a missing tool or
+unrecognized XML as an evidence gap, **not** proof of an absent bootloader,
+kernel, OS or partition. Store the source image SHA-256, tool provenance,
+observed facts and failed checks in `image-plan.json`. The conversion helper
+repeats the source inspection and rejects changes before invoking qemu-img.
+Never run host-side mount, mkfs, parted write commands or firmware flashing
+as part of source inspection. For a physical target, source guest boot
+components still need a separately verified board-specific BSP and recovery
+path. Successful checks do not substitute for boot testing.
