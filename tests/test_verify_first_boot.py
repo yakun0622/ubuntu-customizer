@@ -281,7 +281,7 @@ class FirstBootHealthTests(unittest.TestCase):
                                            "--approved","--report",str(report)]),2)
             failure = json.loads(report.read_text())
             self.assertFalse(failure["boot_confirmed"])
-            self.assertFalse(failure["boot_attempted"])
+            self.assertIsNone(failure["boot_attempted"])  # Exception preempts reliable attempt accounting
             self.assertEqual(failure["status"],"failed")
             self.assertEqual(report.stat().st_mode & 0o077,0)
             self.assertNotIn(str(root),report.read_text())
