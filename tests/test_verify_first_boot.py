@@ -170,6 +170,62 @@ class FirstBootHealthTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     health.validate_bundle(bundle)
 
+    def test_mocked_full_boot_requires_all_guest_evidence(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            bundle, image, data, recipe = self.synthetic_bundle(root)
+            class Process:
+                def __init__(self):
+                    self.stopped = False
+                def poll(self):
+                    return 0 if self.stopped else None
+                def terminate(self):
+                    self.stopped = True
+                def wait(self,timeout=None):
+                    return 0
+                def kill(self):
+                    self.stopped = True
+            started = []
+            def fake_start(args, **kwargs):
+                started.append(args)
+                channel = args[args.index("-chardev")+1]
+                socket_path = next(x[5:] for x in channel.split(",") if x.startswith("path="))
+                Path(socket_path).touch()
+                return Process()
+            class Agent:
+                def __init__(self, address):
+                    self.address = address
+                def __enter__(self):
+                    return self
+                def __exit__(self,*args):
+                    pass
+                def call(self, name):
+                    self_outer.assertEqual(name, "guest-ping")
+                    return {}
+                def exec(self, nonce, hostname, instance_id, deadline):
+                    self_outer.assertEqual(hostname, "portable-guest")
+                    self_outer.assertEqual(instance_id, "instance-200")
+                    return self_outer.response(nonce)
+            self_outer = self
+            def fake_iso(folder, target):
+                Path(target).write_bytes(b"mock-seed-iso")
+                return {"path": str(target), "sha256": "a"*64, "bytes": 13}
+            with patch.object(health.rootfs, "verify_bundle", return_value={"hash_verified":True}), \
+                 patch.object(health.nocloud, "make_iso", side_effect=fake_iso), \
+                 patch.object(health.shutil, "which", return_value="/usr/bin/qemu-system-x86_64"), \
+                 patch.object(health.subprocess, "Popen", side_effect=fake_start), \
+                 patch.object(health, "GuestAgent", Agent):
+                report = health.verify_first_boot(bundle, timeout=30)
+            self.assertTrue(report["boot_confirmed"])
+            self.assertTrue(report["first_boot_confirmed"])
+            self.assertEqual(report["status"], "passed")
+            self.assertTrue(report["qga_connected"])
+            self.assertTrue(started)
+            self.assertEqual(hashlib.sha256(image.read_bytes()).hexdigest(),
+                             data["output"]["sha256"])
+            self.assertNotIn("machine_id", report)
+            self.assertNotIn("nonce", report)
+
     def test_private_sanitized_failure_report(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
