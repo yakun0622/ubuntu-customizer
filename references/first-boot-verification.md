@@ -7,18 +7,18 @@ physical-board boot tester and never flashes hardware.
 
 ## Prerequisites
 
-1. Use the existing \`rootfs_builder.py --verify-bundle\` to confirm source
+1. Use the existing `rootfs_builder.py --verify-bundle` to confirm source
    artifact checksums. The bundle must be a completed VM-only build with
-   \`build-manifest.json\`, \`build-config.json\`, and a NoCloud seed.
+   `build-manifest.json`, `build-config.json`, and a NoCloud seed.
 2. Only **x86_64 / amd64** guests are supported in this stage. Other
    architectures are blocked until a separately reviewed adapter exists.
 3. The guest MUST already have a **running QEMU Guest Agent** service and
    Python 3. The Skill does not install, enable or inject these components.
-4. The build host needs \`qemu-system-x86_64\`, the existing qemu-img /
+4. The build host needs `qemu-system-x86_64`, the existing qemu-img /
    libguestfs validation dependencies, and a NoCloud ISO tool
-   (\`genisoimage\` or \`mkisofs\`) if the bundle lacks \`seed.iso\`.
-5. For an inspected **UEFI** guest, supply both a trusted \`OVMF_CODE.fd\`
-   and \`OVMF_VARS.fd\` template. The verifier clones VARS to a temporary
+   (`genisoimage` or `mkisofs`) if the bundle lacks `seed.iso`.
+5. For an inspected **UEFI** guest, supply both a trusted `OVMF_CODE.fd`
+   and `OVMF_VARS.fd` template. The verifier clones VARS to a temporary
    directory. BIOS guests use the default QEMU BIOS. No automatic firmware
    selection from unverified host paths.
 6. Ask the user for *new, explicit consent* to launch this isolated VM.
@@ -56,11 +56,11 @@ and keeps an actionable failure reason where feasible.
 ## Isolation and guest evidence
 
 The verifier uses QEMU **TCG** (no privileged host accelerator required),
-\`-snapshot\` (writes to disposable overlays instead of the source image),
-\`-netdev user,...,restrict=on\` (guest DHCP but no host/Internet routing),
+`-snapshot` (writes to disposable overlays instead of the source image),
+`-netdev user,...,restrict=on` (guest DHCP but no host/Internet routing),
 no port forwarding, no SSH access from host, no external UI port, and a
 private local UNIX guest-agent socket under an ephemeral work directory.
-The seed image is a verified \`cidata\` ISO: if missing from the bundle the
+The seed image is a verified `cidata` ISO: if missing from the bundle the
 verifier builds one temporarily from verified seed files. On exit/timeout
 QEMU is terminated, and the work directory and firmware VARS copy are
 discarded. The published guest disk is re-hashed to prove it was not
@@ -74,13 +74,13 @@ old output being accepted. The Agent receives only boolean results and
 never persists raw machine-id, host keys, private key material or arbitrary
 guest logs.
 
-All of the following are required before \`boot_confirmed=true\`:
+All of the following are required before `boot_confirmed=true`:
 
 | Check | Actual evidence |
 | --- | --- |
 | linux_boot | Real guest /proc and valid randomized boot ID |
-| system_state | \`systemctl is-system-running\` == running |
-| cloud_init | \`cloud-init status --format json\` == done, no errors |
+| system_state | `systemctl is-system-running` == running |
+| cloud_init | `cloud-init status --format json` == done, no errors |
 | instance_id | Guest cloud-init instance-data matches expected NoCloud instance ID |
 | hostname | Guest system hostname matches build recipe |
 | machine_id | Valid nonzero machine-id initialized at/after this boot |
@@ -93,10 +93,10 @@ again until the user-supplied deadline. A QEMU process exit, successful
 Guest Agent ping, kernel serial output, or a successful cloud-init command
 **on its own** does not count as boot success. Missing guest-agent service,
 probe errors, timeout, mismatched nonce, network/cloud-init/SSH failures or
-ambiguous boot evidence remain \`blocked\` or \`failed\`. The report includes
+ambiguous boot evidence remain `blocked` or `failed`. The report includes
 a boolean check matrix and coarse reason only, with no raw identifiers.
 
-The optional live Skill preview receives an allowlisted \`verify\` stage
+The optional live Skill preview receives an allowlisted `verify` stage
 through the same original device discovery session, if an approved preview
 is currently live. No preview means no extra status output.
 
