@@ -87,3 +87,16 @@ on a temporary clone and provides a new hash-verified artifact bundle.
 Run `--verify-bundle` and separately verify QEMU boot before suggesting
 deployment. Document remaining identity/privacy limitations and
 undemonstrated cloud-init first boot.
+
+### Live QEMU first-boot evidence (explicit approval)
+
+After verifying the RootFS build bundle, offer an optional isolated
+`verify_first_boot.py` run. Ask separately for permission to start the
+local VM (do not reuse permission to collect device information, build
+the disk image, or open a status preview). The verifier uses a snapshot,
+restricted user-mode guest DHCP without host/Internet routing, a private
+UNIX QEMU Guest Agent channel, and fixed read-only checks. Accept
+`boot_confirmed=true` only when all per-check results pass and are
+bound to a new challenge nonce. No QGA/UEFI support, unverified first
+boot, timeouts or failures must remain blocked/failed. Consult
+`references/first-boot-verification.md`.
