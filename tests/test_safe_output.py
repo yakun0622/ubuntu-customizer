@@ -55,15 +55,20 @@ class SafeOutputTests(unittest.TestCase):
 
     @unittest.skipUnless(sys.platform == "darwin", "macOS system aliases only")
     def test_trusted_macos_var_and_tmp_aliases(self):
-        for alias in ("/var", "/tmp"):
+        # /var itself is not user-writable; use the current user's normal
+        # temporary folder beneath /var/folders instead of creating in /var.
+        for alias, temp_parent in (("/var", None), ("/tmp", "/tmp")):
             root = Path(alias)
-            expected = safe_output.MACOS_SYSTEM_ALIASES[alias]
-            if not root.is_symlink() or root.resolve() != Path(expected):
+            expected = Path(safe_output.MACOS_SYSTEM_ALIASES[alias])
+            if not root.is_symlink() or root.resolve() != expected:
                 continue
-            with tempfile.TemporaryDirectory(dir=root) as d:
-                path = Path(d) / "new-bundle"
+            with tempfile.TemporaryDirectory(dir=temp_parent) as d:
+                real = Path(d).resolve()
+                if expected not in real.parents:
+                    continue  # Host uses a different temporary volume.
+                path = root / real.relative_to(expected) / "new-bundle"
                 self.assertEqual(safe_output.canonical_new_directory(path),
-                                 path.parent.resolve() / "new-bundle")
+                                 real / "new-bundle")
 
 if __name__ == "__main__":
     unittest.main()
