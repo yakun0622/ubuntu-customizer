@@ -1,5 +1,27 @@
 # ubuntu-customizer
 
+
+## 开始使用：只需要告诉 Agent「开始定制系统」
+
+**这是 AI Agent Skill，不是需要逐条执行命令的工具。** 在已加载本仓库
+`SKILL.md` / `AGENTS.md` 且具备主机执行权限的 Agent 中，直接说：
+
+> 开始定制系统
+
+Agent 会逐步自动检查当前 Mac/Linux 的可用能力、识别目标类型、采集已获授权的
+设备信息、分析镜像、选择本机运行后端，并按实际结果继续推进。中途**仅在需要
+选择目标、批准设备访问/镜像构建/隔离启动或处理阻断时**进行简短交互。实时预览
+页面是可选的，默认不开启；QEMU 也只是按需选择的验证工具。
+
+用户不必选择 Lima、QEMU、Python 参数，也不必先准备另一台电脑。若 Agent
+没有连接到你的电脑或没有实际执行权限，它必须说明这一前提，不能声称已经
+在你的 Mac 上运行了命令。实体 ARM 设备的日志和镜像可以只读分析，但无已验证
+BSP/DTB/Bootloader/恢复方案时不会自动制作可刷写镜像。
+
+参见 [傻瓜式交互流程](references/interactive-agent-flow.md) 与 [Agent 工作约定](AGENTS.md)。
+**以下命令示例仅供开发、调试或 Agent 调用，不是普通用户的启动步骤。**
+
+
 > **Project identity: AI Agent Skill.** The Agent guides transport selection,
 > evidence collection, compatibility reasoning, image-build planning and
 > approval. All Python commands below are optional supporting tools, **not**
