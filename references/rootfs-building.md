@@ -153,3 +153,20 @@ Reference implementation docs:
 - https://libguestfs.org/virt-customize.1.html
 - https://libguestfs.org/virt-sysprep.1.html
 - https://libguestfs.org/virt-cat.1.html
+
+## First-boot verification (optional separate approval)
+
+A successfully built RootFS bundle is now eligible for **isolated x86_64
+QEMU Guest Agent health verification**, provided the guest image already
+contains qemu-guest-agent and Python 3. The build backend also removes old
+cloud-init cache on the private scratch disk to allow new NoCloud
+instance ID processing; this never touches the original source image.
+
+The Skill must obtain distinct approval to start QEMU. Use
+`scripts/workflow/verify_first_boot.py --bundle ROOTFS_BUNDLE --report
+NEW_REPORT.json --approved`; BIOS/UEFI boot mode comes from inspected
+source evidence, and UEFI needs explicit trusted OVMF code+vars files.
+No outside networking or host port forwarding is enabled. Only a
+challenge-bound fixed guest health probe can confirm boot. See
+[first-boot verification](first-boot-verification.md) for the exact
+checks and safety boundaries.
