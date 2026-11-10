@@ -260,6 +260,7 @@ def main(argv=None):
     image.add_argument("--source", required=True)
     image.add_argument("--sha256", required=True)
     image.add_argument("--source-arch", choices=("amd64", "arm64", "armhf", "riscv64"), required=True)
+    image.add_argument("--boot-mode", choices=("bios", "uefi"), help="explicitly choose inspected firmware mode")
     image.add_argument("--output", required=True, help="new image compatibility JSON plan")
     run = sub.add_parser("collect")
     run.add_argument("id")
@@ -299,7 +300,8 @@ def main(argv=None):
             output = Path(args.output)
             if output.exists() or output.is_symlink():
                 raise ValueError("Image plan output exists")
-            result = image_plan.plan(folder, args.target, args.format, args.source, args.sha256, args.source_arch)
+            result = image_plan.plan(folder, args.target, args.format, args.source,
+                                     args.sha256, args.source_arch, selected_firmware=args.boot_mode)
             with output.open("x", encoding="utf-8") as f:
                 json.dump(result, f, indent=2, ensure_ascii=False)
                 f.write("\n")
