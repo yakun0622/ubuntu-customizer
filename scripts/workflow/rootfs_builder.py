@@ -30,6 +30,7 @@ build_image = sibling("build_image")
 image_inspect = sibling("image_inspect")
 nocloud = sibling("nocloud")
 progress = sibling("progress")
+safe_output = sibling("safe_output")
 
 MAX_CONFIG = 16 * 1024
 MAX_MOTD = 2048
@@ -81,21 +82,11 @@ def validate_config(config):
     return config
 
 def safe_destination(output_dir):
-    target = Path(output_dir).expanduser().absolute()
-    if ".." in target.parts:
-        raise ValueError("Parent-directory traversal is not allowed for output bundles")
-    if target.exists() or target.is_symlink():
-        raise ValueError("Output bundle directory must be new")
-    if target.parts[:2] in (("/", "dev"), ("/", "proc"), ("/", "sys")):
-        raise ValueError("Cannot create build results on host pseudo-filesystems")
-    for ancestor in (target.parent, *target.parent.parents):
-        if ancestor.is_symlink():
-            raise ValueError("Symlink output ancestors are not allowed")
-    if not target.parent.is_dir():
-        raise ValueError("Output parent must already exist")
+    target = safe_output.canonical_new_directory(output_dir)
     if any(ch in str(target) for ch in (":", ",", "\n", "\r")):
         raise ValueError("Unsupported characters in output path")
     return target
+
 
 def tool_env():
     return {**os.environ, "LIBGUESTFS_BACKEND": "direct",
