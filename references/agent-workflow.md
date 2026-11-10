@@ -1,5 +1,32 @@
 # Agent-led workflow contract
 
+
+## Single-sentence startup and conversational orchestration
+
+**Primary entrypoint: the user's phrase “开始定制系统” / “开始检查设备”.**
+The Agent begins with safe host inspection when actual execution access
+exists, then follows the optional pure `agent_journey.py` step policy. Do
+not dump a CLI tutorial, display a multi-field form or require the user to
+choose Lima, libguestfs, QEMU or a device transport command.
+
+The Agent does safe work automatically, asks only one missing decision
+at a time, and resumes after the user's answer. Consent boundaries are
+independent: viewing a status page does not authorize device connection;
+read-only device collection does not authorize offline image construction;
+offline construction does not authorize QEMU boot or physical device writes.
+
+For a single Mac, an already-running local Lima Linux VM may be used as a
+backend when host tools and file shares are available. If no local computer
+execution bridge exists, say so plainly and offer a single setup option.
+Do not silently provision, start VMs, install packages or perform a physical
+flash. For physical ARM boards, prefer static inspection and passive UART
+evidence, and keep BSP/bootloader/DTB/recovery checks blocked.
+
+See `references/interactive-agent-flow.md` for the resumable states,
+tool-result handling, pause/retry behavior, evidence claims and the
+sample user experience. CLI snippets elsewhere are **internal tools**,
+not the user's workflow.
+
 The repository implements an **AI Agent Skill**, not a standalone control panel.
 The conversational Agent owns workflow state, chooses scripts only when needed,
 interprets evidence and pauses for user decisions. Scripts are disposable helpers;
