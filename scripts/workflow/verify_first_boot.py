@@ -461,7 +461,7 @@ def main(argv=None):
                 failure = {
                     "schema_version": 1,
                     "type": "ubuntu-customizer/first-boot-health",
-                    "boot_attempted": False, "boot_confirmed": False,
+                    "boot_attempted": None, "boot_confirmed": False,
                     "first_boot_confirmed": False,
                     "status": "failed", "reason": "verification_error",
                     "error_type": type(exc).__name__,
