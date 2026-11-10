@@ -162,6 +162,19 @@ def inspect(path, expected_sha256=None):
         return report
     report["observations"].update({"format": fmt, "virtual_size": virtual})
     report["evidence"]["format"] = {"tool": "qemu-img", "path": "format"}
+    table, table_error = run_tool("guestfish",
+        ["--ro", "--format=" + fmt, "-a", str(source),
+         "run", ":", "part-get-parttype", "/dev/sda"])
+    if table_error:
+        report["gaps"].append({"check": "partition_table", "reason": table_error})
+    else:
+        scheme = table.strip().lower()
+        if scheme in ("gpt", "msdos"):
+            report["observations"]["partition_table"] = "gpt" if scheme == "gpt" else "mbr"
+            report["evidence"]["partition_table"] = {
+                "tool": "guestfish", "command": "part-get-parttype", "read_only": True}
+        else:
+            report["gaps"].append({"check": "partition_table", "reason": "unknown_partition_scheme"})
     for check, tool, args, parser in [
         ("partitions", "virt-filesystems",
          ["--format=" + fmt, "-a", str(source), "--all", "--long", "--csv"],
