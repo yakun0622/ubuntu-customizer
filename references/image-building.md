@@ -75,9 +75,9 @@ bootable merely by changing an image format.
 Never pass block devices as input or output. The converter rejects paths
 under `/dev`, `/proc` and `/sys`, output overwrites, unsupported
 input formats, and images with a QEMU backing file. Keep source image
-integrity metadata and licensing records. Source architecture is currently
-an operator declaration and is **not** validated from guest filesystems;
-this limitation is explicitly reported.
+integrity metadata and licensing records. Source architecture is now compared against guest architecture observed by
+virt-inspector and the collected target architecture; missing observations
+block conversion. This still does not prove bootability.
 
 ## Automatic Skill status bridge (optional)
 
