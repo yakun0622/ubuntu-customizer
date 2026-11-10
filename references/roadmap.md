@@ -233,3 +233,20 @@ Source committed is not sufficient evidence that runtime tests passed. Mark feat
 - Pending: run tests and a real QEMU/NoCloud boot on a compatible Linux
   build host; real UEFI firmware smoke; controlled network/DHCP behavior;
   non-amd64 hypervisor adapters; physical board BSP approval workflows.
+
+## macOS local test follow-up
+
+- User's first Mac run reported 137 tests, 3 failures and 10 errors;
+  the dominant cause was the trusted macOS `/var` ->
+  `/private/var` temp-directory alias being rejected as a symlink.
+- Added `safe_output.py` for strict, canonical local output paths.
+  Only verified OS-owned `/var` and `/tmp` aliases are accepted;
+  arbitrary symlink parents, pseudo-filesystems and existing output
+  directories are still rejected.
+- Corrected adaptive and QEMU CLI tests to compare canonical paths.
+- Corrected the E2E source-hash failure test to expect the existing
+  structured failure-report contract rather than an uncaught exception.
+- Added focused path safety regression tests, including macOS-specific
+  alias behavior and malicious user-controlled symlinks.
+- Pending: rerun the full suite on the user's Mac and fix any newly
+  unmasked failures; real QEMU/libguestfs integration remains unverified.
