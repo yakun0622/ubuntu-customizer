@@ -186,3 +186,15 @@ commands, the strict JSON recipe and safety gates.
 The published RootFS bundle includes a sanitized `build-config.json` and
 SHA-256 link to the exact input image plan. This records the build recipe
 without leaking the build-host path to the user's SSH public key file.
+
+## First-boot confirmation gate
+
+After offline RootFS customization and bundle SHA-256 verification, the
+Skill can separately request permission to boot a **temporary x86_64
+QEMU snapshot**. It uses an already-installed Guest Agent, a verified
+NoCloud seed and a fresh challenge to collect guest-side system,
+cloud-init, SSH, machine-id and local-network health checks. QEMU process
+exit status alone never allows `boot_confirmed=true`. See
+[first-boot validation](first-boot-verification.md). Missing Guest Agent,
+UEFI firmware or network readiness blocks the check. Other architectures
+and all physical BSP/firmware/flash paths remain independently gated.
