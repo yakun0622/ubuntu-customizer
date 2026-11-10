@@ -40,6 +40,12 @@ def sibling(name):
     spec.loader.exec_module(result)
     return result
 
+def _load_safe_output():
+    spec = importlib.util.spec_from_file_location("uc_e2e_safe_output", HERE / "safe_output.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
 def sha256(path):
     h = hashlib.sha256()
     with Path(path).open("rb") as f:
@@ -188,16 +194,10 @@ def write_report(folder, data):
         temp.unlink(missing_ok=True)
 
 def require_new_workdir(path):
-    dest = Path(path).expanduser().absolute()
-    if dest.exists() or dest.is_symlink() or dest.parts[:2] in (("/", "dev"), ("/", "proc"), ("/", "sys")):
-        raise ValueError("Workspace must be a new non-pseudo-filesystem directory")
-    for parent in (dest.parent, *dest.parent.parents):
-        if parent.is_symlink():
-            raise ValueError("Workspace has a symbolic-link ancestor")
-    if not dest.parent.is_dir():
-        raise ValueError("Workspace parent must already exist")
+    dest = _load_safe_output().canonical_new_directory(path)
     dest.mkdir(mode=0o700)
     return dest
+
 
 def run(args):
     """Execute only after separately approved offline build and QEMU boot."""
