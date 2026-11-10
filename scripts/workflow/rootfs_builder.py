@@ -164,7 +164,7 @@ def dry_run(plan, config):
         "source_architecture": plan.get("architecture"),
         "format": plan["format"],
         "operations": ["qemu-img copy into private RAW staging", "check cloud-init configuration",
-                       "virt-customize hostname and MOTD on private clone",
+                       "virt-customize hostname, MOTD and stale cloud-init state on private clone",
                        "virt-sysprep machine-id and SSH host keys on clone",
                        "generate NoCloud seed files" + (" and ISO" if config["first_boot"]["seed_iso"] else ""),
                        "convert staged disk", "re-inspect guest, validate files, hash artifact"],
@@ -221,7 +221,10 @@ def assemble(plan, config, output_dir, approved=False):
                          "--hostname", config["hostname"],
                          "--upload", str(motd_path) + ":/etc/motd",
                          "--chmod", "0644:/etc/motd",
-                         "--chown", "0:0:/etc/motd"])
+                         "--chown", "0:0:/etc/motd",
+                         # Only the private cloned image: clear stale cloud-init
+                         # cache so the new NoCloud instance ID is processed.
+                         "--delete", "/var/lib/cloud"])
             tracker.advance(3)
             run_checked(["virt-sysprep", "--no-network", "--key", "all:error",
                          "--format", "raw", "-a", str(scratch),
@@ -270,6 +273,7 @@ def assemble(plan, config, output_dir, approved=False):
                 "schema_version": 1, "type": "ubuntu-customizer/rootfs-build-result",
                 "source_sha256": plan["source"]["sha256"],
                 "source_plan_architecture": plan.get("architecture"),
+                "discovery_session": progress.session_from_plan(plan),
                 "recipe_sha256": cfg_sha,
                 "image_plan_sha256": hashlib.sha256(json.dumps(
                     plan, sort_keys=True, ensure_ascii=False,
@@ -285,7 +289,7 @@ def assemble(plan, config, output_dir, approved=False):
                          if iso_metadata else None},
                 "guest_evidence": {"image_sha256": verification["source"]["sha256"],
                                    "observations": stable_guest(verification["observations"])},
-                "operations": ["hostname", "motd", "sysprep:machine-id,ssh-hostkeys",
+                "operations": ["hostname", "motd", "reset:cloud-init-cache", "sysprep:machine-id,ssh-hostkeys",
                                "nocloud-seed"],
                 "boot_tested": False, "first_boot_confirmed": False,
                 "warnings": ["Cloud-init/SSH regeneration are not proven until isolated boot",
