@@ -88,25 +88,35 @@ except (OSError, ValueError, TypeError, AttributeError):
 record("hostname", read("/etc/hostname", 128) == expected_host
        and os.uname().nodename == expected_host)
 machine_id = read("/etc/machine-id", 80)
-record("machine_id", bool(re.fullmatch(r"[a-f0-9]{32}", machine_id))
-       and machine_id != "0"*32)
-# A first-boot sysprep image should generate host keys after the current
-# guest boot. This time-based check fails closed if guest clock is wrong.
-boot_epoch = None
+# A newly generalized clone must have the machine ID initialized after
+# this guest boot; an old nonzero ID in the source is insufficient.
+try:
+    mid_stat = pathlib.Path("/etc/machine-id").stat()
+except OSError:
+    mid_stat = None
+machine_id_valid = (bool(re.fullmatch(r"[a-f0-9]{32}", machine_id))
+                    and machine_id != "0"*32)
+# Read boot wall clock without trusting the host's machine identifiers.
+boot_time = None
 try:
     for line in pathlib.Path("/proc/stat").read_text().splitlines():
         if line.startswith("btime "):
-            boot_epoch = int(line.split()[1])
+            boot_time = int(line.split()[1])
             break
 except (OSError, ValueError):
     pass
+record("machine_id", machine_id_valid and mid_stat is not None
+       and boot_time is not None and mid_stat.st_mtime >= boot_time - 10)
+# A first-boot sysprep image should generate host keys after the current
+# guest boot. This time-based check fails closed if guest clock is wrong.
+boot_epoch = boot_time
 keys = list(pathlib.Path("/etc/ssh").glob("ssh_host_*_key"))
 def valid_key(p):
     try:
         s = p.stat()
         pub = pathlib.Path(str(p) + ".pub")
         return (stat.S_ISREG(s.st_mode) and s.st_size > 200
-                and s.st_mode & 0o037 == 0
+                and s.st_mode & 0o077 == 0
                 and pub.is_file() and pub.stat().st_size > 40
                 and boot_epoch is not None and s.st_mtime >= boot_epoch - 10)
     except OSError:
@@ -342,6 +352,7 @@ def verify_first_boot(bundle, timeout=240, ovmf_code=None, ovmf_vars=None):
                 tracker.advance(3)
                 deadline = time.monotonic() + timeout
                 guest = None
+                last_checks = None
                 while time.monotonic() < deadline:
                     if proc.poll() is not None:
                         report["reason"] = "qemu_exited_before_health"
@@ -349,34 +360,43 @@ def verify_first_boot(bundle, timeout=240, ovmf_code=None, ovmf_vars=None):
                         break
                     if qga_socket.exists():
                         try:
+                            # Ping is a readiness probe; its transient
+                            # failures before the agent starts are retryable.
+                            try:
+                                with GuestAgent(qga_socket) as agent:
+                                    agent.call("guest-ping")
+                            except (OSError, RuntimeError, TimeoutError, ValueError):
+                                time.sleep(1)
+                                continue
+                            report["qga_connected"] = True
+                            tracker.advance(4)
                             with GuestAgent(qga_socket) as agent:
-                                agent.call("guest-ping")
-                                report["qga_connected"] = True
                                 guest = agent.exec(nonce, recipe["hostname"],
                                                    recipe["first_boot"]["instance_id"], deadline)
-                            tracker.advance(4)
                             checks = evaluate_probe(guest, nonce)
                             report["checks"] = checks
+                            last_checks = checks
                             tracker.advance(5)
                             if all(checks.values()):
                                 report["boot_confirmed"] = True
                                 report["first_boot_confirmed"] = True
                                 report["reason"] = "verified_guest_health"
                                 report["status"] = "passed"
-                            else:
-                                report["reason"] = "guest_health_checks_failed"
-                            break
+                                break
+                            report["reason"] = "guest_health_checks_failed"
+                            # Boot and cloud-init may still be in progress.
+                            time.sleep(2)
                         except (ConnectionRefusedError, FileNotFoundError,
                                 socket.timeout, TimeoutError):
-                            # Guest agent is not ready yet; keep waiting.
-                            pass
+                            time.sleep(1)
                         except (OSError, RuntimeError, ValueError) as exc:
                             report["reason"] = "guest_agent_protocol_or_health_failure"
                             report["check_error_type"] = type(exc).__name__
                             break
                     time.sleep(0.5)
                 else:
-                    report["reason"] = "guest_agent_or_health_timeout"
+                    report["reason"] = ("guest_health_checks_failed" if last_checks is not None
+                                        else "guest_agent_or_health_timeout")
                 if report["status"] != "passed" and tracker.final_state is None:
                     tracker.blocked()
                 tracker.advance(6)
