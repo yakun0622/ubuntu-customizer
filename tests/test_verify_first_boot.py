@@ -226,6 +226,53 @@ class FirstBootHealthTests(unittest.TestCase):
             self.assertNotIn("machine_id", report)
             self.assertNotIn("nonce", report)
 
+    def test_qemu_exits_before_health_is_never_success(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            bundle, image, data, recipe = self.synthetic_bundle(root)
+            class DeadProcess:
+                def poll(self):
+                    return 1
+                def terminate(self):
+                    raise AssertionError("Already exited QEMU must not be terminated")
+            def fake_iso(folder, target):
+                Path(target).write_bytes(b"seed")
+                return {"path":str(target), "sha256":"1"*64, "bytes":4}
+            with patch.object(health.rootfs, "verify_bundle",return_value={"hash_verified":True}), \
+                 patch.object(health.nocloud,"make_iso",side_effect=fake_iso), \
+                 patch.object(health.shutil,"which",return_value="/usr/bin/qemu-system-x86_64"), \
+                 patch.object(health.subprocess,"Popen",return_value=DeadProcess()):
+                report = health.verify_first_boot(bundle,timeout=30)
+            self.assertFalse(report["boot_confirmed"])
+            self.assertEqual(report["status"],"failed")
+            self.assertEqual(report["reason"],"qemu_exited_before_health")
+
+    def test_guest_agent_timeout_is_not_success(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            bundle, image, data, recipe = self.synthetic_bundle(root)
+            class RunningProcess:
+                stopped = False
+                def poll(self):
+                    return 0 if self.stopped else None
+                def terminate(self):
+                    self.stopped = True
+                def wait(self,timeout=None):
+                    return 0
+            def fake_iso(folder, target):
+                Path(target).write_bytes(b"seed")
+                return {"path":str(target), "sha256":"1"*64, "bytes":4}
+            with patch.object(health.rootfs, "verify_bundle",return_value={"hash_verified":True}), \
+                 patch.object(health.nocloud,"make_iso",side_effect=fake_iso), \
+                 patch.object(health.shutil,"which",return_value="/usr/bin/qemu-system-x86_64"), \
+                 patch.object(health.subprocess,"Popen",return_value=RunningProcess()), \
+                 patch.object(health.time,"monotonic",side_effect=[100.0,131.0]):
+                report = health.verify_first_boot(bundle,timeout=30)
+            self.assertFalse(report["boot_confirmed"])
+            self.assertFalse(report["qga_connected"])
+            self.assertEqual(report["status"],"blocked")
+            self.assertEqual(report["reason"],"guest_agent_or_health_timeout")
+
     def test_private_sanitized_failure_report(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
