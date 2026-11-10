@@ -152,6 +152,34 @@ class RootfsBuilderTests(unittest.TestCase):
             self.assertFalse((root / "bundle").exists())
             self.assertFalse(list(root.glob(".uc-rootfs-*")))
 
+    def test_failed_final_conversion_cleans_all_outputs(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            source, plan, config = self.fixture(root)
+            calls = []
+            with self.safe_patches(source, calls):
+                original = rootfs.run_checked
+                def fail_conversion(args, timeout=1800, max_output=65536):
+                    if args[:2] == ["qemu-img", "convert"] and args[-1].endswith(".qcow2"):
+                        raise RuntimeError("Simulated output converter failure")
+                    return original(args, timeout, max_output)
+                with patch.object(rootfs, "run_checked", side_effect=fail_conversion):
+                    with self.assertRaises(RuntimeError):
+                        rootfs.assemble(plan, config, root / "bundle", approved=True)
+            self.assertFalse((root / "bundle").exists())
+            self.assertFalse(list(root.glob(".uc-rootfs-*")))
+
+    def test_seed_directory_symlink_is_rejected(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            source, plan, config = self.fixture(root)
+            with self.safe_patches(source, []):
+                bundle, _ = rootfs.assemble(plan, config, root / "bundle", approved=True)
+                (bundle / "seed").rename(bundle / "seed-original")
+                (bundle / "seed").symlink_to(bundle / "seed-original", target_is_directory=True)
+                with self.assertRaises(ValueError):
+                    rootfs.verify_bundle(bundle)
+
     def test_output_tampering_detected(self):
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)
