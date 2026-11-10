@@ -135,6 +135,8 @@ class RootfsBuilderTests(unittest.TestCase):
             sysprep = next(a for a in calls if a[0] == "virt-sysprep")
             self.assertIn("--no-network", customize)
             self.assertIn("--no-network", sysprep)
+            self.assertIn("--delete", customize)
+            self.assertIn("/var/lib/cloud", customize)
             self.assertIn("machine-id,ssh-hostkeys", sysprep)
             self.assertNotIn(str(source), customize)
             self.assertNotIn(str(source), sysprep)
