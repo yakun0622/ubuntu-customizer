@@ -456,3 +456,39 @@ or changed images even if an editable JSON plan claims they are allowed.
 Physical device builds still require independent board-specific components.
 See [image building](references/image-building.md). Tests were added but
 require execution on a supported build host; no CI was automatically run.
+
+### Offline Portable RootFS Builder (VM only)
+
+The **AI Agent Skill** can now preview and, after explicit separate approval,
+build a limited customized Linux VM RootFS bundle from a source image that
+passed `image_plan.py` compatibility inspection. A physical board/IMG
+requires an independent verified BSP and is still blocked.
+
+Strict recipe example: `profiles/examples/rootfs-config.json`. Supported
+changes are hostname, MOTD and a public-key-only NoCloud first-boot seed.
+The builder clones the original image, modifies **only its private copy**
+with `virt-customize --no-network`, applies narrowly scoped
+`virt-sysprep` machine-id/SSH host-key cleanup, rechecks the guest image,
+and publishes hashes and a manifest. It does **not** install packages,
+run arbitrary commands or prove bootability.
+
+```bash
+# Check requirements and exact planned operations without writing an image.
+python3 scripts/workflow/rootfs_builder.py image-plan.json \
+  --config rootfs-config.json --dry-run
+
+# Only after Agent obtains explicit separate approval.
+python3 scripts/workflow/rootfs_builder.py image-plan.json \
+  --config rootfs-config.json --output-dir ./new-rootfs-bundle --approved
+
+# Independently verify the published image, NoCloud seed and hashes.
+python3 scripts/workflow/rootfs_builder.py \
+  --verify-bundle ./new-rootfs-bundle
+```
+
+Requires qemu-img and libguestfs tools on the **build host**. The source
+guest must be shut down and must contain cloud-init configuration. NoCloud
+first boot/SSH regeneration, VM boot, and machine-specific secret
+sanitization remain unverified until separately audited. The output is
+not suitable for direct physical flashing. Full constraints are in
+[RootFS Builder Skill workflow](references/rootfs-building.md).
