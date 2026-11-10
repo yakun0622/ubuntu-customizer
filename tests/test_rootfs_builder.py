@@ -123,6 +123,10 @@ class RootfsBuilderTests(unittest.TestCase):
             self.assertTrue((bundle / "seed" / "user-data").is_file())
             self.assertTrue((bundle / "seed" / "meta-data").is_file())
             self.assertTrue((bundle / "build-manifest.json").is_file())
+            self.assertTrue((bundle / "build-config.json").is_file())
+            sanitized = json.loads((bundle / "build-config.json").read_text())
+            self.assertNotIn(str(root / "key.pub"), json.dumps(sanitized))
+            self.assertIn("image_plan_sha256", report)
             self.assertEqual((bundle / "build-manifest.json").stat().st_mode & 0o077, 0)
             self.assertFalse(list(root.glob(".uc-rootfs-*")))
             qemu_converts = [a for a in calls if a[0] == "qemu-img"]
@@ -189,6 +193,35 @@ class RootfsBuilderTests(unittest.TestCase):
                 (bundle / "seed" / "user-data").write_text("tampered")
                 with self.assertRaises(ValueError):
                     rootfs.verify_bundle(bundle)
+
+    def test_rootfs_stage_progress_respects_opt_in(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            session = root / "device-session"
+            session.mkdir()
+            source, plan, config = self.fixture(root)
+            plan["discovery"] = {"session": str(session)}
+            with self.safe_patches(source, []):
+                rootfs.assemble(plan, config, root / "no-preview", approved=True)
+                self.assertFalse((session / "skill-status.json").exists())
+                with patch.object(rootfs.progress, "preview_is_live", return_value=True):
+                    rootfs.assemble(plan, config, root / "preview-on", approved=True)
+                report = json.loads((session / "skill-status.json").read_text())
+                self.assertEqual(report["stage"], "rootfs-build")
+                self.assertEqual(report["state"], "complete")
+                self.assertEqual(report["completed"], 7)
+
+    def test_existing_bundle_is_never_overwritten(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            source, plan, config = self.fixture(root)
+            dest = root / "existing-bundle"
+            dest.mkdir()
+            (dest / "important.txt").write_text("original")
+            with self.safe_patches(source, []):
+                with self.assertRaises(ValueError):
+                    rootfs.assemble(plan, config, dest, approved=True)
+            self.assertEqual((dest / "important.txt").read_text(), "original")
 
     def test_missing_builder_dependencies_fail_closed(self):
         with tempfile.TemporaryDirectory() as d:
