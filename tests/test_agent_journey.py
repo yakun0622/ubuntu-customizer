@@ -111,6 +111,17 @@ class AgentJourneyTests(unittest.TestCase):
         self.assertEqual(result["kind"], "done")
         self.assertEqual(result["result"], "artifact_verified_only")
         self.assertFalse(result["boot_confirmed"])
+    def test_skippable_blocked_guest_verification(self):
+        state = answer(self.prepared_vm(), "offline_build", True)
+        state = finish(state, "rootfs_build")
+        state = finish(state, "bundle_verify")
+        state = answer(state, "run_boot", True)
+        state = answer(state, "isolated_vm_boot", True)
+        state = finish(state, "qemu_verify", "blocked")
+        self.assertEqual(journey.next_step(state)["kind"], "halt")
+        state = journey.transition(state, {"type": "skip_boot"})
+        self.assertEqual(journey.next_step(state)["result"], "artifact_verified_only")
+        self.assertFalse(journey.next_step(state)["boot_confirmed"])
     def test_incomplete_guest_health_is_not_boot_confirmation(self):
         state = answer(self.prepared_vm(), "offline_build", True)
         state = finish(state, "rootfs_build")
