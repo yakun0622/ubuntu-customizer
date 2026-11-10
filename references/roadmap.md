@@ -211,3 +211,25 @@ Source committed is not sufficient evidence that runtime tests passed. Mark feat
   builds on a supported host, first-boot validation in QEMU, package/service
   customization via vetted offline adapters, and versioned physical BSP
   plugin contracts after exact hardware identity is proven.
+
+## QEMU Guest Agent first-boot verification stage (amd64 VM)
+
+- Added `verify_first_boot.py` for user-approved transient QEMU TCG
+  boot from a verified RootFS Builder output bundle, with snapshot disks
+  and restrict=on SLIRP virtual DHCP, no forwarded ports or Internet.
+- Uses fresh challenge-bound QEMU Guest Agent fixed read-only guest probe
+  for Linux/systemd/cloud-init/NoCloud instance ID, hostname, machine-id,
+  SSH host keys/service and guest network interface.
+- Supports independently selected BIOS/UEFI; UEFI requires explicit
+  trusted OVMF CODE and VARS template, cloned in scratch.
+- Includes concise check matrix and sanitized failure reports, hashes
+  original image after QEMU shutdown, never infers success from process
+  return code.
+- RootFS scratch builder clears stale cloud-init instance cache and
+  preserves discovery session for optional Skill progress preview.
+- Added tests using a fake local UNIX Guest Agent, mock QEMU process,
+  nonce and schema failures, missing approval, firmware gates and
+  offline/restricted network option inspection.
+- Pending: run tests and a real QEMU/NoCloud boot on a compatible Linux
+  build host; real UEFI firmware smoke; controlled network/DHCP behavior;
+  non-amd64 hypervisor adapters; physical board BSP approval workflows.
