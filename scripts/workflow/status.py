@@ -13,7 +13,7 @@ import sys
 import uuid
 
 STAGES = ("connect", "bootstrap", "capability", "collect", "analyze",
-          "image-plan", "image-build", "first-boot", "verify", "finish")
+          "image-plan", "image-build", "rootfs-build", "first-boot", "verify", "finish")
 STATES = ("pending", "running", "complete", "failed", "blocked")
 MAX_STEPS = 1000000
 
