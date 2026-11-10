@@ -248,11 +248,34 @@ def assemble(plan, config, output_dir, approved=False):
                                           config["hostname"], config["motd"])
             tracker.advance(6)
             image_digest = sha256_file(staged_image)
+            config_summary = {
+                "schema_version": 1,
+                "hostname": config["hostname"],
+                "motd": config["motd"],
+                "first_boot": {
+                    "mode": "nocloud",
+                    "username": first["username"],
+                    "instance_id": first["instance_id"],
+                    "ssh_public_key_sha256": hashlib.sha256(
+                        nocloud.read_key(first["ssh_public_key"]).encode("utf-8")).hexdigest(),
+                    "seed_iso": first["seed_iso"],
+                }
+            }
+            summary_file = stage / "build-config.json"
+            with summary_file.open("x", encoding="utf-8") as f:
+                json.dump(config_summary, f, indent=2, ensure_ascii=False)
+                f.write("\n")
+            summary_file.chmod(0o600)
             manifest = {
                 "schema_version": 1, "type": "ubuntu-customizer/rootfs-build-result",
                 "source_sha256": plan["source"]["sha256"],
                 "source_plan_architecture": plan.get("architecture"),
                 "recipe_sha256": cfg_sha,
+                "image_plan_sha256": hashlib.sha256(json.dumps(
+                    plan, sort_keys=True, ensure_ascii=False,
+                    separators=(",", ":")).encode("utf-8")).hexdigest(),
+                "build_config": {"file": "build-config.json",
+                                 "sha256": sha256_file(summary_file)},
                 "output": {"file": name, "sha256": image_digest,
                            "bytes": staged_image.stat().st_size,
                            "format": plan["format"], "virtual_size": output_info["virtual-size"]},
@@ -277,6 +300,7 @@ def assemble(plan, config, output_dir, approved=False):
                 created = True
                 os.link(staged_image, output / name)  # No overwrite.
                 shutil.copytree(seed, output / "seed", symlinks=False)
+                shutil.copy2(summary_file, output / "build-config.json")
                 if iso_metadata:
                     os.link(stage / "seed.iso", output / "seed.iso")
                 with (output / "build-manifest.json").open("x", encoding="utf-8") as f:
@@ -298,6 +322,13 @@ def verify_bundle(path):
     result = read_json_regular(bundle / "build-manifest.json")
     if result.get("type") != "ubuntu-customizer/rootfs-build-result" or result.get("schema_version") != 1:
         raise ValueError("Unsupported build manifest")
+    configured = result.get("build_config", {})
+    if not isinstance(configured, dict) or configured.get("file") != "build-config.json":
+        raise ValueError("Missing sanitized build configuration manifest")
+    config_file = bundle / "build-config.json"
+    if (config_file.is_symlink() or not config_file.is_file()
+            or sha256_file(config_file) != configured.get("sha256")):
+        raise ValueError("Build configuration manifest checksum mismatch")
     info = result.get("output", {})
     if not isinstance(info, dict):
         raise ValueError("Invalid image manifest")
