@@ -219,7 +219,9 @@ def assemble(plan, config, output_dir, approved=False):
             run_checked(["virt-customize", "--no-network", "--no-logfile",
                          "--key", "all:error", "--format", "raw", "-a", str(scratch),
                          "--hostname", config["hostname"],
-                         "--upload", str(motd_path) + ":/etc/motd"])
+                         "--upload", str(motd_path) + ":/etc/motd",
+                         "--chmod", "0644:/etc/motd",
+                         "--chown", "0:0:/etc/motd"])
             tracker.advance(3)
             run_checked(["virt-sysprep", "--no-network", "--key", "all:error",
                          "--format", "raw", "-a", str(scratch),
