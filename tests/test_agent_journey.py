@@ -101,6 +101,16 @@ class AgentJourneyTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             finish(state, "image_inspect")
 
+    def test_declined_optional_guest_test_keeps_artifact_only(self):
+        state = answer(self.prepared_vm(), "offline_build", True)
+        state = finish(state, "rootfs_build")
+        state = finish(state, "bundle_verify")
+        state = answer(state, "run_boot", True)
+        state = answer(state, "isolated_vm_boot", False)
+        result = journey.next_step(state)
+        self.assertEqual(result["kind"], "done")
+        self.assertEqual(result["result"], "artifact_verified_only")
+        self.assertFalse(result["boot_confirmed"])
     def test_incomplete_guest_health_is_not_boot_confirmation(self):
         state = answer(self.prepared_vm(), "offline_build", True)
         state = finish(state, "rootfs_build")
