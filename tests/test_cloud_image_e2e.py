@@ -121,10 +121,14 @@ class CloudE2ETests(unittest.TestCase):
             self.assertFalse((root / "new-run").exists())
             args.approve_boot = True
             args.sha256 = "0"*64
-            with self.assertRaises(ValueError):
-                runner.run(args)
+            # Once a private workspace exists, integration failures are
+            # reported as structured results rather than uncaught errors.
+            failed = runner.run(args)
+            self.assertEqual(failed["status"], "failed")
+            self.assertFalse(failed["boot_confirmed"])
             self.assertTrue((root / "new-run" / "e2e-report.json").is_file())
             self.assertEqual(json.loads((root / "new-run" / "e2e-report.json").read_text())["status"], "failed")
+            self.assertFalse((root / "new-run" / "rootfs-bundle").exists())
 
     def prepare_mocks(self, image, state="passed", dual=False):
         firmware = {"boot_modes":["bios","uefi"], "boot_mode": None} if dual else {
