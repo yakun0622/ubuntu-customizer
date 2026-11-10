@@ -21,6 +21,9 @@ import importlib.util
 _spec = importlib.util.spec_from_file_location("uc_build_progress", Path(__file__).with_name("progress.py"))
 progress = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(progress)
+_inspect_spec = importlib.util.spec_from_file_location("uc_build_source_inspect", Path(__file__).with_name("image_inspect.py"))
+image_inspect = importlib.util.module_from_spec(_inspect_spec)
+_inspect_spec.loader.exec_module(image_inspect)
 
 MAX_VIRTUAL_SIZE = 2 * 1024**4
 ACCEPTED_INPUT_FORMATS = {"qcow2", "raw"}
@@ -48,6 +51,12 @@ def validate(plan):
         raise ValueError("Only an unblocked virtual-machine conversion plan may be executed")
     if plan.get("backend") != "qemu-img-offline-convert" or plan.get("format") not in ("qcow2", "raw"):
         raise ValueError("Unsupported backend/output format")
+    compatibility = plan.get("compatibility")
+    if (not isinstance(compatibility, dict) or compatibility.get("status") != "candidate"
+            or not isinstance(compatibility.get("checks"), list)
+            or len(compatibility["checks"]) < 8
+            or any(c.get("status") != "passed" for c in compatibility["checks"])):
+        raise ValueError("Plan lacks mandatory successful image compatibility checks")
     source_info = plan.get("source", {})
     source_name = source_info.get("path")
     if not isinstance(source_name, str) or not source_name.startswith("/"):
@@ -59,6 +68,21 @@ def validate(plan):
         raise ValueError("Missing SHA256")
     if hash_file(path) != source_info["sha256"] or path.stat().st_size != source_info.get("bytes"):
         raise ValueError("Source image has changed since planning")
+    inspected = source_info.get("inspection")
+    if (not isinstance(inspected, dict)
+            or inspected.get("source", {}).get("sha256") != source_info["sha256"]
+            or source_info.get("architecture_verified") is not True):
+        raise ValueError("Missing independently inspected guest image evidence")
+    # Recheck actual on-disk guest details before conversion rather than
+    # trusting an editable plan's claimed architecture or prior inspection.
+    fresh = image_inspect.inspect(path, source_info["sha256"])
+    wanted = inspected.get("observations", {})
+    current = fresh.get("observations", {})
+    for key in ("format", "partition_table", "partitions", "guest_os", "boot_details"):
+        if current.get(key) != wanted.get(key) or key not in current:
+            raise ValueError("Guest image inspection changed or cannot be reproduced: " + key)
+    if fresh.get("gaps"):
+        raise ValueError("Guest image inspection incomplete; refusing build")
     return path
 
 def inspect_image(path):
