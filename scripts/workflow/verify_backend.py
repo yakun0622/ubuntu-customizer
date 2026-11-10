@@ -70,12 +70,13 @@ def execute(args):
         return {"backend": args.backend, "status": "inspected",
                 "report": args.output, "boot_confirmed": False}
     report = module("rootfs_builder").read_json_regular(args.report)
+    required = set(module("verify_first_boot").REQUIRED)
     accepted = (report.get("type") == "ubuntu-customizer/first-boot-health"
                 and report.get("boot_confirmed") is True
                 and report.get("first_boot_confirmed") is True
                 and report.get("status") == "passed"
                 and isinstance(report.get("checks"), dict)
-                and bool(report["checks"])
+                and set(report["checks"]) == required
                 and all(value is True for value in report["checks"].values()))
     return {"backend": args.backend, "status": "verified_guest_health" if accepted
             else "unverified", "boot_confirmed": accepted,
