@@ -182,3 +182,7 @@ custom scripts remain outside this backend.
 
 See [Portable RootFS Builder workflow](rootfs-building.md) for example
 commands, the strict JSON recipe and safety gates.
+
+The published RootFS bundle includes a sanitized `build-config.json` and
+SHA-256 link to the exact input image plan. This records the build recipe
+without leaking the build-host path to the user's SSH public key file.
