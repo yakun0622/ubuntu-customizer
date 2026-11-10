@@ -189,3 +189,25 @@ Source committed is not sufficient evidence that runtime tests passed. Mark feat
 - Next: run tests on Linux/macOS with qemu-img/libguestfs actually installed;
   then add QEMU boot confirmation from a read-only guest readiness signal,
   plus hardware-specific BSP plugin selection after verified board identity.
+
+## Portable RootFS Builder (minimal VM backend)
+
+- Added an explicit, allowlisted VM-only `rootfs_builder.py` backend and
+  a sample `profiles/examples/rootfs-config.json`.
+- Supports dry-run plan/requirements review and explicit offline build
+  approval, with a new private RAW working clone (never the source disk).
+- Fixed customization: hostname, MOTD, narrowly scoped virt-sysprep
+  machine-id/SSH host-key reset, and a public-key-only NoCloud seed with
+  optional ISO. No package installation, scripts, shell or device writes.
+- Preflight checks guest cloud-init configuration, input source hashes and
+  source architecture/boot/partition evidence. Reinspects converted disk,
+  checks configured files, exports a SHA256 build manifest, and verifies
+  output/seed checksums in a separately named private bundle.
+- Added `rootfs-build` as an optional Skill live progress stage.
+- Added mocked tests for validation, approval, physical BSP blocking,
+  no-cloud-init failure, source immutability, output checksum tampering
+  and no-overwrite behavior.
+- Pending: actually run Python unit tests and real libguestfs/qemu-img
+  builds on a supported host, first-boot validation in QEMU, package/service
+  customization via vetted offline adapters, and versioned physical BSP
+  plugin contracts after exact hardware identity is proven.
