@@ -332,13 +332,21 @@ def verify_bundle(path):
 
 def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("plan", help="image-plan.json with verified compatibility")
-    p.add_argument("--config", required=True, help="strict rootfs-config.json recipe")
+    p.add_argument("plan", nargs="?", help="image-plan.json with verified compatibility")
+    p.add_argument("--config", help="strict rootfs-config.json recipe")
+    p.add_argument("--verify-bundle", help="verify existing bundle without writing it")
     p.add_argument("--output-dir", help="NEW directory for image, manifest and seed")
     p.add_argument("--approved", action="store_true", help="explicit offline customization approval")
     p.add_argument("--dry-run", action="store_true", help="validate and preview without building")
     args = p.parse_args(argv)
     try:
+        if args.verify_bundle:
+            if args.plan or args.config or args.output_dir or args.approved or args.dry_run:
+                raise ValueError("Bundle verification cannot be combined with build options")
+            print(json.dumps(verify_bundle(args.verify_bundle), ensure_ascii=False, indent=2))
+            return 0
+        if not args.plan or not args.config:
+            raise ValueError("Plan and --config are required for dry-run/build")
         plan = read_json_regular(args.plan)
         config = read_json_regular(args.config, MAX_CONFIG)
         if args.dry_run:
