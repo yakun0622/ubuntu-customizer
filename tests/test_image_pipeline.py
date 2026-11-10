@@ -83,6 +83,36 @@ class ImagePipelineTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 image_plan.plan(session, "virtual-machine", "raw", source, sha, "amd64")
 
+    def test_missing_inspection_tools_block_even_when_architecture_declared(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            session = self.create_session(root)
+            source, sha = self.source(root)
+            incomplete = inspection(source)
+            incomplete["observations"].pop("guest_os")
+            incomplete["gaps"].append({"check": "guest_os", "reason": "tool_missing"})
+            with patch.object(image_plan.image_inspect, "inspect", return_value=incomplete):
+                result = image_plan.plan(session, "virtual-machine", "qcow2", source, sha, "amd64")
+            self.assertFalse(result["build_allowed"])
+            self.assertTrue(any(c["name"] == "guest_architecture" and
+                                c["status"] == "blocked" for c in result["compatibility"]["checks"]))
+
+    def test_inspection_boot_mismatch_and_missing_kernel_block(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            session = self.create_session(root)
+            source, sha = self.source(root)
+            mismatch = inspection(source)
+            mismatch["observations"]["boot_details"]["boot_mode"] = None
+            mismatch["observations"]["boot_details"]["kernels"] = []
+            with patch.object(image_plan.image_inspect, "inspect", return_value=mismatch):
+                result = image_plan.plan(session, "virtual-machine", "qcow2", source, sha, "amd64")
+            self.assertFalse(result["build_allowed"])
+            self.assertTrue(any(c["name"] == "kernel" and c["status"] == "blocked"
+                                for c in result["compatibility"]["checks"]))
+            self.assertTrue(any(c["name"] == "boot_firmware" and c["status"] == "blocked"
+                                for c in result["compatibility"]["checks"]))
+
     def test_builder_rejects_unsupported_target(self):
         with tempfile.TemporaryDirectory() as tmp:
             source, sha = self.source(Path(tmp))
@@ -123,16 +153,28 @@ class ImagePipelineTests(unittest.TestCase):
                              hashlib.sha256(output.read_bytes()).hexdigest())
             self.assertTrue((root / "portable.qcow2.manifest.json").exists())
 
+    def test_builder_rejects_missing_and_changed_inspection(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source, sha = self.source(root)
+            candidate = verified_plan(source)
+            missing = dict(candidate)
+            missing.pop("compatibility")
+            with self.assertRaises(ValueError):
+                builder.validate(missing)
+            changed = inspection(source)
+            changed["observations"]["boot_details"]["boot_mode"] = "bios"
+            with patch.object(builder.image_inspect, "inspect", return_value=changed):
+                with self.assertRaises(ValueError):
+                    builder.validate(candidate)
+
     def test_builder_rejects_output_pseudofs(self):
         with tempfile.TemporaryDirectory() as tmp:
             source, sha = self.source(Path(tmp))
-            plan = {"type": "ubuntu-customizer/image-plan", "schema_version": 1,
-                    "target": "virtual-machine", "format": "qcow2",
-                    "backend": "qemu-img-offline-convert", "build_allowed": True,
-                    "blockers": [], "source": {"path": str(source), "sha256": sha,
-                    "bytes": source.stat().st_size}}
-            with self.assertRaises(ValueError):
-                builder.build(plan, "/dev/not-a-block-device.qcow2")
+            plan = verified_plan(source)
+            with patch.object(builder.image_inspect, "inspect", return_value=inspection(source)):
+                with self.assertRaises(ValueError):
+                    builder.build(plan, "/dev/not-a-block-device.qcow2")
 
 if __name__ == "__main__":
     unittest.main()
