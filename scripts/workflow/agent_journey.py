@@ -132,7 +132,10 @@ def next_step(state):
     if state["choices"]["run_boot"] is False:
         return {"kind": "done", "result": "artifact_verified_only",
                 "boot_confirmed": False, "automatic": False}
-    if state["consent"]["isolated_vm_boot"] is not True:
+    if state["consent"]["isolated_vm_boot"] is False:
+        return {"kind": "done", "result": "artifact_verified_only",
+                "boot_confirmed": False, "automatic": False}
+    if state["consent"]["isolated_vm_boot"] is None:
         return _ask("isolated_vm_boot",
                     "允许启动一次隔离的临时虚拟机进行健康验证吗？",
                     (True, False), False)
