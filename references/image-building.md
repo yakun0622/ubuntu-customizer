@@ -97,3 +97,61 @@ physical-device image-building support**.
 
 Use `python3 -m unittest discover -s tests -v` locally to validate the
 stage integration; no CI is triggered by the Skill itself.
+
+## Mandatory guest image inspection before conversion
+
+The Skill now has a **read-only** source-image inspector:
+
+```bash
+python3 scripts/workflow/image_inspect.py /srv/images/base.img \
+  --sha256 VERIFIED_64_HEX_SHA256 \
+  --output ./source-inspection.json
+```
+
+Source format is checked with `qemu-img info --output=json`; partition
+table scheme is checked using read-only `guestfish part-get-parttype`;
+partition and filesystem inventory comes from `virt-filesystems --csv`;
+guest Linux OS and measured architecture come from `virt-inspector`;
+boot firmware, bootloader and bootloader-referenced kernel versions come
+from `virt-drivers`. All commands specify the detected RAW/QCOW2 format
+explicitly and use bounded output, local-only inputs and timeouts. The
+libguestfs appliance has networking disabled. No host mount, file write
+to the guest, or SSH to a device occurs during inspection.
+
+The source report contains `observations`, `evidence` (the responsible
+tool and input checksum) and `gaps` (missing tool, unknown or malformed
+data). `image_plan.py` invokes the same inspector automatically and adds
+eight structured compatibility checks:
+
+1. Recognized disk format
+2. Verified GPT/MBR partition table
+3. Partition inventory
+4. Measured guest architecture matches both user declaration and target
+5. Recognized Linux OS/distribution
+6. Bootloader-referenced installed Linux kernel
+7. Recognized UEFI/BIOS boot mode
+8. Recognized bootloader
+
+If a check is unknown or fails, `build_allowed=false` and the plan records
+specific blockers. For real physical hardware, the existing verified-board
+BSP, firmware, boot medium and recovery blockers still apply. On virtual
+machine targets, a passing plan permits **offline disk conversion only**,
+not an assertion of portable guest boot. The converter re-inspects the
+same SHA-256 source before conversion and refuses changed evidence.
+
+Dependencies on the **build host** (not on the target): `qemu-img`,
+`guestfish`, `virt-filesystems`, `virt-inspector`, and
+`virt-drivers` (generally provided by qemu-utils/libguestfs guestfs tools,
+depending on distribution). Missing tools block the relevant checks; Skill
+must not install packages without authorization. Some images cannot be
+inspected (encrypted guest, backing chain, unusual filesystem, unsupported
+bootloader); they require separate supported adapters, not fabricated
+compatibility results. A matching distro is not sufficient for hardware
+compatibility and source boot firmware may differ from an independently
+measured target boot environment.
+
+Reference documentation:
+- https://libguestfs.org/virt-inspector.1.html
+- https://libguestfs.org/virt-filesystems.1.html
+- https://libguestfs.org/virt-drivers.1.html
+- https://libguestfs.org/guestfish.1.html
