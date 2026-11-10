@@ -35,7 +35,9 @@ class AdaptiveTests(unittest.TestCase):
                 return ("ok", b"test\n", "", 0)
             with patch.object(adaptive, "collect_probe", side_effect=fake_capture):
                 folder, result = adaptive.run("local", "local", str(dest), 3, ["pins", "drivers"])
-            self.assertEqual(folder, dest)
+            # macOS /var/folders is a system alias for /private/var/folders.
+            # The collector deliberately returns the canonical on-disk path.
+            self.assertEqual(folder, dest.resolve())
             self.assertEqual(result["state"], "complete")
             self.assertTrue(result["read_only"])
             self.assertTrue((dest / "manifest.json").exists())
