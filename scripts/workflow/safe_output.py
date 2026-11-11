@@ -29,7 +29,7 @@ def validate_system_alias_ancestors(path):
         if not (sys.platform == "darwin" and trusted
                 and ancestor.resolve() == Path(trusted)
                 and Path(trusted).is_dir() and not Path(trusted).is_symlink()):
-            raise ValueError("User-controlled symlink ancestors not allowed")
+            raise ValueError("Symlink output ancestor is not allowed (user-controlled symlink)")
 
 
 def canonical_new_directory(path):
