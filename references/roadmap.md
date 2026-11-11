@@ -270,3 +270,20 @@ Source committed is not sufficient evidence that runtime tests passed. Mark feat
 - Pending: run new pure-Python tests locally, validate real Agent runtime
   tool/permission handoffs, and test one-click experience with actual
   connected Mac/Linux execution.
+
+## macOS follow-up: 180-test regression
+
+The local Mac run at commit `dfd7165` reported 180 tests with 1 failure
+and 3 errors. Two errors came from `verify_backend.py` assuming an
+optional downstream parser always exposed `backend`; the adapter now
+forwards the explicitly chosen host backend and Lima instance directly.
+The remaining error/failure came from `single_host.py` rejecting macOS
+`/var` -> `/private/var` as a user-controlled symlink before applying
+the host-home boundary check. It now reuses the strict, previously added
+`safe_output.py` system-alias validation. User-created symlinks and
+out-of-home Lima paths remain forbidden. Focused regression tests were added.
+
+The repository changes have not yet been verified by a subsequent run on
+the user's Mac. Rerun `python3 -m unittest discover -s tests -v` and
+confirm the full summary; do not treat CI or mocked guest checks as a real
+QEMU boot.
