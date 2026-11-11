@@ -42,9 +42,13 @@ PROBES = {
         ("dt-compatible", "if test -r /sys/firmware/devicetree/base/compatible; then tr '\\000' '\\n' < /sys/firmware/devicetree/base/compatible; else echo unavailable; fi"),
         ("network", "ip -s link"),
         ("routes", "ip route"),
+        ("modules", "cat /proc/modules"),
+        ("sysfs-bindings", "for kind in net tty gpio; do for node in /sys/class/$kind/*; do test -e \"$node\" || continue; dev=$(readlink -f \"$node/device\" 2>/dev/null) || dev=; drv=$(readlink -f \"$node/device/driver\" 2>/dev/null) || drv=; printf '%s\\t%s\\t%s\\t%s\\n' \"$kind\" \"${node##*/}\" \"${drv##*/}\" \"$dev\"; done; done"),
+        ("platform-bindings", "for node in /sys/bus/platform/devices/*; do test -e \"$node\" || continue; drv=$(readlink -f \"$node/driver\" 2>/dev/null) || drv=; test -n \"$drv\" || continue; printf 'platform\\t%s\\t%s\\t%s\\n' \"${node##*/}\" \"${drv##*/}\" \"$(readlink -f \"$node\")\"; done"),
+        ("bus-devices", "for kind in i2c spi mdio_bus; do for node in /sys/bus/$kind/devices/*; do test -e \"$node\" || continue; drv=$(readlink -f \"$node/driver\" 2>/dev/null) || drv=; printf '%s\\t%s\\t%s\\t%s\\n' \"$kind\" \"${node##*/}\" \"${drv##*/}\" \"$(readlink -f \"$node\")\"; done; done"),
     ),
     "android": (
-        ("os", "getprop ro.build.version.release"),
+        ("os", "release=$(getprop ro.build.version.release); printf 'ID=android\\nVERSION_ID=%s\\nPRETTY_NAME=Android %s\\n' \"$release\" \"$release\""),
         ("model", "getprop ro.product.model"),
         ("platform", "getprop ro.board.platform"),
         ("hardware", "getprop ro.hardware"),
@@ -57,6 +61,31 @@ PROBES = {
         ("mounts", "cat /proc/mounts"),
     ),
 }
+# Preserve the evidence category/name contract used by dossier.py and
+# capabilities.py; a property-derived Android product model is NOT a DT model.
+EVIDENCE = {
+    "platform-detection": ("identity", "platform-detection"),
+    "kernel": ("identity", "kernel"),
+    "cpu": ("identity", "cpu"),
+    "memory": ("identity", "memory"),
+    "boot-args": ("boot", "cmdline"),
+    "partitions": ("storage", "blocks"),
+    "dt-compatible": ("hardware", "device-tree-compatible"),
+    "network": ("network", "ip-link"),
+    "routes": ("network", "ip-route"),
+    "modules": ("drivers", "modules"),
+    "sysfs-bindings": ("drivers", "sysfs-bindings"),
+    "platform-bindings": ("drivers", "platform-bindings"),
+    "bus-devices": ("hardware", "bus-devices"),
+    "os": ("identity", "os"),
+    "platform": ("hardware", "android-board-platform"),
+    "hardware": ("hardware", "android-hardware"),
+    "boot-slot": ("boot", "slot-suffix"),
+    "block-names": ("storage", "block-names"),
+    "mounts": ("storage", "mounts"),
+}
+
+
 IDENTIFY = "if command -v getprop >/dev/null 2>&1; then getprop ro.build.version.release; else printf 'linux\\n'; fi"
 
 
@@ -257,13 +286,20 @@ def run_collection(transport, target, output, baud, timeout, wake_console=False,
         temp.chmod(0o600)
         os.replace(temp, report)
 
-    def record(name, result):
+    def record(name, result, platform=None):
         status, body, code = result
-        filepath = directory / (name + ".txt")
+        if name == "model":
+            category, evidence_name = ("hardware", "android-product-model") if platform == "android" else ("hardware", "device-tree-model")
+        else:
+            category, evidence_name = EVIDENCE[name]
+        folder = directory / category
+        folder.mkdir(mode=0o700, exist_ok=True)
+        filepath = folder / (evidence_name + ".txt")
         with filepath.open("xb") as stream:
             stream.write(body)
         filepath.chmod(0o600)
-        manifest["items"].append({"name": name, "file": filepath.name,
+        manifest["items"].append({"category": category, "name": evidence_name,
+                                   "probe": name, "file": str(filepath.relative_to(directory)),
                                    "status": status, "bytes": len(body),
                                    "returncode": code,
                                    "sha256": hashlib.sha256(body).hexdigest()})
@@ -287,7 +323,7 @@ def run_collection(transport, target, output, baud, timeout, wake_console=False,
                 manifest["reason"] = "Untrusted prompt; no automatic commands permitted"
             else:
                 os_status, os_body, os_rc = console.run_fixed(IDENTIFY, timeout)
-                record("identity", (os_status, os_body, os_rc))
+                record("platform-detection", (os_status, os_body, os_rc))
                 if os_status != "ok":
                     manifest["state"] = "blocked"
                     manifest["reason"] = "Could not positively identify an interactive shell"
@@ -307,7 +343,7 @@ def run_collection(transport, target, output, baud, timeout, wake_console=False,
                         save()
                         for name, command in (*PROBES["common"], *PROBES[platform]):
                             status, body, code = console.run_fixed(command, timeout)
-                            record(name, (status, body, code))
+                            record(name, (status, body, code), platform)
                             if status in ("timeout", "truncated"):
                                 break  # Do not issue more input after losing prompt synchronization.
                         manifest["state"] = ("partial" if any(
