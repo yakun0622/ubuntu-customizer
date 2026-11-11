@@ -18,7 +18,7 @@ python3 scripts/workflow/collect.py --transport adb --target SERIAL123 --output 
 python3 scripts/workflow/collect.py --transport ttl --target /dev/cu.usbserial-110 --baud 115200 --duration 20 --output ./devices/board/serial-01
 ```
 
-Target for SSH is a configured OpenSSH Host alias with a previously trusted host key. ADB requires a device serial from `adb devices`. TTL requires optional `pyserial`. Serial access is passive receive only; opening a serial port may change handshake lines, so verify adapter wiring before running.
+These `collect.py` examples are the **legacy passive collector**. Target for SSH is a configured OpenSSH Host alias with a previously trusted host key. ADB requires a device serial from `adb devices`. Legacy TTL requires optional `pyserial` and only receives data. For **Agent-controlled interactive TTL**, use the persistent picocom adapter instead; see [device sessions](device-session.md). Opening a serial port may change handshake lines, so verify adapter wiring before running.
 
 ## Collection layers
 
@@ -179,8 +179,10 @@ Unobserved prerequisites are never interpreted as hardware absence. Partial
 outputs and unsupported tools remain visible as gaps. The initial capability
 checks assess **access**, not actual electrical functionality. The collector
 uses fixed read-only shell commands, existing SSH known-host trust, and no
-privileged commands. TTL performs only passive capture; it cannot discover
-Linux capabilities until an authorized shell transport is selected.
+privileged commands. Legacy TTL mode performs only passive capture. New **approved interactive
+TTL mode** invokes picocom through `device_session.py`, verifies a Linux/Android
+shell prompt, and runs fixed read-only probes over that one session.
+U-Boot, login and unknown prompts remain blocked from automatic commands.
 
 ```bash
 python3 scripts/workflow/adaptive.py
