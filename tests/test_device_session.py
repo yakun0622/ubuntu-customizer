@@ -108,6 +108,10 @@ class TestCollection(unittest.TestCase):
             self.assertEqual(len(inst.sent), 1 + len(ds.PROBES["common"]) + len(ds.PROBES["android"]))
             self.assertEqual(len(manifest["items"]), len(inst.sent))
             self.assertEqual(json.loads((folder / "manifest.json").read_text())["state"], "complete")
+            self.assertIn(("hardware", "android-product-model"),
+                          {(i["category"], i["name"]) for i in manifest["items"]})
+            for item in manifest["items"]:
+                self.assertTrue((folder / item["file"]).is_file())
 
     @mock.patch.object(ds, "transport_argv", return_value=["picocom"])
     def test_new_directory_cannot_be_reused(self, _):
@@ -217,6 +221,12 @@ class TestGuardedSessions(unittest.TestCase):
             self.assertGreaterEqual(len(report["items"]), 10)
             self.assertTrue((folder / "console.log").is_file())
             self.assertEqual((folder / "console.log").stat().st_mode & 0o077, 0)
+            self.assertTrue((folder / "identity" / "os.txt").is_file())
+            allowed = {"identity", "hardware", "drivers", "pins", "network", "storage", "boot", "serial"}
+            for item in report["items"]:
+                self.assertIn(item["category"], allowed)
+                self.assertTrue((folder / item["file"]).is_file())
+                self.assertEqual(item["sha256"], __import__("hashlib").sha256((folder / item["file"]).read_bytes()).hexdigest())
 
 
 if __name__ == "__main__":
