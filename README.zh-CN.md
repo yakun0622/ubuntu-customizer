@@ -16,7 +16,7 @@ Agent 会检查当前 Mac/Linux 主机的可用能力，识别目标类型，采
 
 用户不必选择 Lima、QEMU 或 Python 参数，也不必先准备另一台电脑。
 如果 Agent 没有连接到你的电脑执行环境，必须说明限制，不能声称已执行命令。
-实体 ARM 设备的日志和镜像可以只读分析；缺少已验证的 BSP、DTB、Bootloader、
+实体 ARM 设备的日志和镜像可以只读分析；缺少已验证的 BSP、DTB、引导加载程序、
 恢复条件和适用的板级构建后端时，实体镜像构建仍会被阻断。
 
 参见[引导式交互流程](references/interactive-agent-flow.md)和
@@ -42,7 +42,7 @@ AI Agent Skill。
 | 能力 | 已实现范围 | 验证边界 |
 | --- | --- | --- |
 | 设备发现与证据 | 固定的 SSH／ADB／本地只读探针、被动 TTL 采集、SHA-256 档案、对比及软件拓扑 | macOS Python 测试通过；真实设备集成未验证 |
-| 规划与归档 | JSON 安全子集配置、本地差异计划、指定文件快照、设备／会话目录、禁止执行的任务计划 | 不应用配置，不自动回滚，不认证硬件身份 |
+| 规划与归档 | JSON 安全子集配置、本地差异计划、指定文件快照、设备／会话目录、不执行操作的任务计划 | 不应用配置，不自动回滚，不认证硬件身份 |
 | 虚拟机镜像 | 只读来宾检查、兼容性门控、RAW/QCOW2 转换、私有副本 hostname/MOTD 定制、身份清理及仅使用公钥的 NoCloud 种子 | 真实 qemu-img/libguestfs 构建未验证；不支持任意软件包或脚本 |
 | 启动验证 | 静态镜像和 ARM 日志证据适配器；独立的 AMD64 QEMU Guest Agent 健康检查后端 | 模拟来宾测试通过；没有真实来宾或实体设备启动验证结果 |
 | Agent 体验 | 纯下一步／授权策略、原生 Linux 或现有 Mac Lima 后端、可选本地预览和离线 HTML 查看器 | 本地 HTTP/socket 测试通过；真实 Lima、浏览器及完整 Agent 交接未验证 |
@@ -51,6 +51,23 @@ AI Agent Skill。
 虽然存在独立任务规划器，但尚未实现自动诊断、维护执行和恢复。
 同样不支持安装器 ISO 创建、实体板卡 IMG/BSP 组装、已安装系统克隆和刷写。
 NoCloud 种子 ISO 不是操作系统安装器 ISO。
+
+## 术语约定
+
+| 英文术语 | 中文术语 | 在本项目中的含义 |
+| --- | --- | --- |
+| Inspection / verification | 检查／验证 | 检查收集观察结果，验证核对具体要求。仅通过哈希校验不能证明来源真实或镜像能启动。 |
+| Evidence session / dossier / manifest | 证据会话／设备档案／清单 | 会话保存采集证据，档案汇总证据，清单记录文件及哈希。 |
+| Artifact bundle | 产物包 | 发布的镜像、种子、配置及构建清单，不仅指单个镜像文件。 |
+| Guest / build host | 来宾／构建主机 | 虚拟机内的系统／运行镜像工具的环境。 |
+| Bootloader / pinmux | 引导加载程序／引脚复用 | 两种语言均保留工具、属性和格式标识符的原始写法。 |
+| Public-key-only NoCloud seed | 仅使用公钥的 NoCloud 种子 | 使用 SSH 公钥、不含密码或私钥的初始化数据，不是操作系统安装器。 |
+| Feature preview / live preview | 功能预览／实时预览 | 早期功能／可选的只读 localhost 进度观察器。 |
+
+**已实现（implemented）**、**已测试（tested）**、**未验证（unverified）**和
+**不支持（unsupported）**采用[路线图](references/roadmap.md#status-terminology)中的定义。
+每个测试结果都应注明范围。`complete`、`blocked`、`failed`、`boot_confirmed`
+等机器可读状态保持原样；静态检查完成不代表已确认来宾成功启动。
 
 ## 交互式设备发现
 
@@ -64,7 +81,7 @@ python3 scripts/workflow/collect.py
 并在新建的本地目录中写入包含路径和 SHA-256 的 `manifest.json`。
 不会修改硬件、刷写设备或自动上传诊断数据。TTL 需要可选依赖 `pyserial`。
 
-连接前提、pinmux 限制和证据布局见[设备发现](references/device-discovery.md)。
+连接前提、引脚复用限制和证据布局见[设备发现](references/device-discovery.md)。
 
 ## 开发辅助工具示例（不是用户启动步骤）
 
@@ -102,7 +119,7 @@ python3 scripts/safety/snapshot.py --output-dir /tmp/uc-snapshot-001 /etc/hostna
 - [安全规则](references/safety.md) — 授权与恢复要求
 - [路线图](references/roadmap.md) — 当前状态与后续工作
 
-配置 JSON 使用标准库实现的**有限子集校验器**，不是通用 JSON Schema 实现。
+配置 JSON 使用标准库实现的**有限安全子集校验器**，不是通用 JSON Schema 实现。
 YAML 示例仅用于说明，目前不能作为可执行配置。
 
 不要在配置中包含凭据，也不要提交包含秘密的机器诊断数据。
@@ -117,7 +134,7 @@ python3 scripts/workflow/dossier.py ./devices/example-device/session-001
 python3 scripts/workflow/compare.py ./devices/example-device/session-001/device.json ./devices/example-device/session-002/device.json
 ```
 
-档案生成前会验证各证据文件的 SHA-256，并区分“没有采集”和“没有硬件”。
+档案生成前会验证各证据文件的 SHA-256。未采集的数据会记为证据缺口，不能据此认定硬件不存在。
 对比工具报告观察到的身份字段和证据文件变化，本身不能诊断故障。
 详细说明见[设备发现](references/device-discovery.md)。
 
@@ -137,7 +154,7 @@ python3 scripts/workflow/topology.py ./devices/example-device/session-001
 
 `topology.json` 保存设备和驱动节点、观察到的 `bound_to` 边、证据路径与行号，
 以及不可用或未绑定的观察结果。它只表示 **Linux 驱动绑定**，不代表已验证的 PCB 引脚、
-PHY 信号、电压或完整 SoC pinmux 关系。旧会话缺少新探针时，会明确标为 `not_collected`。
+PHY 信号、电压或完整 SoC 引脚复用关系。旧会话缺少新探针时，会明确标为 `not_collected`。
 更多背景见[设备发现](references/device-discovery.md)。
 
 ## 设备树与运行时关系图（实验性）
@@ -161,7 +178,7 @@ python3 scripts/workflow/link_graph.py ./devices/example-device/session-001
 所有输入均根据会话清单验证 SHA-256。DTS 缺失或截断时会明确记录证据缺口。
 数字 phandle 引用仅标为**候选关系**，不代表已经完成 specifier 解码；
 pinctrl、clock、reset 的 cell 数需要结合具体 binding 分析。
-图中只表达软件证据关系，物理排针、PCB 走线、电平及硬件功能状态仍未验证。
+图中只表达从哈希校验通过的证据中得出的软件关系，物理排针、PCB 走线、电平及硬件功能状态仍未验证。
 
 解析器支持常见 `dtc` 输出语法，不能替代 libfdt/dtc，也不能完整解释 overlay 或厂商属性。
 
@@ -179,7 +196,7 @@ python3 scripts/workflow/capabilities.py ./devices/example-device/session-001
 `capabilities.json` 中的 `available`／`partial`／`unknown` 描述观察资料的可用程度，
 不代表物理外设存在或工作正常。`profiles/examples/` 下的 YAML 示例尚未接入 JSON 配置执行引擎。
 
-## 按能力自适应采集（预览）
+## 按能力自适应采集（功能预览）
 
 分阶段工作流先采集 OS、内核、CPU 和内存信息，再只读检查设备树、sysfs、pinctrl、
 总线和诊断工具是否可用，仅运行满足条件的深入探针。跳过项及原因会写入记录。
@@ -239,13 +256,13 @@ python3 scripts/workflow/manage.py inspect lab-server SESSION_ID
 TTL 不发送串口字节，但打开适配器可能影响控制信号。
 原始文件可能包含设备标识，不得自动发布。
 
-管理器提供终端交互。下文的 localhost 状态预览及离线 HTML 浏览器已实现，均为查看工具。
+管理器提供终端交互。下文的 localhost 实时状态预览及离线 HTML 查看器已实现，均为查看工具。
 尚未实现浏览器设备控制面板、按已认证设备身份自动分组、断点续采和物理引脚图。
 
-## 硬件浏览与任务选择（预览）
+## 硬件浏览与任务选择（功能预览）
 
-终端管理器的 **Explore** 功能读取经过 SHA-256 验证的会话证据，构建软件硬件关系图，
-浏览节点关系，并生成**禁止执行**的任务计划。
+终端管理器的 **Explore** 功能读取经过 SHA-256 验证的会话证据，构建软件层面的硬件关系图，
+浏览节点关系，并生成**不执行操作**的任务计划。
 
 ```bash
 # 交互模式：在设备管理菜单中选择 7. Explore
@@ -278,7 +295,7 @@ Explore 的 `image` 计划不会调用下文独立的 VM 镜像流水线。
 此功能目前是文本节点列表，不是可交互的图形节点画布。
 板级物理引脚和电气行为不能仅凭软件证据推断。
 
-## 离线图形硬件浏览器（预览）
+## 离线图形硬件浏览器（功能预览）
 
 可从已验证的证据会话导出可交互的本地 HTML 文件，浏览时不需要 HTTP 服务、
 外部库、CDN 或设备连接。
@@ -340,7 +357,7 @@ python3 scripts/workflow/build_image.py ./image-plan.json \
 也不会让镜像在任意硬件上可启动。部署前需另行进行匹配机器类型、固件及虚拟驱动的 VM 启动测试。
 
 对于 `--target physical-device --format raw`，规划器会返回明确阻断项。
-在板级 Bootloader、内核／DTB 或 ACPI 支持、固件、存储分区及恢复路径得到验证前，
+在板级引导加载程序、内核／DTB 或 ACPI 支持、固件、存储分区及恢复路径得到验证前，
 不允许组装实体镜像。仅改变镜像格式不能让通用 ARM64 系统适配所有硬件。
 
 输入和输出均不得使用块设备。转换器拒绝 `/dev`、`/proc`、`/sys` 下的路径、
@@ -415,7 +432,7 @@ Skill 负责控制，浏览器仅观察。阶段映射和隐私规则见[实时�
 
 转换前，Agent 可检查已有 RAW/QCOW2 源镜像并形成可追溯的兼容性结论。
 需要 `qemu-img` 和只读 libguestfs 工具，以确认 GPT/MBR 分区、来宾 Linux 架构和 OS、
-已安装内核、BIOS/UEFI 模式及 Bootloader。证据缺失会阻断转换。
+已安装内核、BIOS/UEFI 模式及引导加载程序。证据缺失会阻断转换。
 
 ```bash
 python3 scripts/workflow/image_inspect.py /srv/images/base.img \
@@ -436,7 +453,7 @@ macOS 合成检查测试已通过；真实 libguestfs 检查尚未验证。
 ### 离线 Portable RootFS Builder（仅限虚拟机）
 
 对于通过 `image_plan.py` 兼容性检查的源镜像，Skill 可预览有限的 Linux VM RootFS 定制方案，
-并在单独明确授权后构建产物。实体板卡 IMG 需要独立验证的 BSP，目前仍被阻断。
+并在单独明确授权后构建产物包。实体板卡 IMG 需要独立验证的 BSP，目前仍被阻断。
 
 严格配置示例见 `profiles/examples/rootfs-config.json`。
 支持 hostname、MOTD 和仅使用公钥的 NoCloud 首次启动种子。
@@ -463,12 +480,12 @@ NoCloud 首次初始化、SSH 密钥重新生成、VM 启动及机器专属秘�
 在单独审计前仍未验证。输出不适合直接刷入实体设备。
 完整约束见[RootFS Builder 工作流](references/rootfs-building.md)。
 
-产物还包含脱敏后的 `build-config.json`（不含原始公钥文件路径）和
+产物包还包含脱敏后的 `build-config.json`（不含原始公钥文件路径）和
 用于追溯的 `image_plan_sha256` 字段。构建清单校验配置与镜像哈希。
 
 ### QEMU 首次启动健康检查（仅限 amd64 VM）
 
-Skill 为完整的 Portable RootFS Builder 产物提供单独授权的隔离首次启动健康检查：
+Skill 为完整的 Portable RootFS Builder 产物包提供单独授权的隔离首次启动健康检查：
 
 ```bash
 python3 scripts/workflow/rootfs_builder.py --verify-bundle ./rootfs-bundle
@@ -485,8 +502,9 @@ python3 scripts/workflow/verify_first_boot.py \
 来宾必须预装 qemu-guest-agent 和 Python 3。随机挑战值与固定只读脚本用于检查 Linux 启动、
 systemd、cloud-init、预期 instance ID、hostname、初始化后的 machine-id 和 SSH 主机密钥、
 SSH 服务及已配置的网络接口。全部通过后才能设置 `boot_confirmed=true`。
-退出码和串口输出不构成证明；缺少前提、超时或检查失败会保留 blocked／failed 状态。
-报告只保存布尔检查结果，不保存机器 ID、密钥、秘密或原始来宾命令输出。
+退出码和串口输出不构成证明；缺少前提、超时或检查失败会保留 `blocked`（阻断）或 `failed`（失败）状态。
+报告将健康检查结果保存为布尔值，同时记录产物哈希、状态等元数据。
+不保存机器 ID、密钥、秘密或原始来宾命令输出。
 关机后会重新计算原始磁盘哈希。
 
 RootFS 暂存阶段仅在私有克隆中清除过期的 `/var/lib/cloud`，以允许新的 NoCloud 实例初始化。
@@ -509,7 +527,7 @@ Python `tempfile.TemporaryDirectory()` 可能返回 `/var/folders` 下的路径�
 ### Ubuntu Cloud Image 端到端辅助工具（真实执行未验证）
 
 `scripts/workflow/cloud_image_e2e.py` 在准备好的 Linux 构建主机上协调预检、源镜像校验、
-检查与规划、RootFS 定制、产物校验和来宾健康验证。它接受可信本地镜像，或在明确要求时，
+检查与规划、RootFS 定制、产物包校验和来宾健康验证。它接受可信本地镜像，或在明确要求时，
 从固定的 Ubuntu Cloud Image URL 下载并检查预设 SHA-256。
 这是哈希校验，不是上游签名验证；测试套件没有验证固定下载地址是否可用。
 

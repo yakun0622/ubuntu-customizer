@@ -64,6 +64,24 @@ maintenance execution and recovery are not implemented. Installer ISO creation,
 physical-board IMG/BSP assembly, installed-system cloning and flashing are
 also unsupported. A NoCloud seed ISO is not an OS installer ISO.
 
+## Terminology
+
+| English term | Chinese term | Meaning in this project |
+| --- | --- | --- |
+| Inspection / verification | 检查／验证 | Inspection gathers observations; verification checks a specific requirement. Hash verification alone does not establish authenticity or bootability. |
+| Evidence session / dossier / manifest | 证据会话／设备档案／清单 | A session contains captured evidence; a dossier summarizes it; a manifest records files and hashes. |
+| Artifact bundle | 产物包 | A published image, seed, configuration and build manifest, not just one image file. |
+| Guest / build host | 来宾／构建主机 | The system inside a VM / the environment running image tools. |
+| Bootloader / pinmux | 引导加载程序／引脚复用 | Retain tool, property and format identifiers unchanged in both languages. |
+| Public-key-only NoCloud seed | 仅使用公钥的 NoCloud 种子 | Initialization data using a public SSH key, without passwords or private keys; not an OS installer. |
+| Feature preview / live preview | 功能预览／实时预览 | An early feature / the optional read-only localhost progress observer. |
+
+Use **implemented / 已实现**, **tested / 已测试**, **unverified / 未验证** and
+**unsupported / 不支持** as defined in the [roadmap](references/roadmap.md#status-terminology).
+Record test scope with each result. Preserve machine-readable states such as
+`complete`, `blocked`, `failed` and `boot_confirmed` unchanged; completion of
+a static check is not confirmation of guest boot.
+
 ## Interactive device discovery
 
 Start a guided connection and evidence collection workflow:
@@ -126,7 +144,7 @@ python3 scripts/workflow/dossier.py ./devices/example-device/session-001
 python3 scripts/workflow/compare.py ./devices/example-device/session-001/device.json ./devices/example-device/session-002/device.json
 ```
 
-Dossier creation verifies each evidence file's SHA-256 digest and distinguishes missing collection from missing hardware. The comparison reports observed identity changes and evidence-file changes; it does not by itself diagnose a fault. Detailed guide: [device discovery](references/device-discovery.md).
+Dossier creation verifies each evidence file's SHA-256 digest. Missing collection is recorded as an evidence gap, not proof that hardware is absent. The comparison reports observed identity changes and evidence-file changes; it does not by itself diagnose a fault. Detailed guide: [device discovery](references/device-discovery.md).
 
 The preliminary device-driver software graph is implemented; a fully verified pin/electrical topology is not yet available. No target-writing commands are performed by these utilities.
 
@@ -162,11 +180,12 @@ python3 scripts/workflow/link_graph.py ./devices/example-device/session-001
 ```
 
 Outputs:
+
 - `device-tree.json`: DTS node hierarchy, selected properties, and supported phandle references.
 - `topology.json`: observed Linux sysfs device ↔ driver bindings.
 - `linked-hardware.json`: combined graph, including observed `of_node` links between platform devices and DTS nodes.
 
-Every input is verified against the session manifest SHA-256. Missing or truncated DTS data yields explicit gaps. Numeric phandle references are marked **candidates**, not confirmed specifier decoding; pinctrl/clock/reset cell counts require binding-specific analysis. Only trusted software topology is represented: physical header pins, PCB routes, electrical levels and functional hardware behavior remain unverified.
+Every input is verified against the session manifest SHA-256. Missing or truncated DTS data yields explicit gaps. Numeric phandle references are marked **candidates**, not confirmed specifier decoding; pinctrl/clock/reset cell counts require binding-specific analysis. Only software relationships derived from hash-verified evidence are represented: physical header pins, PCB routes, electrical levels and functional hardware behavior remain unverified.
 
 The parser supports common `dtc` output syntax; it is not a replacement for libfdt/dtc and does not interpret overlays or vendor-specific properties fully.
 
@@ -188,7 +207,7 @@ The output `capabilities.json` describes observation availability (`available`,
 or functioning. Example YAML is under `profiles/examples/` and is not yet
 consumed by the JSON profile execution engine.
 
-## Adaptive, capability-aware discovery (preview)
+## Adaptive, capability-aware discovery (feature preview)
 
 Use the staged workflow to avoid trying every deep probe blindly. It first
 collects basic OS/kernel/CPU/RAM data, then checks read-only availability of
@@ -264,7 +283,7 @@ preview and offline HTML explorer described below are implemented viewers.
 A browser device-control dashboard, automatic grouping by authenticated
 device identity, resumable collection and physical pin maps are not implemented.
 
-## Hardware explorer and task selection (preview)
+## Hardware explorer and task selection (feature preview)
 
 The terminal manager now supports **Explore**. It reads the selected
 session's SHA-256 verified evidence to assemble a software hardware graph,
@@ -304,7 +323,7 @@ This is currently a text-oriented node list, not a graphical/interactive
 node-edge canvas. Board-specific physical pinout and electrical behavior
 remain outside the scope of software evidence alone.
 
-## Offline graphical hardware explorer (preview)
+## Offline graphical hardware explorer (feature preview)
 
 An interactive **local HTML file** can be exported from a verified evidence
 session. No HTTP service, external libraries, CDN or device connection is
@@ -327,6 +346,7 @@ panel displays node attributes, related nodes, evidence source and collection
 gaps. Clicking a relationship jumps to that node.
 
 Security and scope:
+
 - It validates the session's evidence SHA-256 hashes before rendering.
 - Data is embedded as escaped JSON and written with private file permissions.
 - The page has a restrictive Content Security Policy and no network access.
@@ -559,7 +579,8 @@ instance ID, hostname, initialized machine-id and SSH host keys, SSH
 service, and a configured guest network interface. All must pass for
 `boot_confirmed=true`. Exit codes and serial output are **not** proof.
 Missing prerequisites, timeout or failed checks remain blocked/failed.
-The report stores only boolean checks, not machine IDs, keys, secrets or
+The report stores health checks as booleans, alongside metadata such as
+artifact hashes and status. It does not store machine IDs, keys, secrets or
 raw guest command output. The original disk is re-hashed after shutdown.
 
 RootFS staging now removes stale `/var/lib/cloud` state **only in the
