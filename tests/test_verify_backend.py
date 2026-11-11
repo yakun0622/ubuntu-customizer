@@ -76,6 +76,9 @@ class BackendTests(unittest.TestCase):
                 parser.add_argument("--sha256")
                 parser.add_argument("--output")
                 parser.add_argument("--lima-instance")
+                # Adapter accepts the option, but exposes a different
+                # namespace attribute (no 'backend' field).
+                parser.add_argument("--backend", dest="selected_backend")
                 return parser
             @staticmethod
             def execute(action, namespace, backend, instance):
