@@ -287,3 +287,25 @@ The repository changes have not yet been verified by a subsequent run on
 the user's Mac. Rerun `python3 -m unittest discover -s tests -v` and
 confirm the full summary; do not treat CI or mocked guest checks as a real
 QEMU boot.
+
+
+## Managed interactive device sessions (first implementation)
+
+- Added a single persistent PTY-based transport for picocom TTL, ADB Shell
+  and strict known-host SSH (scripts/workflow/device_session.py).
+- Only fixed, named, read-only probes are accepted. The session detects
+  U-Boot/login/unknown prompts and blocks automatic shell execution there.
+  Silent TTL consoles require a separately confirmed empty input line
+  before the optional single-CR prompt wake.
+- New adaptive.py opt-in --interactive-shell-approved / --yes dispatches
+  one connected session and records private console.log, per-probe results
+  and SHA-256. Old passive serial collection remains for boot logs.
+- Updated the Skill and Agent contracts to minimize repeated per-probe
+  host actions without claiming any control over Codex sandbox approval.
+- Added synthetic transport guards and local PTY integration tests.
+  The focused suite was run in an isolated Linux Python environment:
+  19 tests passed. This is *not* a physical W152D or macOS test.
+- Pending: real macOS picocom 921600 hardware run; physical TTL, ADB and SSH
+  integration; wider prompt/locale coverage; resilient long-running session
+  recovery; full repository regression test; actual physical Ubuntu ARM
+  image/BSP assembly and USB boot validation.
