@@ -3,7 +3,13 @@
 
 ## 开始使用：只需要告诉 Agent「开始定制系统」
 
-**这是 AI Agent Skill，不是需要逐条执行命令的工具。** 在已加载本仓库
+**这是 AI Agent Skill，不是需要逐条执行命令的工具。**
+
+最新设备连接能力：Agent 可在获得一次只读交互授权后，通过受管理的
+`picocom`（TTL）、ADB 或 SSH 持久会话主动执行固定只读硬件探针，保存
+私有日志与 SHA-256 报告；旧的 pyserial 被动抓取模式保留。
+详见 [设备交互会话](references/device-session.md)。
+这不等于已实现实体 ARM Ubuntu IMG 的完整构建和刷写。 在已加载本仓库
 `SKILL.md` / `AGENTS.md` 且具备主机执行权限的 Agent 中，直接说：
 
 > 开始定制系统
