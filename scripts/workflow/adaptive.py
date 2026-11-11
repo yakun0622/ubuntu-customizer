@@ -198,6 +198,10 @@ def main(argv=None):
     parser.add_argument("--yes", action="store_true", help="Explicit permission for unattended read-only collection")
     parser.add_argument("--preview-approved", action="store_true",
                         help="Start local status preview ONLY after user explicitly opts in")
+    parser.add_argument("--interactive-shell-approved", action="store_true",
+                        help="Use a single persistent picocom/ADB/SSH shell for fixed read-only probes")
+    parser.add_argument("--wake-console-approved", action="store_true",
+                        help="TTL only: user confirmed a blank input line, allow one CR to reveal prompt")
     args = parser.parse_args(argv)
     transport = args.transport
     if not transport and not args.yes:
@@ -217,6 +221,32 @@ def main(argv=None):
         parser.error("Local target must be 'local'")
     if not 1 <= args.timeout <= 120 or not 1 <= args.duration <= 300 or not 1200 <= args.baud <= 3000000:
         parser.error("Invalid timeout, serial duration or baud")
+    if args.wake_console_approved and not (args.interactive_shell_approved and transport == "ttl"):
+        parser.error("--wake-console-approved requires interactive TTL")
+    if args.interactive_shell_approved:
+        if not args.yes:
+            parser.error("Persistent read-only device session requires --yes")
+        if transport not in ("ttl", "adb", "ssh"):
+            parser.error("Interactive device sessions support TTL, ADB and SSH only")
+        if args.preview_approved:
+            parser.error("Live preview is not yet supported for interactive device sessions")
+        spec = importlib.util.spec_from_file_location("uc_device_session", HERE / "device_session.py")
+        device_session = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(device_session)
+        output = args.output or ("./device-session-" + datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ"))
+        try:
+            folder, report = device_session.run_collection(
+                transport, target, output, args.baud, args.timeout,
+                wake_console=args.wake_console_approved)
+        except (OSError, RuntimeError, ValueError) as exc:
+            print(f"ERROR: {exc}", file=sys.stderr)
+            return 2
+        print(json.dumps({"session": str(folder), "state": report["state"],
+                          "collected": len(report["items"]),
+                          "os_family": report.get("os_family"),
+                          "console_state": report.get("console_state")},
+                         ensure_ascii=False))
+        return 0 if report["state"] == "complete" else 2
     modules = list(MODULES) if args.modules == "auto" else [v.strip() for v in args.modules.split(",")]
     if not modules or len(set(modules)) != len(modules) or any(m not in MODULES for m in modules):
         parser.error("Unknown or repeated collection module")
