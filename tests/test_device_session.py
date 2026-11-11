@@ -167,6 +167,19 @@ class TestGuardedSessions(unittest.TestCase):
             self.assertEqual(manifest["os_family"], "linux")
             self.assertEqual(len(FakeConsole.instances), 1)
 
+    @mock.patch.object(ds, "transport_argv", return_value=["adb", "-s", "serial", "shell"])
+    def test_unrecognized_os_identity_blocks_platform_probes(self, _):
+        class FakeInvalid(FakeConsole):
+            def run_fixed(self, cmd, timeout):
+                self.sent.append(cmd)
+                return "ok", b"unknown-system\n", 0
+        FakeConsole.instances.clear()
+        with tempfile.TemporaryDirectory() as d:
+            _, manifest = ds.run_collection("adb", "serial", Path(d) / "new", 115200, 3,
+                                            console_factory=FakeInvalid)
+            self.assertEqual(manifest["state"], "blocked")
+            self.assertEqual(len(FakeConsole.instances[-1].sent), 1)
+
     @mock.patch.object(ds, "transport_argv", return_value=["picocom"])
     def test_lost_marker_sync_stops_remaining_probes(self, _):
         class FakeTimeout(FakeConsole):
