@@ -1,26 +1,33 @@
 # ubuntu-customizer
 
+[English](README.md) | [简体中文](README.zh-CN.md)
 
-## 开始使用：只需要告诉 Agent「开始定制系统」
+## Get started: tell the Agent “Start customizing the system”
 
-**这是 AI Agent Skill，不是需要逐条执行命令的工具。** 在已加载本仓库
-`SKILL.md` / `AGENTS.md` 且具备主机执行权限的 Agent 中，直接说：
+**This is an AI Agent Skill.** Load this repository's `SKILL.md` / `AGENTS.md`
+in an Agent with host execution access, then say:
 
-> 开始定制系统
+> Start customizing the system
 
-Agent 会逐步自动检查当前 Mac/Linux 的可用能力、识别目标类型、采集已获授权的
-设备信息、分析镜像、选择本机运行后端，并按实际结果继续推进。中途**仅在需要
-选择目标、批准设备访问/镜像构建/隔离启动或处理阻断时**进行简短交互。实时预览
-页面是可选的，默认不开启；QEMU 也只是按需选择的验证工具。
+The Agent checks available capabilities on the current Mac/Linux host,
+identifies the target type, collects authorized device evidence, inspects
+images and selects an available local backend. It continues based on observed
+results, asking one short question when it needs a target decision, permission
+for device access / image construction / isolated boot, or help resolving a
+blocker. The local progress preview is optional and off by default; QEMU is
+an optional verification adapter.
 
-用户不必选择 Lima、QEMU、Python 参数，也不必先准备另一台电脑。若 Agent
-没有连接到你的电脑或没有实际执行权限，它必须说明这一前提，不能声称已经
-在你的 Mac 上运行了命令。实体 ARM 设备的日志和镜像可以只读分析，但无已验证
-BSP/DTB/Bootloader/恢复方案时不会自动制作可刷写镜像。
+You do not need to select Lima, QEMU or Python arguments, or prepare another
+computer first. If the Agent lacks an execution connection to your computer,
+it must explain that limitation rather than claim it ran commands. Physical
+ARM logs and images can be analyzed read-only, but physical image assembly
+remains blocked without verified BSP/DTB/bootloader/recovery prerequisites
+and a suitable board-specific builder.
 
-参见 [傻瓜式交互流程](references/interactive-agent-flow.md) 与 [Agent 工作约定](AGENTS.md)。
-**以下命令示例仅供开发、调试或 Agent 调用，不是普通用户的启动步骤。**
-
+See the [guided interaction flow](references/interactive-agent-flow.md) and
+[Agent working agreement](AGENTS.md).
+**All command examples below are for development, debugging or Agent use;
+they are not required user onboarding steps.**
 
 > **Project identity: AI Agent Skill.** The Agent guides transport selection,
 > evidence collection, compatibility reasoning, image-build planning and
@@ -194,11 +201,11 @@ checkpointed `manifest.json` so interrupted sessions can be inspected.
 python3 scripts/workflow/adaptive.py
 
 # Explicitly approved unattended read-only collection (preconfigured SSH alias)
-python3 scripts/workflow/adaptive.py --transport ssh --target my-linux-host \\
+python3 scripts/workflow/adaptive.py --transport ssh --target my-linux-host \
   --output ./new-session-001 --modules auto --yes
 
 # Select only specific modules
-python3 scripts/workflow/adaptive.py --transport local --target local \\
+python3 scripts/workflow/adaptive.py --transport local --target local \
   --modules network,drivers --output ./new-session-002 --yes
 ```
 
@@ -411,7 +418,8 @@ consent and lifecycle rules.
 
 ### Skill-managed live preview lifecycle (opt-in)
 
-The Skill asks **是否开启本地实时运行预览？** before collection.
+The Skill asks **“Would you like to enable the optional local live preview?”**
+before collection.
 The default is off. After positive user consent, the Agent can activate
 the preview **during** collection with `--preview-approved` (independent
 from `--yes`, which approves read-only probes):
@@ -442,7 +450,7 @@ never sends an unchecked signal. The session directory must be private
 
 After each iteration, the Agent should give a concise completion summary,
 accurate test status, and **one actionable next-step follow-up**. In
-supported chat interfaces, offer a clickable “继续下一步” control rather
+supported chat interfaces, offer a clickable “Continue to the next step” control rather
 than requiring the user to retype a command.
 
 ### Live progress throughout the image pipeline
