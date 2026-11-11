@@ -100,15 +100,16 @@ def transport_argv(transport, target, baud):
 
 
 def fresh_directory(path):
-    path = Path(path).expanduser()
-    if path.exists() or path.is_symlink():
-        raise ValueError("Session directory already exists")
-    parent = path.parent.resolve(strict=True)
-    if not parent.is_dir():
-        raise ValueError("Session parent is not a directory")
-    path = parent / path.name
-    path.mkdir(mode=0o700)
-    return path
+    # Reuse the repository's hardened path validator (including macOS
+    # /var -> /private/var aliases); reject user-controlled symlink parents.
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "uc_device_safe_output", Path(__file__).with_name("safe_output.py"))
+    validator = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(validator)
+    directory = validator.canonical_new_directory(path)
+    directory.mkdir(mode=0o700)
+    return directory
 
 
 class PersistentConsole:
