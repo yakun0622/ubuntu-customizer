@@ -304,7 +304,7 @@ QEMU boot.
   host actions without claiming any control over Codex sandbox approval.
 - Added synthetic transport guards and local PTY integration tests.
   The focused suite was run in an isolated Linux Python environment:
-  19 tests passed. This is *not* a physical W152D or macOS test.
+  20 tests passed. This is *not* a physical W152D or macOS test.
 - Pending: real macOS picocom 921600 hardware run; physical TTL, ADB and SSH
   integration; wider prompt/locale coverage; resilient long-running session
   recovery; full repository regression test; actual physical Ubuntu ARM
