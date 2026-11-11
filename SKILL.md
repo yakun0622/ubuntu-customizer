@@ -112,8 +112,9 @@ follow-up button where the client supports it.
 1. **Establish intent.** Ask whether the user needs discovery, diagnosis,
    maintenance, recovery or a portable system image. Distinguish target,
    control host and build host.
-2. **Choose transport and optional preview.** Offer SSH / ADB / passive TTL /
-   local depending on access. Before starting work, explicitly offer: "是否开启本地实时运行预览页面？"
+2. **Choose transport and optional preview.** Offer SSH / ADB / managed picocom TTL (interactive with explicit
+   read-only shell approval; passive TTL remains available) / local depending
+   on access. Before starting work, explicitly offer: "是否开启本地实时运行预览页面？"
    The default is **no**. Never assume a device model or claim access that is unavailable.
    If the user opts in, use `scripts/workflow/adaptive.py --preview-approved`
    or `scripts/workflow/preview_control.py start SESSION_DIR --approved` to
