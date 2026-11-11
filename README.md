@@ -28,30 +28,34 @@ BSP/DTB/Bootloader/恢复方案时不会自动制作可刷写镜像。
 > an independent device manager product. Start from [SKILL.md](SKILL.md) and
 > [Agent workflow](references/agent-workflow.md).
 >
-> **Build status:** existing image conversion is offline VM RAW/QCOW2 format
-> conversion only; portable physical-device images, complete RootFS creation,
-> installed-system cloning and guaranteed first boot are not yet implemented.
-> No actual device boot validation has been completed.
+> **Build status:** implemented helpers support inspected VM RAW/QCOW2
+> conversion, limited offline RootFS customization and separately approved
+> AMD64 QEMU guest-health verification. Real image builds and guest boots
+> remain unverified; physical-device image assembly and flashing are unsupported.
 >
 
-AI Agent Skill for Ubuntu image customization and safe maintenance of installed Ubuntu, Debian and Armbian systems.
+AI Agent Skill for read-only discovery, maintenance planning and limited
+offline VM image customization for Ubuntu, Debian and Armbian systems.
 
-## Current status: v0.2 (read-only foundation)
+## Current capabilities and validation
 
-Implemented:
+“Implemented” describes code that exists; “validated” requires an actual
+test result. The maintained capability matrix, test record and remaining
+work are in [Roadmap and acceptance](references/roadmap.md).
 
-- Read-only Linux system and network detection
-- JSON profile validation
-- Local profile-to-host drift plan for packages, hostname, timezone
-- Read-only SSH inventory through an existing OpenSSH host alias
-- Local backups of explicitly named regular files, with SHA-256 manifest
-- Unit tests for profile validation and planning
-- Interactive device discovery over SSH / ADB / TTL / local with a local evidence manifest
+| Capability | Implemented scope | Validation boundary |
+| --- | --- | --- |
+| Device discovery and evidence | Fixed read-only SSH / ADB / local probes, passive TTL capture, SHA-256 dossiers, comparisons and software topology | Python tests passed on macOS; real-device integration unverified |
+| Planning and archives | JSON safe-subset profiles, local drift plans, explicit-file snapshots, device/session catalog, execution-disabled task plans | No profile application, automatic rollback or authenticated hardware identity |
+| VM images | Read-only guest inspection, compatibility gates, RAW/QCOW2 conversion, private-copy hostname/MOTD customization, identity cleanup and public-key-only NoCloud seed | Real qemu-img/libguestfs builds unverified; no arbitrary packages or scripts |
+| Boot verification | Static-image and ARM log evidence adapters; separate AMD64 QEMU Guest Agent health backend | Mocked guest tests passed; no real guest or physical-device boot validated |
+| Agent experience | Pure next-step/consent policy, native Linux or existing Mac Lima adapter, optional localhost preview and offline HTML viewer | Local HTTP/socket tests passed; real Lima, browser and full Agent handoffs unverified |
 
-**Not implemented:** applying profile changes, remote writes, automatic rollback,
-full installer ISO or physical-board IMG assembly, installed-system cloning
-and physical flashing. Existing RAW/QCOW2 *offline conversion* is available
-behind conservative guest inspection gates, but is not a complete OS builder.
+The guided policy currently ends inspect / diagnose / maintain goals after
+evidence analysis. Separate task planners exist, but automatic diagnosis,
+maintenance execution and recovery are not implemented. Installer ISO creation,
+physical-board IMG/BSP assembly, installed-system cloning and flashing are
+also unsupported. A NoCloud seed ISO is not an OS installer ISO.
 
 ## Interactive device discovery
 
@@ -65,7 +69,7 @@ Select SSH, ADB, TTL (passive RX) or local. The workflow saves raw category-spec
 
 See [Device discovery](references/device-discovery.md) for transport prerequisites, pinmux limitations and the evidence layout.
 
-## Quick start
+## Developer helper examples (not user onboarding)
 
 Run local Linux commands on the target machine (for example Ubuntu Server / Armbian):
 
@@ -206,8 +210,8 @@ The older `collect.py` remains available for fully exhaustive baseline probes.
 
 ## Device catalog and interactive manager
 
-The new `scripts/workflow/manage.py` is the **local device-management
-entry point**. It records a stable user-defined device ID and a connection
+The optional `scripts/workflow/manage.py` helper maintains a local device
+catalog. It records a stable user-defined device ID and a connection
 transport/target, then stores each collection session separately. It never
 embeds passwords in its catalog.
 
@@ -248,9 +252,10 @@ RX capture, without transmitting serial bytes, though opening adapters may
 affect control signals. Raw files may contain identifiers and must not be
 automatically published.
 
-This is a **terminal interaction**: a browser-based dashboard, automatic
-device grouping by serial number, session resumption and physical pin map
-visualization are not yet implemented.
+The manager provides a terminal interaction. The optional localhost status
+preview and offline HTML explorer described below are implemented viewers.
+A browser device-control dashboard, automatic grouping by authenticated
+device identity, resumable collection and physical pin maps are not implemented.
 
 ## Hardware explorer and task selection (preview)
 
@@ -284,9 +289,9 @@ python3 scripts/workflow/explore.py SESSION_DIRECTORY --mode plan \
 Supported plan kinds: `diagnose`, `maintain`, `image`. A plan references
 observed nodes, software relationships and collection gaps, but **does not
 execute commands**, modify configurations, build an image or authorize
-flashing. `maintain` and `image` remain blocked from execution pending
-implementation and separate approval. Evidence gaps and incomplete sessions
-must be resolved before relying on the resulting analysis.
+flashing. `maintain` execution remains unimplemented. Explorer `image` plans
+do not invoke the separate VM image pipeline described below. Evidence gaps
+and incomplete sessions must be resolved before relying on the resulting analysis.
 
 This is currently a text-oriented node list, not a graphical/interactive
 node-edge canvas. Board-specific physical pinout and electrical behavior
@@ -356,9 +361,9 @@ python3 scripts/workflow/build_image.py ./image-plan.json \
 ```
 
 This generates an image and `output.qcow2.manifest.json`, including the
-SHA-256 digest and virtual size. It **converts an already bootable source
-image**; it does not automatically capture the running system, install
-drivers, customize packages, reset machine identities, or make the output
+SHA-256 digest and virtual size. It **converts an inspected source image**;
+source inspection does not prove bootability. The converter does not capture
+the running system, install drivers, customize packages, reset machine identities, or make the output
 bootable on arbitrary hardware. The created image requires a separate VM
 boot test (machine type, firmware and virtual drivers) before deployment.
 
@@ -371,9 +376,10 @@ bootable merely by changing an image format.
 Never pass block devices as input or output. The converter rejects paths
 under `/dev`, `/proc` and `/sys`, output overwrites, unsupported
 input formats, and images with a QEMU backing file. Keep source image
-integrity metadata and licensing records. Source architecture is currently
-an operator declaration and is **not** validated from guest filesystems;
-this limitation is explicitly reported.
+integrity metadata and licensing records. Source architecture must be
+measured by guest inspection and match both the declaration and discovered
+target. Missing tools or incomplete inspection block conversion; declaring
+`--source-arch` alone cannot authorize it.
 
 ## Optional real-time Skill status preview
 
@@ -443,9 +449,10 @@ than requiring the user to retype a command.
 
 When a user has explicitly enabled the local preview, the image helpers now
 automatically update the same preview via verified session references.
-Stages: `image-plan`, `image-build`, `first-boot` (NoCloud), and
-`verify`. Each reports concrete milestones and distinguishes completion,
-compatibility blockers and execution failures. A QEMU smoke attempt is
+Stages: `image-plan`, `image-build`, `rootfs-build`, `first-boot` (NoCloud),
+and `verify` (including guest-health verification). Each reports concrete
+milestones and distinguishes completion, compatibility blockers and execution
+failures. A QEMU smoke attempt is
 **not** proof of a guest boot.
 
 No preview means no automatic status-file writes. A closed preview is not
@@ -457,7 +464,7 @@ a passive view. For the phase mapping and privacy rules see
 
 The Agent Skill can now inspect an existing RAW/QCOW2 disk source and create
 a traceable compatibility decision, **before** invoking the image conversion
-helper. It uses `qemu-img` and optional read-only libguestfs utilities to
+helper. It requires `qemu-img` and read-only libguestfs utilities to
 establish GPT/MBR partitioning, guest Linux architecture/OS, installed kernel
 and BIOS/UEFI + bootloader. Missing evidence blocks conversion.
 
@@ -476,8 +483,8 @@ python3 scripts/workflow/image_plan.py SESSION_DIR \
 compatibility matrix with evidence. `build_image.py` refuses uninspected
 or changed images even if an editable JSON plan claims they are allowed.
 Physical device builds still require independent board-specific components.
-See [image building](references/image-building.md). Tests were added but
-require execution on a supported build host; no CI was automatically run.
+See [image building](references/image-building.md). Synthetic inspection
+tests passed on macOS; real libguestfs inspection remains unverified.
 
 ### Offline Portable RootFS Builder (VM only)
 
@@ -557,19 +564,29 @@ support was added. See [First boot validation](references/first-boot-verificatio
 
 Python `tempfile.TemporaryDirectory()` may return paths under
 `/var/folders` while macOS resolves those files to `/private/var/folders`.
-The offline RootFS builder and Cloud Image E2E runner now canonicalize
-these **verified, system-owned** aliases when creating new local output
-directories. The restrictions on user-created symlinks, pre-existing
+The offline RootFS builder, Cloud Image E2E runner and Lima path validator
+canonicalize these **verified, system-owned** aliases for local paths.
+The restrictions on user-created symlinks, pre-existing
 destinations, directory traversal and block-device/pseudo-filesystem
 targets remain unchanged. The unit tests compare resolved paths where
 the collector or QEMU intentionally canonicalizes them.
 
-```bash
-cd ubuntu-customizer
-git pull --ff-only origin main
-python3 -m unittest discover -s tests -v
-```
+The standard command `python3 -m unittest discover -s tests -v` passed on
+macOS with the default temporary directory and local test socket permissions.
+QEMU and libguestfs execution is mocked in this suite; local preview HTTP
+and fake Guest Agent socket tests do run. See the
+[validation record](references/roadmap.md#validation-record) for counts and scope.
 
-The macOS unit tests use mocks for QEMU and libguestfs. Real Ubuntu Cloud
-Image end-to-end boots still require a suitable Linux build host and a
-guest image with the required QEMU Guest Agent dependencies.
+### Ubuntu Cloud Image end-to-end helper (real execution unverified)
+
+`scripts/workflow/cloud_image_e2e.py` coordinates preflight, source checks,
+inspection/planning, RootFS customization, bundle verification and guest-health
+verification on a prepared Linux build host. It accepts a trusted local image
+or an explicitly requested download from its pinned Ubuntu Cloud Image URL
+and SHA-256. This is hash checking, not upstream signature verification;
+availability of the pinned download has not been validated by the test suite.
+Offline build and VM boot require distinct explicit approvals. Missing tools,
+firmware or guest dependencies block execution; the helper does not install
+QGA or other packages. Its full-pipeline tests are synthetic and do not prove
+a real build or boot. Native Linux and existing Mac Lima adapters are
+implemented, but real Lima execution remains unverified.

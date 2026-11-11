@@ -1,6 +1,6 @@
 ---
 name: ubuntu-customizer
-description: Agent-led, evidence-first discovery and customization of Ubuntu, Debian, Armbian and compatible Linux systems; plan portable images, assess hardware boot compatibility and safely coordinate builds, maintenance and recovery across SSH, ADB, TTL or local access.
+description: Agent-led read-only discovery and evidence analysis for Ubuntu, Debian, Armbian and compatible Linux systems over SSH, ADB, passive TTL or local access; assess image compatibility, customize existing VM images with a fixed offline recipe, and optionally verify AMD64 guest health. Maintenance and recovery are planning only; physical image assembly and flashing are unsupported.
 ---
 
 # Ubuntu Customizer — AI Agent Skill
@@ -27,6 +27,24 @@ and [Agent workflow](references/agent-workflow.md) first. Then read
 [ARM hardware](references/arm-hardware.md), or
 [Safety](references/safety.md) *only for relevant stages*.
 
+## Capability and validation boundary
+
+Use [Roadmap and acceptance](references/roadmap.md) as the maintained
+capability matrix and validation record. Implemented helpers cover read-only
+discovery, evidence/software graphs, guest image inspection, VM RAW/QCOW2
+conversion, limited private-copy RootFS customization and optional AMD64
+QEMU Guest Agent health verification. The standard Python suite passed on
+macOS; real device collection, libguestfs builds, guest boots and Lima
+execution remain unverified. Synthetic tests do not establish those results.
+
+`agent_journey.py` is a pure policy, not an executor or persistent session
+store. Its inspect / diagnose / maintain paths currently finish with
+evidence analysis. Separate task and profile planners do not apply changes
+or provide automatic diagnosis, maintenance, recovery or rollback. Physical
+IMG/BSP assembly, flashing, installer ISO creation, installed-system cloning
+and arbitrary package/script customization are unsupported. A NoCloud seed
+ISO does not constitute an OS installer.
+
 ## One-start Agent entrypoint (highest priority)
 
 **When the user says “开始” or requests customization, START the guided
@@ -41,7 +59,7 @@ commands or grants approvals. The Agent invokes the appropriate existing
 Python helpers only when its host execution tool is actually connected,
 records observed outcomes and automatically continues to the next safe stage.
 
-A normal journey is **host detection → choose only missing intent/target →
+A supported VM-image journey is **host detection → choose only missing intent/target →
 optional preview choice → request read-only device access → evidence collection
 → SHA-256 analysis → source inspection/compatibility plan → recipe preview →
 separate offline-build consent → image build + verification → optional QEMU
@@ -126,6 +144,12 @@ follow-up button where the client supports it.
 8. **Verify and report.** Record actual results, source/evidence hashes,
    image hash, remaining compatibility blockers, tests performed and
    recovery path. Do not claim tests or builds that were not run.
+
+For a prepared Linux build host, `cloud_image_e2e.py` optionally coordinates
+the VM pipeline with separate build and boot approvals. Its explicit download
+option checks a pinned Ubuntu Cloud Image SHA-256, not an upstream signature;
+the source URL's availability and real end-to-end execution are unverified.
+Missing guest QGA/Python or host tools block execution without installation.
 
 ## Developer / Agent helper examples (NOT user onboarding)
 
@@ -217,6 +241,9 @@ every two seconds. It never serves raw evidence.
 - `build_image.py` → `image-build`: source verification, format inspection,
   conversion, output verification, result manifest.
 - `nocloud.py` → `first-boot`: NoCloud files, optional seed ISO, final manifest.
+- `rootfs_builder.py` → `rootfs-build`: private-copy customization and
+  bundle publication.
+- `verify_first_boot.py` → `verify`: isolated AMD64 guest-health checks.
 - `verify_vm.py` → `verify`: output hash, metadata, optional QEMU attempt.
   Static verification `complete` is **not** a verified guest boot;
   inconclusive boot attempts are `blocked` and nonzero QEMU exits `failed`.
@@ -239,8 +266,8 @@ python3 scripts/workflow/status.py SESSION_DIR \
 Only allowlisted stage/state names and integer counters are persisted;
 never include credentials, paths, error text or command output in the
 browser status. Recognized image phases are `image-plan`, `image-build`,
-`first-boot`, and `verify`. The preview observes status but does not
-control or approve execution.
+`rootfs-build`, `first-boot`, and `verify`. The preview observes status but
+does not control or approve execution.
 
 If a browser server cannot run on the controlling computer, explain that
 preview is unavailable and continue the Skill normally with text progress.

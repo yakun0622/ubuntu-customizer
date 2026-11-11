@@ -1,272 +1,122 @@
-## Product boundary: Skill-first design
-
-The deliverable is the Agent Skill (`SKILL.md` + focused references).
-`scripts/` only contains invoked helpers, not a separate application or
-required UI. Prioritize Agent decision logic, evidence-to-target compatibility
-contracts, backend selection, build gates and verification instructions.
-Standalone device-manager and offline HTML viewer are optional utilities;
-no new feature should require them.
-
-The next development goal is to make the Skill guide a complete
-discovery-to-image conversation without claiming unimplemented rootfs/BSP
-builders, followed by test validation of helper scripts.
-
 # Roadmap and acceptance
 
-## v0.1 completed: repository foundation
+## Product boundary
 
-- Agent SKILL.md and reference runbooks
-- JSON safe-subset profile validator
-- Read-only Linux inventory
-- Validation smoke tests
+The deliverable is the Agent Skill (`SKILL.md` and focused references).
+The conversational Agent owns decisions, tool invocation and consent;
+`scripts/` contains scoped helpers, not a standalone application or a
+required UI. The device catalog, offline HTML explorer and localhost
+status observer are optional tools.
 
-## v0.2 in progress: safe installed-system workflow
+This document is the maintained capability matrix, validation record and
+remaining-work list. [README](../README.md) summarizes it;
+[SKILL](../SKILL.md) defines how the Agent uses the supported capabilities.
+Earlier milestone entries are preserved in Git history. Their v0.1–v0.4
+labels described planning stages, not verified releases or deployment support.
 
-Implemented in source:
-- Read-only local profile drift plan
-- Remote read-only inventory with OpenSSH
-- Local explicit-file snapshots and SHA-256 manifest
-- Unit tests for the plan
+## Status terminology
 
-Still needed for full v0.2:
-- Verified local test execution and automated integration tests
-- Structured plan/diff engine beyond packages and hostname/timezone
-- Idempotent approved mutation adapters
-- Tested per-resource restore and remote network recovery
-- Remote compatibility verification, structured SSH error reporting
+- **Implemented:** a helper or policy exists in source with the stated limits.
+- **Tested:** the named checks actually ran in the recorded environment.
+  Mocked tools and synthetic fixtures validate logic, not real builds or boots.
+- **Unverified:** implementation exists, but the relevant real execution has
+  no recorded validation here. Do not infer support from a unit-test pass.
+- **Unsupported:** no execution backend exists, or required safety gates keep
+  the operation blocked. A plan or approval alone does not implement it.
 
-## v0.3 planned: image pipeline
+## Current capability matrix
 
-- Version-pinned Ubuntu Server Autoinstall ISO renderer
-- Official cloud image / QCOW2 + cloud-init workflow
-- Source signature/hash verification and QEMU smoke tests
-- Reproducibility manifest
+| Area | Implemented helpers and scope | Remaining boundary |
+| --- | --- | --- |
+| Guided conversation | `agent_journey.py`: pure next-step/consent policy, ordered stages, halt/retry, refusal and optional boot skip | No executor or persistent session store; real Agent tool/permission handoffs unverified; non-image goals finish with evidence analysis |
+| Discovery | `collect.py`, `adaptive.py`, detect scripts, `ssh_probe.py`: fixed read-only SSH / ADB / local probes, passive TTL RX, feature gating, skip reasons and manifest checkpoints | Real Linux/ARM/ADB/TTL integration unverified; no resumable collection or privileged deep-probe authorization workflow |
+| Evidence and graph analysis | `dossier.py`, `compare.py`, `capabilities.py`, `topology.py`, `device_tree.py`, `link_graph.py`: hash checks, evidence references, Linux bindings, DTS hierarchy, phandle candidates and runtime links | No authenticated hardware identity, physical pinout or electrical verification; DTS parsing is experimental, not libfdt or binding-specific decoding |
+| Catalog and exploration | `manage.py`, `explore.py`, `export_html.py`: user-defined device IDs, historical sessions, node relationships, execution-disabled task plans and offline HTML viewer | No automatic identity-based grouping, browser device-control dashboard or task execution; real browser review unverified |
+| Installed-system planning | Profile validator, `system/plan.py`, `safety/snapshot.py`: narrow JSON profile subset, local package/hostname/timezone drift plans, explicit-file snapshots and hashes | No profile application, automatic diagnosis, approved maintenance mutation, automatic restore or recovery; YAML examples are illustrative |
+| Source inspection and conversion | `image_inspect.py`, `image_plan.py`, `build_image.py`: trusted source SHA-256, guest OS/architecture/kernel/partition/firmware/bootloader checks, reinspection and VM RAW/QCOW2 conversion | Real qemu-img/libguestfs inspection and conversion unverified; format conversion does not establish bootability; physical-device plans stay blocked |
+| Limited offline RootFS customization | `rootfs_builder.py`, `nocloud.py`: dry-run, separately approved private clone, hostname/MOTD, narrowly scoped identity cleanup, stale cloud-init cache removal, public-key-only seed, optional seed ISO and hashed bundle | Requires inspected Linux VM image with cloud-init; real build and initialization unverified; no arbitrary package/script customization, complete secret sanitization or from-scratch OS creation |
+| Verification adapters | `verify_backend.py`, `physical_verify.py`, `verify_vm.py`: static inspection, passive ARM boot-log evidence and legacy inconclusive QEMU smoke attempt | Static checks, UART text and QEMU exit status never establish a healthy guest or physical-device deployment readiness |
+| AMD64 guest-health verification | `verify_first_boot.py`: separately approved QEMU TCG snapshot, restricted guest DHCP, QGA challenge, fixed read-only checks, BIOS or explicit trusted OVMF inputs for UEFI | Needs guest QGA/Python and NoCloud; real BIOS/UEFI boot and network isolation unverified; no non-AMD64 health adapter or physical attestation |
+| Cloud Image end-to-end coordination | `cloud_image_e2e.py`: prepared Linux host preflight, local trusted image or explicit pinned Ubuntu download, inspection/plan, RootFS bundle and guest health report | Synthetic pipeline tests only; pinned URL availability and real execution unverified; pinned SHA-256 checking is not upstream signature verification; no automatic dependency installation |
+| Local host adapters | `host_capabilities.py`, `single_host.py`: native Linux or already-running Mac Lima guest, tool/share checks, fixed invocations, no automatic VM start | Real Lima execution and mount compatibility unverified; an installed or stopped VM is not a usable backend |
+| Optional progress | `preview.py`, `preview_control.py`, `status.py`, `progress.py`: opt-in loopback-only sanitized observer, lifecycle checks and image/rootfs/verification milestones | Local HTTP/lifecycle tests passed; real browser and full Agent journey unverified; no preview control/approval API or implicit restart |
 
-## v0.4 planned: ARM/Armbian
+The generic core has no built-in board or assumed SoC. Physical IMG/BSP
+assembly, firmware flashing, installer ISO generation, installed-system
+cloning and automatic rollback are unsupported. A NoCloud `cidata` ISO
+is an initialization seed, not an OS installer.
 
-- Board plugin discovery and BSP metadata
-- Device tree read/diff support, UART/PHY diagnostics
-- Board-specific image builds and verified external recovery
+## Validation record
 
-## Acceptance rule
+On **2026-11-11**, code revision **`64abef2`** passed the standard command
+on the local macOS host with Python 3.11:
 
-Source committed is not sufficient evidence that runtime tests passed. Mark features validated only after test logs show successful execution. Never equate markdown instructions with a working build engine.
+```bash
+python3 -m unittest discover -s tests -v
+```
 
-## Device discovery extension (in progress)
+Result: **181 tests, OK, zero failures and zero errors**, using the default
+temporary directory without a `TMPDIR` override. Local test socket permissions
+were granted because the sandbox initially prohibited loopback and UNIX
+socket binding. No tests were skipped in this recorded run.
 
-- Existing wizard: SSH / ADB / local read-only collection and TTL passive capture
-- Added: SHA-256 verified `device.json` dossier derived from evidence session
-- Added: comparison of two dossiers with field-level identity changes and evidence digest differences
-- Pending: structured driver bindings, validated pinmux topology, historical device registry, selective deep probes with per-command approval, sensitive-data redaction and runtime integration testing
+The run covers Python logic, synthetic evidence, mocked qemu-img/libguestfs
+and QEMU execution, real local preview HTTP/lifecycle checks and a fake
+local QGA socket server. It does **not** validate real device collection,
+Linux image construction, actual guest boot, OVMF firmware, DHCP isolation,
+physical hardware compatibility, Lima execution or a browser/Agent journey.
+No GitHub Actions were triggered.
 
-## Read-only topology milestone
+The revision fixes macOS `/var` and `/tmp` alias handling in the Lima path
+validator by sharing the existing restricted alias policy, and fixes two
+verification tests to use the real argument parser. User-controlled symlinks,
+paths outside the shared home and output overwrites remain rejected.
 
-- Added sysfs binding inventory probes for network/serial/GPIO, platform, I2C, SPI and MDIO
-- Added SHA-256 validated topology parser with provenance per binding edge and missing-evidence gaps
-- Added unit tests for bound/unbound/malformed/tampered evidence
-- Pending: actual integration test on Linux and ARM devices, DT phandle graph, SoC pinctrl mapping, privileged debugfs workflow and structured hardware troubleshooting decisions
+Temporary full log from that run: `/private/tmp/ubuntu-customizer-tests-fixed.log`.
+This is a host-local diagnostic path, not a committed or durable test artifact.
+Future validation records should name the tested revision, environment,
+command, result and actual execution scope; do not overwrite missing
+integration evidence with unit-test results.
 
-## Device-tree deep discovery (experimental)
+## Remaining work in priority order
 
-- Added DTS hierarchy and phandle graph parser from verified collection evidence
-- Added read-only platform `of_node` capture and runtime-to-DTS correlation
-- Added unit test fixtures for DTS labels, pinctrl candidates, integrity and device linkage
-- Pending: executing tests in CI/local Linux; real ARM board validation; robust libfdt-compatible parser; binding-specific clock/reset/IRQ cells; pinctrl groups and SoC pin bank mapping; authorized optional debugfs evidence
+1. **Real Linux VM pipeline validation.** Prepare a supported build host and
+   trusted guest image with QGA/Python/cloud-init; inspect and preview first.
+   Obtain separate approvals before building and booting. Record exact input
+   hashes, tool versions, firmware, output hashes and complete guest-health
+   results. Retain blockers if prerequisites fail. Validate BIOS/UEFI and
+   restricted DHCP behavior explicitly rather than inferring them from flags.
+2. **Agent handoffs and local adapters.** Exercise a real connected Agent
+   journey, cancellation/retry and consent boundaries on Linux and an
+   already-running Mac Lima guest. Review preview/browser behavior and
+   cleanup. Never install tools, start Lima or change mounts implicitly.
+3. **Diagnostic and maintenance planning.** Give diagnose / maintain goals
+   their own evidence-backed decisions beyond the current evidence-only end
+   state. Later mutation/restore adapters need separate review, authorization,
+   idempotency and tested recovery; planning alone does not authorize writes.
+4. **Real device evidence and parser depth.** Validate SSH/ADB/passive TTL on
+   representative Linux/ARM devices; improve resumable capture, trusted device
+   identity, export redaction, binding-specific DT cells and SoC pinctrl
+   interpretation. Keep physical pin/electrical claims separate from software
+   graphs. Add narrowly authorized deep probes only when justified.
+5. **Source trust and artifact handling.** Add upstream signature verification
+   and maintained source-pin updates, durable sanitized validation reports,
+   bounded subprocess output during capture, and auditable plugin contracts.
+6. **Future builders.** Package/service customization, installer ISO creation,
+   installed-system cloning and board-specific physical assembly are future
+   work. A physical adapter first needs exact board identity, verified BSP,
+   bootloader/DTB/firmware/storage compatibility and an external recovery path.
 
-## Generic device policy (current)
+## Acceptance rules
 
-- Removed the named-board diagnostics profile from the core repository.
-- Added an illustrative generic ARM64 discovery profile.
-- Added evidence-driven capability inventory (`capabilities.json`) with
-  available/partial/unknown states and tests.
-- Next: capability-aware probe selection, extensible transport and hardware
-  adapters, structured registry of sessions per device with stable identifiers,
-  and optional vendor plugins separated from the core.
-- No platform-specific flashing or physical pinout assumptions are permitted
-  in the generic workflow.
-
-## Adaptive discovery preview
-
-- Added staged read-only bootstrap, capability checks, module selection, and
-  per-probe manifest checkpoints with skipped-reason recording.
-- Added CLI module selection for SSH/ADB/local, passive TTL remains separate.
-- Added tests for prerequisite gating, skip semantics and checkpoint outputs.
-- Still required: actual runtime test execution, resumable collection, secure
-  privileged probe authorization, progress UI, cross-platform probe adapters,
-  stable device identity and plugin extension registry.
-
-## Device management milestone (terminal UI)
-
-- Added local device registry with validated IDs and private on-disk metadata.
-- Added candidate discovery for explicit SSH Host aliases, ADB online serials, and local serial port names.
-- Added interactive command menu, per-device collection sessions and inspection of prior sessions.
-- Reused the existing capability-aware read-only collection engine, without adding write-capable remote execution.
-- Pending: runtime tests on supported host platforms; secure device identity verification; resumable capture; graphical device tree browser; plugin transports; optional archive redaction.
-
-## Device explorer and task workflow (preview)
-
-- Added SHA-256 evidence-backed terminal node browser and relationship lookup.
-- Added choose-task wizard for diagnose / installed-system maintain / image-build planning.
-- Added non-executable JSON task plans including evidence links, missing observations, risks, and approval blockers.
-- Integrated device ID + historical session selection with the device manager.
-- Added synthetic-data tests for graph browsing, evidence tampering, path validation and plan gating.
-- Pending: execute full test suite on supported platforms, interactive graphical graph view, resumable/target-specific deep probes, robust state machine and a separately reviewed safe mutation engine.
-
-## Offline graphical browser milestone
-
-- Added standalone offline HTML hardware explorer generated from SHA-256 verified session data.
-- Added search, type filtering, node details, relation navigation, evidence reference and gap summaries.
-- Added browser export to multi-device terminal manager and new browser-escaping tests.
-- Pending: actual local and real-device tests, richer hierarchical tree and scalable rendering, approved diagnostic drilldowns, export redaction and signed portable evidence packages.
-
-## Image portability assessment and offline VM converter (initial)
-
-- Added SHA-256 verified discovery-to-image plan for a local base image,
-  explicit source architecture and target type/format.
-- Added physical device blockers: boot chain, partitioning, kernel/DTB
-  compatibility, firmware and restore procedure.
-- Added guarded `qemu-img` RAW/QCOW2 offline conversion for VM targets,
-  output checksum/build metadata, no direct block device writes.
-- Added source mismatch, architecture, backing chain and output-path tests.
-- Pending: confirmed test execution, upstream signature verification, guest
-  OS/architecture inspection, package/rootfs personalization, first-boot
-  identity reset, cloud-init seed generation, QEMU boot smoke tests and
-  backend plugins for verified physical boot targets.
-
-## Optional Skill live status preview
-
-- Added an opt-in, loopback-only HTTP viewer that polls sanitized
-  probe progress from the existing checkpoint manifest.
-- Added a minimal Agent-owned status helper for analyze/image-plan/
-  image-build/verification stage updates (allowlisted fields only).
-- Added focused tests covering summary redaction, status validation,
-  HTTP read-only routes and output privacy.
-- Next: run tests with real local browsers and Unix/macOS hosts, improve
-  lifecycle automation after explicit consent, and measure progress
-  completeness across multistage workflows.
-- The Skill, not the viewer, remains the authoritative orchestration layer.
-
-## Preview lifecycle — current milestone
-
-- Added an Agent-callable helper to start, check, stop or clear a stale
-  local preview instance; no HTTP write/control endpoint is introduced.
-- Collection starts the preview at session creation **only when**
-  `--preview-approved` was provided following user opt-in.
-- Preview startup failures are nonfatal for core collection.
-- Added tests for approval gating, identity verification, stale runtime
-  handling, and the localhost start/status/stop integration path.
-- Added completion-response contract: one precise next task plus an
-  interactive follow-up action when the host chat UI supports it.
-- Remaining: run the new suite on Linux/macOS, lifecycle smoke tests in
-  a real Agent runtime, consent UX validation, and cleanup policies for
-  canceled sessions.
-
-## Four-stage image progress integration
-
-- Implemented best-effort, opt-in status reporting for image-plan, offline
-  image-build, NoCloud first-boot seed and VM verification scripts.
-- Reuses a single original discovery session through plan and build-result
-  metadata. No change to existing disk/image formats or write approvals.
-- Maintains `complete`, `blocked`, `failed` distinctions; unproven VM
-  boot does not count as successful boot verification.
-- Prevented old collection skips from inflating image-stage progress.
-- Added `tests/test_skill_progress.py` for opt-out, closed preview,
-  success, failure, blocked, source-session propagation and progress counts.
-- Pending: run new and existing tests on Linux/macOS, review CLI artifact
-  write failures and verify against real qemu-img/QEMU sessions (not CI).
-
-## Source guest inspection and compatibility milestone
-
-- Added `image_inspect.py`: qemu-img format, read-only GPT/MBR probing,
-  partition/filesystem inventory and libguestfs OS/architecture/kernel/boot
-  analysis, all with SHA-256 evidence provenance and missing-tool gaps.
-- Integrated an eight-check evidence matrix into image planning. No
-  user-claimed architecture may authorize conversion without inspection.
-- Build helper now enforces a verified inspection matrix and re-inspects
-  the source before conversion; unsupported images/physical boards block.
-- Added synthetic parser, malformed XML, missing tool, tamper and
-  cross-check tests. Existing unit tests use explicit synthetic inspections.
-- Next: run tests on Linux/macOS with qemu-img/libguestfs actually installed;
-  then add QEMU boot confirmation from a read-only guest readiness signal,
-  plus hardware-specific BSP plugin selection after verified board identity.
-
-## Portable RootFS Builder (minimal VM backend)
-
-- Added an explicit, allowlisted VM-only `rootfs_builder.py` backend and
-  a sample `profiles/examples/rootfs-config.json`.
-- Supports dry-run plan/requirements review and explicit offline build
-  approval, with a new private RAW working clone (never the source disk).
-- Fixed customization: hostname, MOTD, narrowly scoped virt-sysprep
-  machine-id/SSH host-key reset, and a public-key-only NoCloud seed with
-  optional ISO. No package installation, scripts, shell or device writes.
-- Preflight checks guest cloud-init configuration, input source hashes and
-  source architecture/boot/partition evidence. Reinspects converted disk,
-  checks configured files, exports a SHA256 build manifest, and verifies
-  output/seed checksums in a separately named private bundle.
-- Added `rootfs-build` as an optional Skill live progress stage.
-- Added mocked tests for validation, approval, physical BSP blocking,
-  no-cloud-init failure, source immutability, output checksum tampering
-  and no-overwrite behavior.
-- Pending: actually run Python unit tests and real libguestfs/qemu-img
-  builds on a supported host, first-boot validation in QEMU, package/service
-  customization via vetted offline adapters, and versioned physical BSP
-  plugin contracts after exact hardware identity is proven.
-
-## QEMU Guest Agent first-boot verification stage (amd64 VM)
-
-- Added `verify_first_boot.py` for user-approved transient QEMU TCG
-  boot from a verified RootFS Builder output bundle, with snapshot disks
-  and restrict=on SLIRP virtual DHCP, no forwarded ports or Internet.
-- Uses fresh challenge-bound QEMU Guest Agent fixed read-only guest probe
-  for Linux/systemd/cloud-init/NoCloud instance ID, hostname, machine-id,
-  SSH host keys/service and guest network interface.
-- Supports independently selected BIOS/UEFI; UEFI requires explicit
-  trusted OVMF CODE and VARS template, cloned in scratch.
-- Includes concise check matrix and sanitized failure reports, hashes
-  original image after QEMU shutdown, never infers success from process
-  return code.
-- RootFS scratch builder clears stale cloud-init instance cache and
-  preserves discovery session for optional Skill progress preview.
-- Added tests using a fake local UNIX Guest Agent, mock QEMU process,
-  nonce and schema failures, missing approval, firmware gates and
-  offline/restricted network option inspection.
-- Pending: run tests and a real QEMU/NoCloud boot on a compatible Linux
-  build host; real UEFI firmware smoke; controlled network/DHCP behavior;
-  non-amd64 hypervisor adapters; physical board BSP approval workflows.
-
-## macOS local test follow-up
-
-- User's first Mac run reported 137 tests, 3 failures and 10 errors;
-  the dominant cause was the trusted macOS `/var` ->
-  `/private/var` temp-directory alias being rejected as a symlink.
-- Added `safe_output.py` for strict, canonical local output paths.
-  Only verified OS-owned `/var` and `/tmp` aliases are accepted;
-  arbitrary symlink parents, pseudo-filesystems and existing output
-  directories are still rejected.
-- Corrected adaptive and QEMU CLI tests to compare canonical paths.
-- Corrected the E2E source-hash failure test to expect the existing
-  structured failure-report contract rather than an uncaught exception.
-- Added focused path safety regression tests, including macOS-specific
-  alias behavior and malicious user-controlled symlinks.
-- Pending: rerun the full suite on the user's Mac and fix any newly
-  unmasked failures; real QEMU/libguestfs integration remains unverified.
-
-## Guided Agent-first startup and interaction
-
-- Added `AGENTS.md` and `references/interactive-agent-flow.md` as
-  clear entrypoints: user says “开始”; Agent owns all stages and chooses
-  local tools, while the user only responds to necessary questions.
-- Added pure `agent_journey.py` policy for read-only host detection,
-  user intent/target choices, optional preview, device access approval,
-  automated evidence-to-image analysis, offline-build approval, optional
-  QEMU boot approval and verified final summary.
-- Failures pause automatically; later steps cannot be marked complete
-  out of sequence. Physical ARM evidence never authorizes flashing and
-  incomplete QEMU guest-health reports never prove boot.
-- Added conversational policy tests covering the start, prompts, separate
-  approvals, refusal, retry and no false boot confirmation.
-- The existing native Linux / local Mac Lima helpers and static/ARM/QEMU
-  backends remain internal, not a user-run command sequence.
-- Pending: run new pure-Python tests locally, validate real Agent runtime
-  tool/permission handoffs, and test one-click experience with actual
-  connected Mac/Linux execution.
+- Source code and documentation are not proof of runtime validation.
+- A complete inspected plan is only a candidate for offline VM conversion.
+- A bundle checksum proves artifact integrity, not bootability or authenticity.
+- Only a complete challenge-bound guest-health report may set
+  `boot_confirmed=true`; no such real guest result is recorded above.
+- VM guest health never proves physical board compatibility or authorizes flash.
+- Keep device access, offline construction, isolated boot and higher-risk
+  device writes as distinct consent scopes. Follow-up buttons request the
+  named next task; they do not grant unrelated permissions.
+- Do not automatically trigger GitHub Actions. Record local checks honestly
+  and commit fixes on `main` unless the user changes that preference.
