@@ -27,6 +27,44 @@ and [Agent workflow](references/agent-workflow.md) first. Then read
 [ARM hardware](references/arm-hardware.md), or
 [Safety](references/safety.md) *only for relevant stages*.
 
+## Persistent device access (preferred for interactive hardware)
+
+For TTL/picocom, ADB and SSH, the preferred **authorized** collection path
+is scripts/workflow/adaptive.py with --interactive-shell-approved --yes,
+plus --transport, --target and a fresh private --output chosen by the Agent.
+The adapter is scripts/workflow/device_session.py: one persistent host
+process/PTY for the whole session, fixed read-only shell probes, private
+console.log, SHA-256 manifest and per-probe result files. This uses
+**picocom** for TTL, not the old passive pyserial-only recorder.
+
+- Discover already-present ports, configured SSH aliases and authorized ADB
+  serials before access; choose a unique observed device, never guess a port.
+- After the user grants **one clearly scoped read-only interactive session**
+  authorization, batch all permitted commands into one host tool invocation.
+  Codex/host sandbox approval is separate and **cannot be waived by a Skill**.
+  Do not request a fresh user confirmation for each allowlisted read.
+- The agent recognizes Android/Linux shells and reports U-Boot, login or
+  unknown prompts as **blocked**. TTL must observe a trusted shell prompt
+  before sending anything. Never type a password, interrupt U-Boot or send
+  arbitrary commands to an unknown console. Only after the user separately
+  confirms that the serial input line is blank may the Agent use
+  --wake-console-approved for a single CR to reveal the prompt.
+- For ADB and SSH, a newly opened interactive Shell may be verified by a
+  fixed marker probe. Avoid repeated subprocess connections per file.
+- Capture actual complete / partial / blocked results. Successful
+  session completion does not prove a device is bootable, and probes can
+  return unavailable or error. Keep logs private; they may include
+  unique device identifiers and network configuration.
+- If no executable transport is available or the host blocks PTY/serial
+  access, state the precise missing prerequisite. Never claim the
+  Agent operated a machine it cannot reach.
+
+Existing adaptive.py without --interactive-shell-approved remains a
+backward-compatible passive TTL or one-command-at-a-time SSH/ADB collector.
+The new persistent path is the default for a user's **interactive device
+customization** request, not a bypass for OS-image build approvals.
+See [Interactive device consoles](references/device-session.md).
+
 ## One-start Agent entrypoint (highest priority)
 
 **When the user says “开始” or requests customization, START the guided
