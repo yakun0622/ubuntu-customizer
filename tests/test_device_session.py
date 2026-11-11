@@ -130,5 +130,81 @@ class TestPTY(unittest.TestCase):
             self.assertGreater((Path(d) / "console.log").stat().st_size, 0)
 
 
+class TestGuardedSessions(unittest.TestCase):
+    @mock.patch.object(ds, "transport_argv", return_value=["picocom"])
+    def test_uboot_blocks_all_shell_commands(self, _):
+        class FakeUBoot(FakeConsole):
+            def observe(self, timeout):
+                return "uboot"
+        with tempfile.TemporaryDirectory() as d:
+            _, manifest = ds.run_collection("ttl", "/dev/cu.test", Path(d) / "new",
+                                            921600, 3, console_factory=FakeUBoot)
+            self.assertEqual(manifest["state"], "blocked")
+            self.assertEqual(FakeConsole.instances[-1].sent, [])
+
+    @mock.patch.object(ds, "transport_argv", return_value=["adb", "-s", "serial", "shell"])
+    def test_adb_new_shell_reuses_single_connection(self, _):
+        FakeConsole.instances.clear()
+        with tempfile.TemporaryDirectory() as d:
+            _, manifest = ds.run_collection("adb", "serial", Path(d) / "new",
+                                            115200, 3, console_factory=FakeConsole)
+            self.assertEqual(manifest["os_family"], "android")
+            self.assertEqual(manifest["state"], "complete")
+            self.assertEqual(len(FakeConsole.instances), 1)
+
+    @mock.patch.object(ds, "transport_argv", return_value=["ssh", "-tt", "board"])
+    def test_ssh_new_shell_reuses_single_connection(self, _):
+        class FakeLinux(FakeConsole):
+            def run_fixed(self, cmd, timeout):
+                self.sent.append(cmd)
+                if cmd == ds.IDENTIFY:
+                    return "ok", b"linux\n", 0
+                return "ok", b"example\n", 0
+        FakeConsole.instances.clear()
+        with tempfile.TemporaryDirectory() as d:
+            _, manifest = ds.run_collection("ssh", "board", Path(d) / "new",
+                                            115200, 3, console_factory=FakeLinux)
+            self.assertEqual(manifest["os_family"], "linux")
+            self.assertEqual(len(FakeConsole.instances), 1)
+
+    @mock.patch.object(ds, "transport_argv", return_value=["picocom"])
+    def test_lost_marker_sync_stops_remaining_probes(self, _):
+        class FakeTimeout(FakeConsole):
+            def run_fixed(self, cmd, timeout):
+                self.sent.append(cmd)
+                if cmd == ds.IDENTIFY:
+                    return "ok", b"14\n", 0
+                return "timeout", b"partial", None
+        FakeConsole.instances.clear()
+        with tempfile.TemporaryDirectory() as d:
+            _, manifest = ds.run_collection("ttl", "/dev/cu.test", Path(d) / "new", 921600, 3,
+                                            wake_console=True, console_factory=FakeTimeout)
+            self.assertEqual(manifest["state"], "partial")
+            self.assertEqual(len(FakeConsole.instances[-1].sent), 2)
+
+    def test_symlinked_parent_is_not_a_safe_evidence_directory(self):
+        with tempfile.TemporaryDirectory() as d:
+            real = Path(d) / "real"
+            real.mkdir()
+            link = Path(d) / "link"
+            link.symlink_to(real)
+            with self.assertRaises(ValueError):
+                ds.fresh_directory(link / "session")
+
+    @unittest.skipUnless(Path("/bin/bash").exists(), "bash not installed")
+    def test_real_pty_session_runs_multiple_fixed_probes(self):
+        with tempfile.TemporaryDirectory() as d:
+            wrapper = Path(d) / "fake_picocom"
+            wrapper.write_text('#!/bin/sh\nPS1="console:/ # "\nexport PS1\nexec /bin/bash --noprofile --norc -i\n')
+            wrapper.chmod(0o700)
+            with mock.patch.object(ds, "transport_argv", return_value=[str(wrapper)]):
+                folder, report = ds.run_collection("ttl", "/dev/cu.fake", Path(d) / "session", 921600, 5)
+            self.assertEqual(report["console_state"], "shell")
+            self.assertEqual(report["os_family"], "linux")
+            self.assertGreaterEqual(len(report["items"]), 10)
+            self.assertTrue((folder / "console.log").is_file())
+            self.assertEqual((folder / "console.log").stat().st_mode & 0o077, 0)
+
+
 if __name__ == "__main__":
     unittest.main()
