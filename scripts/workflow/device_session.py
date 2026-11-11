@@ -292,17 +292,27 @@ def run_collection(transport, target, output, baud, timeout, wake_console=False,
                     manifest["state"] = "blocked"
                     manifest["reason"] = "Could not positively identify an interactive shell"
                 else:
-                    platform = "linux" if os_body.strip() == b"linux" else "android"
-                    manifest["os_family"] = platform
-                    save()
-                    for name, command in (*PROBES["common"], *PROBES[platform]):
-                        status, body, code = console.run_fixed(command, timeout)
-                        record(name, (status, body, code))
-                        if status in ("timeout", "truncated"):
-                            break  # Do not issue more input after losing prompt synchronization.
-                    manifest["state"] = ("partial" if any(
-                        x["status"] in ("error", "timeout", "truncated") for x in manifest["items"]
-                    ) else "complete")
+                    identity_value = os_body.strip()
+                    if identity_value == b"linux":
+                        platform = "linux"
+                    elif re.fullmatch(rb"[0-9]+(?:\.[0-9A-Za-z]+)*", identity_value):
+                        platform = "android"
+                    else:
+                        platform = None
+                    if platform is None:
+                        manifest["state"] = "blocked"
+                        manifest["reason"] = "OS identity did not match Android or Linux"
+                    else:
+                        manifest["os_family"] = platform
+                        save()
+                        for name, command in (*PROBES["common"], *PROBES[platform]):
+                            status, body, code = console.run_fixed(command, timeout)
+                            record(name, (status, body, code))
+                            if status in ("timeout", "truncated"):
+                                break  # Do not issue more input after losing prompt synchronization.
+                        manifest["state"] = ("partial" if any(
+                            x["status"] in ("error", "timeout", "truncated") for x in manifest["items"]
+                        ) else "complete")
     except Exception as exc:
         manifest["state"] = "incomplete"
         manifest["failure"] = type(exc).__name__ + ": " + str(exc)[:200]
@@ -330,6 +340,8 @@ def main(argv=None):
     args = parser.parse_args(argv)
     if not args.approved_readonly:
         parser.error("Explicit --approved-readonly required")
+    if args.wake_console and args.transport != "ttl":
+        parser.error("--wake-console applies only to TTL")
     if not 1200 <= args.baud <= 3000000 or not 2 <= args.timeout <= 120:
         parser.error("Invalid baud/timeout")
     try:
