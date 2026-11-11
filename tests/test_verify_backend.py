@@ -1,20 +1,18 @@
 """Verifiers are selected explicitly; QEMU is never a universal prerequisite."""
 import importlib.util
-import json
 from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import patch
-from types import SimpleNamespace
 
 ROOT = Path(__file__).resolve().parents[1]
 SPEC = importlib.util.spec_from_file_location("uc_verify_backend_test",
                                             ROOT / "scripts/workflow/verify_backend.py")
 verify = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(verify)
+single_host = verify.module("single_host")
 
 def args(*argv):
-    p = verify.main.__globals__  # Make argparse inputs as ordinary namespace.
     from argparse import Namespace
     d = dict(backend="arm-boot-log", host_backend=None, lima_instance="default",
              log=None, session=None, source=None, sha256=None, bundle=None,
@@ -42,16 +40,7 @@ class BackendTests(unittest.TestCase):
                                 ("report","/unused.json")))
     def test_static_backend_reports_inspected_never_booted(self):
         class Dispatcher:
-            @staticmethod
-            def parser():
-                import argparse
-                p=argparse.ArgumentParser()
-                p.add_argument("action")
-                p.add_argument("--source")
-                p.add_argument("--sha256")
-                p.add_argument("--output")
-                p.add_argument("--lima-instance")
-                return p
+            parser = staticmethod(single_host.parser)
             @staticmethod
             def execute(*a):
                 return {"status":"completed"}
@@ -64,15 +53,7 @@ class BackendTests(unittest.TestCase):
 
     def test_qemu_nonzero_or_false_checks_not_accepted(self):
         class Dispatcher:
-            @staticmethod
-            def parser():
-                import argparse
-                p=argparse.ArgumentParser()
-                p.add_argument("action")
-                for name in ("bundle","report","timeout","approved","lima-instance",
-                             "ovmf-code","ovmf-vars"):
-                    p.add_argument("--"+name, nargs="?", const=True)
-                return p
+            parser = staticmethod(single_host.parser)
             @staticmethod
             def execute(*a):
                 return {"status":"completed"}

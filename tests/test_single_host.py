@@ -3,6 +3,7 @@ import importlib.util
 import json
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -68,6 +69,25 @@ class SingleHostTests(unittest.TestCase):
             source.write_bytes(b"private")
             with self.assertRaisesRegex(ValueError, "within the mounted host home"):
                 single.shared_path(source, home=home)
+
+    @unittest.skipUnless(sys.platform == "darwin", "macOS system aliases only")
+    def test_guest_share_system_aliases_preserve_home_boundary(self):
+        for alias, temp_parent in (("/var", None), ("/tmp", "/tmp")):
+            with self.subTest(alias=alias), tempfile.TemporaryDirectory(dir=temp_parent) as d:
+                home = Path(d).resolve()
+                canonical_root = Path(single.safe_output.MACOS_SYSTEM_ALIASES[alias])
+                if canonical_root not in home.parents:
+                    continue  # The host may use a different temporary volume.
+                aliased_home = Path(alias) / home.relative_to(canonical_root)
+                source = aliased_home / "source.img"
+                source.write_bytes(b"source")
+                self.assertEqual(single.shared_path(source, home=home),
+                                 str(home / "source.img"))
+                self.assertEqual(single.shared_path(aliased_home / "new.json",
+                                                    output=True, home=home),
+                                 str(home / "new.json"))
+                with self.assertRaisesRegex(ValueError, "within the mounted host home"):
+                    single.shared_path(source, home=home / "different-home")
 
     def test_lima_preflight_does_not_run_image_command_or_start_vm(self):
         with tempfile.TemporaryDirectory() as d:

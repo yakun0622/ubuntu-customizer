@@ -32,6 +32,8 @@ def module(name):
     spec.loader.exec_module(obj)
     return obj
 
+safe_output = module("safe_output")
+
 def shared_path(path, *, output=False, directory=False, home=None):
     """Validate a host-home path shared into Lima at the same absolute path."""
     if path is None:
@@ -42,9 +44,7 @@ def shared_path(path, *, output=False, directory=False, home=None):
     if raw.is_symlink() or ".." in raw.parts:
         raise ValueError("Symlink/path traversal not allowed for Lima shared files")
     parent = raw.parent
-    for item in (parent, *parent.parents):
-        if item.is_symlink():
-            raise ValueError("User-controlled symlink ancestors not allowed")
+    safe_output.validate_parent_symlinks(raw)
     final = parent.resolve(strict=True) / raw.name if output else raw.resolve(strict=True)
     if home != final and home not in final.parents:
         raise ValueError("Lima inputs/outputs must be within the mounted host home")
