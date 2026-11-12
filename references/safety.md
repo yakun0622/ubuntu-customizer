@@ -1,11 +1,17 @@
 # Safety and execution contracts
 
+The R2–R4 entries below are safety requirements for future adapters, not
+implemented mutation capabilities. Current writes are local evidence,
+snapshots and separately approved VM artifacts; isolated VM launch requires
+its own approval. Physical writes, maintenance application and automatic
+rollback are unsupported. See the [capability matrix](roadmap.md).
+
 ## Gate each step
 
 | Risk | Examples | Requirement |
 | --- | --- | --- |
 | R0 | Read-only inspection | Can run when target access is authorized |
-| R1 | Local profile validation, offline artifact | Safe paths, validated inputs |
+| R1 | Offline image construction, isolated VM launch | Safe paths, validated inputs, distinct explicit approval for construction and launch |
 | R2 | Packages, ordinary service config | Exact diff and user approval |
 | R3 | SSH, route, firewall, kernel, DTB | Explicit scoped approval, backup and proven recovery |
 | R4 | Partition writes, U-Boot/firmware flashing | Exact-device confirmation and external rescue plan |
@@ -25,3 +31,8 @@ Verify the specific acceptance criterion, not just exit code. For remote network
 ## Rollback
 
 Rollback is only available when a **tested reversible** action exists. Package upgrades, on-disk format changes, disk writes and flashes cannot be promised automatic rollback. If verification fails, stop and report evidence and the tested recovery method.
+
+Local profile validation and evidence interpretation are read-only operations.
+Snapshot helpers create copies and checksums but do not implement restoration.
+Neither a plan, a follow-up button nor preview consent grants device access,
+offline construction, isolated boot or higher-risk device-write permission.

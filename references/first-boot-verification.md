@@ -5,6 +5,13 @@ panel. It validates one **new RootFS Builder VM bundle** in a transient,
 isolated QEMU guest and does not modify its disk image. It is not a general
 physical-board boot tester and never flashes hardware.
 
+## Validation status
+
+The implementation has passing Python tests using a fake local QGA socket
+server and mocked QEMU execution. No actual BIOS/UEFI guest boot, restricted
+DHCP behavior or physical-device boot is validated by those tests. See the
+[validation record](roadmap.md#validation-record).
+
 ## Prerequisites
 
 1. Use the existing `rootfs_builder.py --verify-bundle` to confirm source
@@ -70,8 +77,9 @@ Actual first-boot evidence is collected **inside the running guest** using
 a fixed Python probe launched via the QEMU Guest Agent. No arbitrary user
 command, guest shell string, privileged host mounting or password operation
 is accepted. A fresh random nonce must match the probe's response to prevent
-old output being accepted. The Agent receives only boolean results and
-never persists raw machine-id, host keys, private key material or arbitrary
+old output being accepted. Health check results are booleans; the report also
+contains metadata such as artifact hashes, status and a coarse reason.
+It never persists raw machine-id, host keys, private key material or arbitrary
 guest logs.
 
 All of the following are required before `boot_confirmed=true`:
@@ -94,7 +102,8 @@ Guest Agent ping, kernel serial output, or a successful cloud-init command
 **on its own** does not count as boot success. Missing guest-agent service,
 probe errors, timeout, mismatched nonce, network/cloud-init/SSH failures or
 ambiguous boot evidence remain `blocked` or `failed`. The report includes
-a boolean check matrix and coarse reason only, with no raw identifiers.
+a boolean check matrix, coarse reason and provenance/status metadata, with no
+raw machine identifiers.
 
 The optional live Skill preview receives an allowlisted `verify` stage
 through the same original device discovery session, if an approved preview

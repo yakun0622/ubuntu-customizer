@@ -41,6 +41,11 @@ create disk images, boot a VM, change a system or flash a device.
 
 ## Supported choices behind the scenes
 
+The choices below describe implemented adapters, not real-environment
+validation. Python policy/adapter tests passed on macOS; actual device
+collection, image builds, guest boots, Lima and full Agent handoffs remain
+unverified. See the [validation record](roadmap.md#validation-record).
+
 | Situation | Agent selects | What user sees |
 | --- | --- | --- |
 | Linux host with installed libguestfs/qemu-img | Native Linux image helpers | “正在检查本机环境与镜像” |
@@ -58,23 +63,30 @@ or assert local execution when the execution tool has not run.
 
 ## Implementation contract (Agent-side, no application frontend)
 
-The small pure planning module \`scripts/workflow/agent_journey.py\` offers
-\`start(goal=None, target=None)\`, \`next_step(state)\` and
-\`transition(state, event)\`. These return structured descriptions of the
+The small pure planning module `scripts/workflow/agent_journey.py` offers
+`start(goal=None, target=None)`, `next_step(state)` and
+`transition(state, event)`. These return structured descriptions of the
 next **one** action or question. They do not execute operations, create
 files, connect to devices or grant permissions. The host Agent may keep this
 minimal state in its session to resume a multi-turn conversation.
 
-- The first step is a read-only \`host_capabilities.inspect\` observation.
-- The Agent may perform a \`kind=run\` step when it has an appropriate
+This is not a persistent session store or executor. Its inspect / diagnose /
+maintain paths currently end after collection and evidence analysis. Separate
+task planners produce execution-disabled plans; maintenance, recovery and
+rollback execution remain unsupported. The VM-image path alone continues
+through recipe/build/optional guest-health stages. Physical-device image
+requests end with evidence and blockers, without building or flashing.
+
+- The first step is a read-only `host_capabilities.inspect` observation.
+- The Agent may perform a `kind=run` step when it has an appropriate
   real execution tool and the needed approved inputs.
-- For \`kind=ask\`, the Agent asks one conversational question; the user's
+- For `kind=ask`, the Agent asks one conversational question; the user's
   explicit answer sets only that named choice/consent.
-- \`kind=halt\` preserves the actual failure/blocker and asks the user
+- `kind=halt` preserves the actual failure/blocker and asks the user
   whether to retry or choose a supported alternate path. Never fabricate
   success to advance.
-- \`kind=pause\` means permission was denied; no device probe is run.
-- \`kind=done\` means the current scope is complete. Physical evidence
+- `kind=pause` means permission was denied; no device probe is run.
+- `kind=done` means the current scope is complete. Physical evidence
   and static-image results never imply a verified device boot.
 
 The helper's state carries *only* stages, choices, consents and a verified
@@ -99,15 +111,15 @@ Example of conceptual transition (not something a user must run):
 For a VM workflow, after automatic image inspection/plan and recipe
 preview, the Agent separately asks **“是否允许离线生成镜像副本？”**.
 Only after that consent may it invoke the rootfs backend with the actual
-\`--approved\` safeguard. After the new image is checksum-verified it asks
+`--approved` safeguard. After the new image is checksum-verified it asks
 **“是否启动一次隔离虚拟机验证？”**; a no skips QEMU, and a yes
 requires the separate boot approval and supported Guest Agent/firmware
 requirements. A QEMU process exit is never itself boot evidence.
 
 ## Verification backends
 
-\`verify_backend.py\` exposes \`static-image\`, \`arm-boot-log\` and
-\`qemu-health\` as **Agent-owned** choices. The ARM adapter never writes
+`verify_backend.py` exposes `static-image`, `arm-boot-log` and
+`qemu-health` as **Agent-owned** choices. The ARM adapter never writes
 the device or infers a successful boot from UART logs; it can record
 kernel/userspace/link and panic evidence for human interpretation.
 Only a complete challenge-bound QEMU Guest Agent health report can label
@@ -119,9 +131,9 @@ firmware flash or skips BSP/DTB/recovery checks.
 On interruption, preserve the current stage and consent decisions in
 the conversation; do not retry high-impact steps without renewed review
 of source and output. Do not run later steps when an earlier stage is
-\`blocked\` or \`failed\`. An explicit \`retry\` resets only that stage,
+`blocked` or `failed`. An explicit `retry` resets only that stage,
 not the risk boundary. A user may skip an optional failed QEMU test and
-finish with \`boot_confirmed=false\`. A blocked physical BSP remains
+finish with `boot_confirmed=false`. A blocked physical BSP remains
 blocked regardless of workflow completion.
 
 ## Agent developer test (not a user prerequisite)

@@ -1,5 +1,14 @@
 # ARM / Armbian hardware diagnosis
 
+## Current scope
+
+Implemented tools collect fixed read-only evidence, parse software bindings
+and experimental DT/runtime links, and analyze existing ARM boot logs or
+candidate images through `physical_verify.py`. They do not confirm physical
+boot health, generate verified pin maps or implement BSP assembly/flashing.
+The steps below are diagnostic guidance, not an automated repair workflow.
+Real ARM integration remains unverified; see [current status](roadmap.md).
+
 ## Required identity
 
 Collect exact board model and PCB revision, SoC, kernel version, bootloader, DTB compatible strings, root device, power configuration, recovery UART and recovery storage availability.
@@ -14,6 +23,12 @@ Collect exact board model and PCB revision, SoC, kernel version, bootloader, DTB
 6. Inspect device tree for PHY mode, RGMII/RMII delays, clock, pinctrl, interrupts, reset lines and regulator configuration.
 7. Propose the **smallest** testable DTB/driver change only after evidence narrows the fault.
 
+The fixed collector does not perform the complete checklist: its ethtool
+probe reads the tool version, not PHY registers or full statistics. Packet
+capture, traffic generation and additional log/MDIO reads need separately
+scoped authorization and appropriate tools; no DTB/driver mutation backend
+exists. Never synthesize shell commands from untrusted device evidence.
+
 ## UART and DTB
 
 - Read DT node properties and overlays before editing.
@@ -24,4 +39,4 @@ Collect exact board model and PCB revision, SoC, kernel version, bootloader, DTB
 
 ## Flashing / boot modifications
 
-All bootloader, kernel, partition and DTB writes are at least R3, potentially R4. Require an independently verified restore method and physical console before actions that could prevent boot. No automatic flashing in the current implementation.
+All bootloader, kernel, partition and DTB writes are at least R3, potentially R4. Require an independently verified restore method and physical console before actions that could prevent boot. No flashing or boot-modification backend is implemented; authorization alone does not make these operations supported.

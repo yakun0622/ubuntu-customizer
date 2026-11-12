@@ -5,6 +5,13 @@ RootFS customization backend**, not a generic device flasher or web product.
 It is opt-in for artifact writes and does not install packages or run
 user-provided code.
 
+## Validation status
+
+Python tests passed on macOS with mocked qemu-img/libguestfs execution.
+Real image construction and first boot remain unverified. See the
+[validation record](roadmap.md#validation-record); an existing backend or
+successful unit test is not evidence that a real image was built.
+
 ## Preconditions
 
 - A collected and SHA-256 verified device session, plus an image-plan.json
@@ -97,7 +104,8 @@ rootfs-bundle-001/
 - Fail if original source checksum changes during staging or cloud-init
   configuration is unavailable in the cloned guest.
 - On this working copy ONLY, use virt-customize --no-network to set hostname
-  and a root-owned, world-readable /etc/motd.
+  and a root-owned, world-readable /etc/motd, and delete stale /var/lib/cloud
+  state so a new NoCloud instance can initialize.
 - On this working copy ONLY, run virt-sysprep with exactly the
   machine-id,ssh-hostkeys operations. No defaults/all operations.
 - Generate the NoCloud seed from the public SSH key, no passwords.
@@ -132,19 +140,23 @@ rootfs-bundle-001/
   selecting the exact firmware, boot layout, DTB/ACPI and recovery procedure.
 - NoCloud seed files are not passed to a booted VM by this builder: attach
   seed.iso or provide a NoCloud source using the chosen hypervisor separately.
+  The separately approved `verify_first_boot.py` helper attaches a verified
+  seed ISO itself, creating a temporary one from verified seed files if needed.
 - If optional status preview is active, the Skill emits rootfs-build progress.
   Otherwise no preview service or additional status file is created.
 
 ## Verification and troubleshooting
 
-Run locally in an environment that has libguestfs/qemu-img:
+The Python tests mock image tools and do not require a real libguestfs build
+host. Some local integration tests require loopback/UNIX socket permissions:
 
 ~~~bash
 python3 -m unittest discover -s tests -p 'test_rootfs_builder.py' -v
 python3 -m unittest discover -s tests -v
 ~~~
 
-Do **not** claim success unless those commands were really run. Some guests
+Real image operations separately require the build-host tools listed above.
+Do **not** claim success unless the relevant commands really ran. Some guests
 have encrypted filesystems, LVM arrangements or files not supported by
 libguestfs inspection. Fail closed and report the missing evidence; don't
 guess a compatible guest configuration.

@@ -5,6 +5,10 @@ This optional page displays **only execution status**. It must not schedule,
 authorize or execute operations. The Agent remains responsible for all
 decisions, consent, evidence interpretation and execution controls.
 
+Local HTTP/lifecycle tests passed on macOS. Real browser review and a full
+connected Agent journey remain unverified; see the
+[validation record](roadmap.md#validation-record).
+
 ## Consent and lifecycle
 
 Before connecting or collecting, the Agent should ask:
@@ -35,8 +39,11 @@ SSH aliases, file paths or credentials.
 
 - The existing collector checkpoints `manifest.json` after each probe.
   `preview.py` polls only a redacted summary on `GET /api/status`.
-- For later steps (analysis, image compatibility, conversion, validation),
-  the Agent explicitly invokes the **optional** checkpoint helper:
+- Image helpers automatically report their milestones when a user-approved
+  preview process is live and verified; see the stage table below. Opening
+  a browser tab is not required.
+- For other Agent-led steps, the Agent can explicitly invoke the **optional**
+  checkpoint helper. These are illustrative counters, not observed results:
 
 ```bash
 python3 scripts/workflow/status.py ./sessions/run-001 \
@@ -144,20 +151,26 @@ scripts update the original session's `skill-status.json` automatically:
 | `image_plan.py` | `image-plan` | Source checksum, manifest integrity, compatibility result | `complete`, `blocked`, `failed` |
 | `build_image.py` | `image-build` | Input check, format check, offline conversion, output hash, manifest | `complete`, `blocked`, `failed` |
 | `nocloud.py` | `first-boot` | NoCloud seed, optional ISO, final manifest | `complete`, `blocked`, `failed` |
+| `rootfs_builder.py` | `rootfs-build` | Private clone, fixed customization, bundle publication | `complete`, `blocked`, `failed` |
+| `verify_first_boot.py` | `verify` | Bundle/firmware checks, isolated QEMU, challenge-bound guest health | `complete`, `blocked`, `failed` |
 | `verify_vm.py` | `verify` | Output hash, QEMU metadata, optional boot attempt | `complete`, `blocked`, `failed` |
 
 The image plan carries `discovery.session`. The image-build result
 propagates it as `discovery_session`, so later stages can update the
 same session. `nocloud.py` reads the plan directly. Older reports without
-this field simply cannot auto-report to the same viewer.
+this field simply cannot auto-report to the same viewer. RootFS manifests also
+carry `discovery_session`, which the guest-health verifier uses.
 
 A **blocked** image plan is the expected safe outcome for incompatible or
 unverified physical hardware. A failed source checksum, image conversion
 or output validation is **failed**. Static VM verification can be
 `complete` without proving a guest boot. A QEMU timeout or clean exit
 with no confirmed boot is `blocked`; a nonzero QEMU process exit is
-`failed`. These labels concern the stage outcome, not the overall
-device or image portability.
+`failed`. These timeout/exit rules describe the legacy `verify_vm.py` smoke
+attempt. The separate `verify_first_boot.py` backend requires every guest
+health check to pass before confirming boot; an early QEMU exit is a failure,
+and absent/incomplete guest health remains blocked or failed. These labels
+concern the stage outcome, not overall device or image portability.
 
 Image-stage counters have their own denominators: old collection skips are
 not added to new image progress. Updates contain only allowlisted stage,
@@ -167,5 +180,5 @@ is written and no step is blocked. Closing the preview stops further
 automatic updates even if image work continues.
 
 Existing manual `status.py` commands remain available to the Agent for
-other workflow stages; they are no longer necessary for the four image
-scripts above.
+other workflow stages; they are not required between the automatically tracked
+image operations above.

@@ -32,6 +32,17 @@ The conversational Agent owns workflow state, chooses scripts only when needed,
 interprets evidence and pauses for user decisions. Scripts are disposable helpers;
 their CLI prompts are not the primary user interface.
 
+## Implemented scope and validation
+
+The pure `agent_journey.py` policy does not execute tools or persist sessions.
+Its inspect / diagnose / maintain goals currently finish with evidence analysis;
+separate task/profile planners do not apply changes. Recovery and rollback
+execution are unsupported. The VM image path includes inspection, conversion,
+limited RootFS customization and optional AMD64 guest-health verification.
+Python tests passed on macOS; real device collection, image builds, guest
+boots, Lima execution and full Agent handoffs remain unverified. See the
+[capability matrix and validation record](roadmap.md).
+
 ## Stages and required handoffs
 
 ### 1. Goal and transport
@@ -40,6 +51,8 @@ their CLI prompts are not the primary user interface.
 - Present appropriate access options: existing SSH Host, ADB, TTL serial, local.
 - Ask for missing essential connection details, not an exhaustive form.
 - Obtain authorization before connecting; do not assume tool availability.
+- Recovery requests can be assessed and planned, but have no execution
+  backend or dedicated goal in the pure policy.
 
 ### 2. Passive identification
 - Begin with narrowly scoped, read-only identification.
@@ -64,6 +77,8 @@ their CLI prompts are not the primary user interface.
 - Demand trusted input source, independent checksum, license and source architecture.
 - Check firmware/bootloader, storage layout, kernel, drivers, DT/ACPI and recovery.
 - Use `image_plan.py` to **propose**, never to certify boot compatibility.
+- Installer ISO creation and physical IMG/BSP assembly have no implemented
+  backend; the choices above do not imply those operations are available.
 - For VM only, `build_image.py` can convert an existing image offline when
   the plan permits it. This does not migrate a running system or build a generic OS.
 - For physical hardware, do not invoke a generic flashing or image builder:
@@ -111,8 +126,10 @@ and matching guest/target evidence qualify. Physical device images are still
 blocked pending independent BSP/bootloader/DTB/firmware/recovery validation.
 Keep source images shut down and immutable; the builder operates exclusively
 on a temporary clone and provides a new hash-verified artifact bundle.
-Run `--verify-bundle` and separately verify QEMU boot before suggesting
-deployment. Document remaining identity/privacy limitations and
+Run `--verify-bundle`. Offer QEMU verification as a separate optional step;
+if declined or unavailable, finish with artifact integrity only and guest
+boot unverified. Do not suggest deployment readiness without the relevant
+boot evidence. Document remaining identity/privacy limitations and any
 undemonstrated cloud-init first boot.
 
 ### Live QEMU first-boot evidence (explicit approval)

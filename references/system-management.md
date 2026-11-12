@@ -1,5 +1,16 @@
 # Installed system management
 
+## Current scope
+
+Implemented helpers provide read-only inventory, local package/hostname/
+timezone drift plans and snapshots of explicitly named regular files.
+The Agent policy currently finishes maintenance goals with evidence analysis.
+No configuration application, service/package mutation, transactional network
+change, automatic restore or recovery backend is implemented. The procedures
+below are review criteria for future separately authorized adapters, not
+operations this Skill can execute today. Python tests passed on macOS;
+real target integration remains unverified. See [current status](roadmap.md).
+
 ## Inventory first
 
 - OS: `/etc/os-release`, `uname -a`, `dpkg --print-architecture`.
@@ -10,6 +21,11 @@
 - Hardware: `lspci`, `lsusb`, device tree, modules when available.
 
 Use `scripts/detect/system.sh` and `scripts/detect/network.sh` when applicable. Never infer absence of a device from missing tool output.
+
+This inventory is a diagnostic checklist, not the exact automatic probe set.
+Additional logs, routes, services or boot parameters may expose sensitive data
+and require a scoped, authorized collection plan; do not extend fixed probes
+or execute commands derived from device output automatically.
 
 ## Applying configuration (future execution adapter)
 

@@ -4,13 +4,21 @@
 
 Inventory a target **before** designing firmware, driver, device tree, network or image modifications. The workflow is evidence-first: select a transport, establish access, probe known read-only resources, save source evidence, then analyze gaps and decide next collection steps.
 
+## Current scope
+
+The Agent is the user entrypoint; commands below are internal helper examples.
+Dossiers, comparisons, capability-gated collection, software graphs, the device
+catalog and offline HTML viewer are implemented. Python tests passed on
+macOS; real Linux/ARM/ADB/TTL collection remains unverified. See the
+[capability matrix and validation record](roadmap.md).
+
 ## Wizard
 
 ```bash
 python3 scripts/workflow/collect.py
 ```
 
-Noninteractive selection with a final explicit local collection confirmation:
+Explicit transport selection with a final interactive collection confirmation:
 
 ```bash
 python3 scripts/workflow/collect.py --transport ssh --target ubuntu-server --output ./devices/ubuntu-server/2026-11-09-01
@@ -56,11 +64,19 @@ Each manifest entry has a relative file path, SHA-256 digest, byte count and pro
 
 ## Privacy and safety
 
-Collected files can contain MAC addresses, IPs, hostnames, board identifiers or kernel configuration. They are kept locally, ignored by git and never uploaded automatically. Review/redact before publishing. No kernel debugfs mounting, privilege escalation, file writes on target, firmware flash or remote network change occurs.
+Collected files can contain MAC addresses, IPs, hostnames, board identifiers
+or kernel configuration. They are kept locally and never uploaded automatically. Default evidence
+folders such as `devices/`, `captures/` and `sessions/` are ignored by Git;
+arbitrary output directories are not automatically ignored. Review/redact
+before publishing. No kernel debugfs mounting, privilege escalation, file writes
+on target, firmware flash or remote network change occurs.
 
-## Next phase
+## Analysis and remaining work
 
-Analyze manifest and raw evidence into a normalized device dossier (`device.json`, pin map, buses, bindings, confidence/source provenance) and support selective deep probes with a per-command authorization gate.
+The helpers below already turn manifest-backed evidence into a normalized
+`device.json`, capability inventory and software binding/DT graphs. They do
+not generate a verified physical pin map. Selective re-probing and privileged
+deep probes with per-command authorization remain future work.
 
 
 ## Structured dossier and session comparison
@@ -97,8 +113,9 @@ These analysis commands never connect to the target or modify it.
 
 - GPIO pinmux / IRQ / PHY bindings are presently indexed as **raw evidence**,
   not a verified SoC register or PCB physical pin map.
-- Structured driver-to-device dependency graph, selective re-probing,
-  redaction and cross-transport session merging are still planned.
+- Linux device/driver binding graphs and experimental DT/runtime links are
+  implemented below. Binding-specific dependency decoding, selective re-probing,
+  archive redaction and cross-transport merging remain future work.
 - These tools do not implement system mutation, flash, remote reboot or
   automatic rollback.
 
@@ -118,7 +135,7 @@ edges, source evidence path/line, and unavailable or unbound observations.
 Its meaning is **Linux driver bindings only**, not verified physical PCB pinout,
 PHY signaling, electrical voltages, or full SoC pinmux relationships. Existing
 sessions without new probes produce explicit `not_collected` gaps.
-Use [device discovery](references/device-discovery.md) for further context.
+See [ARM hardware diagnosis](arm-hardware.md) for physical-evidence limits.
 
 ## Device-tree and runtime graph (experimental)
 
@@ -134,11 +151,12 @@ python3 scripts/workflow/link_graph.py ./devices/example-device/session-001
 ```
 
 Outputs:
+
 - `device-tree.json`: DTS node hierarchy, selected properties, and supported phandle references.
 - `topology.json`: observed Linux sysfs device ↔ driver bindings.
 - `linked-hardware.json`: combined graph, including observed `of_node` links between platform devices and DTS nodes.
 
-Every input is verified against the session manifest SHA-256. Missing or truncated DTS data yields explicit gaps. Numeric phandle references are marked **candidates**, not confirmed specifier decoding; pinctrl/clock/reset cell counts require binding-specific analysis. Only trusted software topology is represented: physical header pins, PCB routes, electrical levels and functional hardware behavior remain unverified.
+Every input is verified against the session manifest SHA-256. Missing or truncated DTS data yields explicit gaps. Numeric phandle references are marked **candidates**, not confirmed specifier decoding; pinctrl/clock/reset cell counts require binding-specific analysis. Only software relationships derived from hash-verified evidence are represented: physical header pins, PCB routes, electrical levels and functional hardware behavior remain unverified.
 
 The parser supports common `dtc` output syntax; it is not a replacement for libfdt/dtc and does not interpret overlays or vendor-specific properties fully.
 
@@ -163,8 +181,8 @@ loaded automatically without positive identity evidence and user choice.
 
 ## Adaptive staged discovery
 
-The new `scripts/workflow/adaptive.py` is the preferred device-agnostic entry
-point. Its deterministic stages are:
+The Agent prefers `scripts/workflow/adaptive.py` for device-agnostic collection.
+Its collection stages and the subsequent Agent-invoked analysis are:
 
 1. **Bootstrap:** OS, kernel, CPU and RAM evidence
 2. **Capability checks:** read-only filesystem/tool availability probes
@@ -195,8 +213,8 @@ adapters are future work.
 
 ## Device catalog and interactive manager
 
-The new `scripts/workflow/manage.py` is the **local device-management
-entry point**. It records a stable user-defined device ID and a connection
+The optional `scripts/workflow/manage.py` helper maintains a local device
+catalog. It records a stable user-defined device ID and a connection
 transport/target, then stores each collection session separately. It never
 embeds passwords in its catalog.
 
@@ -237,11 +255,12 @@ RX capture, without transmitting serial bytes, though opening adapters may
 affect control signals. Raw files may contain identifiers and must not be
 automatically published.
 
-This is a **terminal interaction**: a browser-based dashboard, automatic
-device grouping by serial number, session resumption and physical pin map
-visualization are not yet implemented.
+The manager provides terminal interaction; the optional offline HTML explorer
+and localhost status observer are implemented viewers. Browser device control,
+automatic grouping by authenticated hardware identity, resumable collection
+and verified physical pin maps are not implemented.
 
-## Hardware explorer and task selection (preview)
+## Hardware explorer and task selection (feature preview)
 
 The terminal manager now supports **Explore**. It reads the selected
 session's SHA-256 verified evidence to assemble a software hardware graph,
@@ -273,15 +292,15 @@ python3 scripts/workflow/explore.py SESSION_DIRECTORY --mode plan \
 Supported plan kinds: `diagnose`, `maintain`, `image`. A plan references
 observed nodes, software relationships and collection gaps, but **does not
 execute commands**, modify configurations, build an image or authorize
-flashing. `maintain` and `image` remain blocked from execution pending
-implementation and separate approval. Evidence gaps and incomplete sessions
-must be resolved before relying on the resulting analysis.
+flashing. Maintenance execution remains unsupported. Explorer `image` plans
+do not invoke the separate [VM image pipeline](image-building.md). Evidence
+gaps and incomplete sessions must be resolved before relying on the resulting analysis.
 
 This is currently a text-oriented node list, not a graphical/interactive
 node-edge canvas. Board-specific physical pinout and electrical behavior
 remain outside the scope of software evidence alone.
 
-## Offline graphical hardware explorer (preview)
+## Offline graphical hardware explorer (feature preview)
 
 An interactive **local HTML file** can be exported from a verified evidence
 session. No HTTP service, external libraries, CDN or device connection is
@@ -304,6 +323,7 @@ panel displays node attributes, related nodes, evidence source and collection
 gaps. Clicking a relationship jumps to that node.
 
 Security and scope:
+
 - It validates the session's evidence SHA-256 hashes before rendering.
 - Data is embedded as escaped JSON and written with private file permissions.
 - The page has a restrictive Content Security Policy and no network access.
