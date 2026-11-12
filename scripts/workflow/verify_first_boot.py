@@ -440,10 +440,11 @@ def main(argv=None):
     p.add_argument("--report", required=True, help="NEW local health report file")
     p.add_argument("--approved", action="store_true", help="user authorizes isolated QEMU boot")
     args = p.parse_args(argv)
+    destination = None
     try:
         if not args.approved:
             raise ValueError("QEMU boot requires distinct explicit --approved consent")
-        destination = Path(args.report).expanduser()
+        destination = workspace.checked_output(args.report)
         if destination.exists() or destination.is_symlink() or not destination.parent.is_dir():
             raise ValueError("Health report must be new in an existing directory")
         result = verify_first_boot(args.bundle, args.timeout, args.ovmf_code, args.ovmf_vars)
@@ -456,8 +457,7 @@ def main(argv=None):
         # Only after explicit user approval and a valid, new destination:
         # preserve a machine-readable failure report without guest stdout,
         # private machine IDs, SSH key data, image paths or exception text.
-        if args.approved:
-            destination = Path(args.report).expanduser()
+        if args.approved and destination is not None:
             if (not destination.exists() and not destination.is_symlink()
                     and destination.parent.is_dir()):
                 failure = {
@@ -475,6 +475,11 @@ def main(argv=None):
                     pass
         print("ERROR: " + str(exc), file=sys.stderr)
         return 2
+
+ws_spec = importlib.util.spec_from_file_location(
+    "uc_workspace_first_boot", Path(__file__).with_name("project_workspace.py"))
+workspace = importlib.util.module_from_spec(ws_spec)
+ws_spec.loader.exec_module(workspace)
 
 if __name__ == "__main__":
     raise SystemExit(main())
