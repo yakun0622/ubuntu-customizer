@@ -82,7 +82,7 @@ def main(argv=None):
     args = p.parse_args(argv)
     try:
         result = build(args.session)
-        output = Path(args.output) if args.output else Path(args.session) / "linked-hardware.json"
+        output = workspace.checked_output(args.output or (Path(args.session) / "linked-hardware.json"))
         if output.exists() or output.is_symlink():
             raise ValueError("Refusing to overwrite")
         output.write_text(json.dumps(result, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
@@ -92,6 +92,11 @@ def main(argv=None):
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2
     return 0
+
+ws_spec = importlib.util.spec_from_file_location(
+    "uc_workspace_link_graph", Path(__file__).with_name("project_workspace.py"))
+workspace = importlib.util.module_from_spec(ws_spec)
+ws_spec.loader.exec_module(workspace)
 
 if __name__ == "__main__":
     raise SystemExit(main())
