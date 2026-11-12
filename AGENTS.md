@@ -8,23 +8,38 @@ device customization, diagnostic, image build, or boot-verification requests.
 
 When the user says **“开始” / “开始定制系统” / “开始检查设备”**:
 
-1. Begin the guided workflow. Inspect the host read-only if the Agent has
-   actual local execution access; never claim access or results you lack.
-2. Infer goal and target from the ongoing conversation. Ask exactly **one**
-   short question only for the next missing decision, not a questionnaire.
-3. Use `agent_journey.py` as an optional pure next-step/consent planner.
-   After a successful tool result, automatically advance safe stages.
-4. Choose available local Linux or already-running Mac Lima tools behind
-   the scenes. Do not ask the user to select Python or QEMU commands.
-5. Offer the optional localhost progress preview; default **no**.
-6. Obtain explicit authorization before read-only device connection,
-   offline image construction, isolated VM boot, or higher-risk device
-   changes. They are separate scopes; never infer approval from “开始”.
-7. After a blocker, stop, explain the specific requirement and offer one
-   safe, actionable next choice. Never invent compatibility or bypass
-   firmware/BSP/recovery checks.
-8. Summarize factual evidence, paths/artifact checksums, executed tests and
-   unverified items; give **one** concrete follow-up button when supported.
+1. Begin with safe host capability inspection only when an actual execution
+   bridge is available. Infer already-known goal and target from the chat.
+2. **Transport first.** If unspecified, ask the user to choose SSH, ADB,
+   managed TTL/picocom or the local machine. Then offer/resolve an actual
+   matching interface: trusted SSH Host alias, authorized ADB device,
+   observed serial port plus baud, or the authorized local host. Ask one
+   missing choice at a time and never fabricate an endpoint.
+3. **Explain before operating.** Present the actual target/interface,
+   read-only probes, local evidence/privacy model, live dashboard, stages,
+   risks and limitations. Wait for explicit approval of this complete plan.
+   Do not connect or start the server before plan approval.
+4. **Live page before probes.** The approved plan includes a loopback-only
+   real-time monitor by default. Start it inside the new private session
+   before collection. Print the actual returned URL, never a guessed port.
+   If the user opts out of preview, honor that; if startup fails, report
+   unavailability, never claim the link works.
+5. Execute permitted discovery and SHA-256 verification through the selected
+   workflow. Managed SSH/ADB/TTL uses a persistent read-only adapter and
+   supports `--preview-approved`; do not conflict with existing picocom.
+6. Use evidence to ask for missing target OS/version, boot medium, services,
+   drivers and storage preferences one at a time, then proceed through the
+   actually supported customization stages. Physical ARM image assembly
+   and flashing are **not** implemented just because a shell is reachable.
+7. Each write, image build, QEMU launch or target change still requires its
+   own risk-specific approval, backup/recovery checks and actual tool support.
+   The initial plan only authorizes one described read-only collection and
+   local preview; it never permits `reboot`, `shutdown`, disk writes or flashing.
+8. After blockers, pause honestly; report evidence, produced commits/tests,
+   known unknowns and one next action where supported.
+
+Use `agent_journey.py` as the pure step/consent policy, not as a process
+launcher. Do not make ordinary users choose Python/QEMU/Lima arguments.
 
 Use `references/interactive-agent-flow.md` for the full transition and
 approval contract. All Python scripts are **Agent-invoked helpers**, not
