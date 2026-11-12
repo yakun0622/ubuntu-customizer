@@ -5,7 +5,13 @@
 
 **Primary entrypoint: the user's phrase “开始定制系统” / “开始检查设备”.**
 The Agent begins with safe host inspection when actual execution access
-exists, then follows the optional pure `agent_journey.py` step policy. Do
+exists, then automatically creates/reuses `./.venv` and private
+`./outputs/` inside the current project via `project_workspace.py`.
+Subsequent Python commands use the virtualenv interpreter. This safe
+project-local bootstrap is a `workspace` step in `agent_journey.py`
+immediately after host inspection; it does not require a repeat
+conversational confirmation. Host/tool sandbox prompts cannot be waived.
+The Agent then follows the pure next-step policy. Do
 not dump a CLI tutorial, display a multi-field form or require the user to
 choose Lima, libguestfs, QEMU or a device transport command.
 
@@ -37,6 +43,19 @@ their CLI prompts are not the primary user interface.
 
 ## Stages and required handoffs
 
+### 0. Automatic local workspace preparation
+- Work from the current repository directory; run
+  `python3 scripts/workflow/project_workspace.py` without extra user prompts
+  for this routine project-local operation.
+- Use `./.venv/bin/python` for Python helpers (on Windows,
+  `./.venv/Scripts/python.exe`). The helper does not install packages.
+- Keep all persistent runtime artifacts under `./outputs/`, with private
+  device sessions and logs. Use the workspace path validator; do not
+  override output destinations outside the project.
+- Safe local inspection, tracked source edits, local tests and creating
+  new files under outputs are already approved as routine workspace work.
+  Do not repeat approvals for each command. Host/OS policy still applies.
+
 ### 1. Goal, connection method and exact interface
 - Infer the user's goal and physical/VM target from the conversation.
 - If no connection mode is known, offer SSH, ADB, TTL (managed picocom) or local.
@@ -51,7 +70,9 @@ their CLI prompts are not the primary user interface.
   local-only live dashboard, evidence privacy, staged workflow and limits.
 - Wait for explicit confirmation before opening any device connection.
 - Plan approval covers the scoped read-only session and local observer only.
-- No generic permission authorizes reboot/shutdown, writing, or flashing.
+- No generic permission authorizes reboot/shutdown, target writes or
+  flashing. Running a command *from* the project directory does not
+  authorize its external or destructive side effects.
 
 ### 3. Launch viewer before interactive discovery
 - After approval, create the private session then start preview on loopback.
@@ -95,7 +116,9 @@ their CLI prompts are not the primary user interface.
 ### 6. Approval, execution, verification
 - Show planned operations, exact files, impact, recoverability and test criteria.
 - Separate read-only inspection consent from image conversion, system changes,
-  disk installation and flashing permissions.
+  disk installation and flashing permissions. Routine project-local commands
+  within the user's standing authorization do not need repeated dialogue
+  prompts, but external host-tool safety prompts still apply.
 - Never execute a blocked plan; do not bypass blockers by modifying plan JSON.
 - Verify results from actual tool output, retain evidence and rollback details.
 - Label untested code as untested. If execution access is missing, provide the
