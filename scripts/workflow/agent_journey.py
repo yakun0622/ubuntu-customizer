@@ -30,6 +30,9 @@ ACTIONS = {
     "host": ("host_capabilities.inspect", "R0", "检查本机能力"),
     "collect": ("adaptive.run", "R0", "读取目标设备信息"),
     "analyze": ("dossier.verify_session", "R0", "验证并分析采集证据"),
+    # Agent-owned conversation stage: ask missing OS/version/boot media/features one by one.
+    # This is NOT a shell command or an implemented board image builder.
+    "requirements": ("agent.conversation", "R0", "逐项确认目标系统、版本、启动介质和所需功能"),
     "physical_evidence": ("physical_verify.evaluate", "R0", "检查 ARM 启动日志及静态证据"),
     "image_inspect": ("image_inspect.inspect", "R0", "检查基础系统镜像"),
     "image_plan": ("image_plan.plan", "R0", "生成兼容性与安全阻断清单"),
@@ -139,6 +142,9 @@ def next_step(state):
     if state["goal"] != "image":
         return {"kind": "done", "result": "device_evidence_only",
                 "boot_confirmed": False, "automatic": False}
+    current = _stage(state, "requirements")
+    if current:
+        return current
     if state["target"] == "physical-device":
         current = _stage(state, "physical_evidence")
         if current:
