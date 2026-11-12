@@ -79,14 +79,22 @@ commands or grants approvals. The Agent invokes the appropriate existing
 Python helpers only when its host execution tool is actually connected,
 records observed outcomes and automatically continues to the next safe stage.
 
-A normal journey is **host detection → choose only missing intent/target →
-optional preview choice → request read-only device access → evidence collection
-→ SHA-256 analysis → source inspection/compatibility plan → recipe preview →
-separate offline-build consent → image build + verification → optional QEMU
-choice and separate consent → final evidence summary**. Physical ARM targets
-instead use read-only static/image/UART evidence and end with BSP, DTB,
-bootloader, storage and recovery blockers clearly stated. QEMU must never
-be forced on physical-device flows.
+A normal journey is **host detection → resolve only missing intent/target →
+select SSH/ADB/TTL/local transport → choose its actual available interface →
+explain the complete connection, collection and monitoring plan → obtain one
+explicit approval for that plan → create a private session and start its
+loopback live preview → report the verified preview URL → perform read-only
+evidence collection → SHA-256 analysis → gather missing customization
+requirements one at a time → compatibility planning → separately approved
+build/verification when supported**. Never show a preview URL unless the
+server actually started. The plan approval covers exactly the described
+read-only connection and local observer; it does NOT authorize image writes,
+system mutations, remote power controls or firmware flashing.
+
+For physical ARM targets the Agent progressively collects requirements and
+boot/BSP/DTB/recovery evidence, but must label unimplemented physical IMG
+construction and deployment as blockers rather than claiming completion.
+QEMU must never be forced on physical-device flows.
 
 Keep interactions in the conversation: one question at a time, with a
 recommended/default safe option. Do not ask users to pick between
@@ -112,24 +120,42 @@ follow-up button where the client supports it.
 1. **Establish intent.** Ask whether the user needs discovery, diagnosis,
    maintenance, recovery or a portable system image. Distinguish target,
    control host and build host.
-2. **Choose transport and optional preview.** Offer SSH / ADB / managed picocom TTL (interactive with explicit
-   read-only shell approval; passive TTL remains available) / local depending
-   on access. Before starting work, explicitly offer: "是否开启本地实时运行预览页面？"
-   The default is **no**. Never assume a device model or claim access that is unavailable.
-   If the user opts in, use `scripts/workflow/adaptive.py --preview-approved`
-   or `scripts/workflow/preview_control.py start SESSION_DIR --approved` to
-   start the localhost observer. Do not start a web server when declined.
-3. **Discover.** Obtain connection consent and execute only permitted,
-   read-only probes. Prefer `scripts/workflow/adaptive.py` when available,
-   or give the user precise commands to run locally.
-4. **Normalize evidence.** Validate the session's SHA-256 manifest.
+2. **Choose transport AND interface before designing the plan.** If neither
+   was given, ask for SSH / authorized ADB / managed picocom TTL / local.
+   Then discover or request the matching interface: trusted SSH Host alias,
+   authorized ADB serial or connected address, exact /dev serial port with
+   observed baud rate, or the approved local computer. Reuse already-known
+   selections; never guess a port or fabricate access. Close existing
+   picocom before handing TTL ownership to the managed collector.
+3. **Review the entire plan and obtain explicit confirmation.** Explain the
+   target, interface, connection mode, read-only probe scope, evidence
+   handling, planned stages, the local monitoring page, risks and limits.
+   A single confirmed plan authorizes ONE read-only session plus a
+   loopback-only preview. Before that answer do not open the device or start
+   the collector or preview. If the user declines the preview, honor that
+   exception and keep the rest of the plan unchanged.
+4. **Start monitoring, then discover.** After confirmation, create a new
+   private session and start the local preview before any shell probes.
+   Managed SSH/ADB/picocom sessions use
+   `adaptive.py --interactive-shell-approved --preview-approved --yes`
+   (the Agent selects the real transport, target, output). Stream/surface
+   only the URL returned by successful local observer startup, e.g. an
+   actual `http://127.0.0.1:<port>/`. Never invent a URL or claim
+   a remote viewer can reach localhost. If preview startup fails, report
+   its unavailable state and continue safe discovery with text checkpoints.
+   Read-only scope is unchanged by the monitoring feature.
+5. **Normalize evidence.** Validate the session's SHA-256 manifest.
    Summarize OS, architecture, hardware, drivers, boot chain and unknowns.
    Use `dossier.py`, `capabilities.py`, `topology.py`,
    `device_tree.py`, `link_graph.py` selectively.
-5. **Decide next task.** Present evidence and options. For portable images,
+6. **Gather requirements and decide next task.** After evidence collection,
+   ask only for missing customization facts: target OS/version,
+   services/packages, boot medium, storage, network and desired validation.
+   Reuse requirements already expressed in the conversation. These are
+   Agent-owned dialogue steps, not executable target commands. For portable images,
    distinguish VM/cloud, installer ISO and **physical-hardware IMG** before
    choosing a backend.
-6. **Inspect, plan and gate.** First use `scripts/workflow/image_inspect.py`
+7. **Inspect, plan and gate.** First use `scripts/workflow/image_inspect.py`
    to inspect the existing RAW/QCOW2 source **read-only** (qemu-img,
    virt-filesystems, virt-inspector, virt-drivers and guestfish). Then use
    `image_plan.py` for verified device-to-image compatibility decisions.
@@ -140,7 +166,7 @@ follow-up button where the client supports it.
    encrypted/backing-chain images or mismatches become explicit blockers.
    A successful plan is a **candidate for offline format conversion**, not
    proof of bootability. Physical-device IMG assembly remains blocked.
-7. **Execute only supported, authorized work.** For an approved VM image,
+8. **Execute only supported, authorized work.** For an approved VM image,
    `build_image.py` provides offline RAW/QCOW2 conversion.
    `rootfs_builder.py` can **preview** a fixed offline RootFS recipe and,
    after explicit separate `--approved` authorization, make a private clone
@@ -162,7 +188,7 @@ follow-up button where the client supports it.
    creation, installed-system cloning, complete first-boot identity
    personalization, physical IMG/BSP assembly and flashing remain
    **not implemented**.
-8. **Verify and report.** Record actual results, source/evidence hashes,
+9. **Verify and report.** Record actual results, source/evidence hashes,
    image hash, remaining compatibility blockers, tests performed and
    recovery path. Do not claim tests or builds that were not run.
 
@@ -232,13 +258,21 @@ python3 scripts/workflow/verify_first_boot.py \
 
 ## Optional live progress preview (not the Skill UI)
 
-The AI Agent is always the workflow controller. A preview is **opt-in only**:
-ask the user before starting a localhost service and honor "no" without
-reducing any Skill functionality. Do not expose the preview on LAN or
-the public Internet; bind only to `127.0.0.1`. When the session directory exists, the Agent can start it with explicit
-user approval, or add `--preview-approved` to an authorized
-`adaptive.py` collection to launch the observer as soon as the session
-is created:
+The AI Agent is always the workflow controller. The real-time preview is
+**included by default in the execution plan shown before connection**:
+the user's confirmation expressly covers starting a localhost-only
+observer as well as the defined read-only device scope. No separate preview
+question is necessary. If the user declines preview, disable it and continue
+normally. Do not expose the viewer on LAN or the public Internet; bind
+only to `127.0.0.1`.
+
+Use `adaptive.py --preview-approved` for both the staged collector and
+the **managed interactive SSH/ADB/TTL collector**. They create the private
+session, start the observer before device probes, and report its actual URL
+when local readiness succeeds. For managed sessions, the CLI emits a
+`preview_ready` JSON line immediately, then a final result line.
+The Agent should present that verified URL when the host's execution stream
+permits it; a blocking execution tool may only deliver it upon completion.
 
 ```bash
 python3 scripts/workflow/preview_control.py start SESSION_DIR --approved
@@ -281,8 +315,10 @@ browser status. Recognized image phases are `image-plan`, `image-build`,
 `first-boot`, and `verify`. The preview observes status but does not
 control or approve execution.
 
-If a browser server cannot run on the controlling computer, explain that
-preview is unavailable and continue the Skill normally with text progress.
+If a browser server cannot run on the controlling computer, report the
+preview as unavailable and continue the Skill normally with text progress.
+A `127.0.0.1` URL can only be opened on that controlling host; remote
+access requires a separately reviewed secure tunnel, never automatic exposure.
 Never assert that a preview or background process has started unless the
 runtime has actually started it. See `references/live-preview.md`.
 
