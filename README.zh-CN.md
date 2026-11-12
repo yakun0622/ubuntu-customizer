@@ -28,7 +28,8 @@ python3 -B scripts/workflow/project_workspace.py
 
 Agent 检查主机能力、准备工作目录，补齐必要的目标信息，再选择 SSH、ADB、受管理的
 TTL/picocom 或本机连接及实际接口。它会说明只读探针、隐私、本地监控和阶段，
-在设备访问或服务启动前等待方案确认。方案默认包含 localhost 监控，用户可明确退出；
+在设备访问或服务启动前等待方案确认；方案必须展示实际 SSH/ADB 接口或 TTL 串口及波特率，
+缺少接口信息则不允许确认。方案默认包含 localhost 监控，用户可明确退出；
 确认后监控先于探针启动，Agent 只报告实际启动并验证过的 URL。
 
 已授权的 SSH/ADB/TTL 采集通过单个持久会话执行固定只读探针；旧版被动 TTL 采集仍保留。
