@@ -148,7 +148,7 @@ def main(argv=None):
     args = p.parse_args(argv)
     try:
         result = evaluate(args.log, args.session, args.image, args.sha256)
-        output = Path(args.output).expanduser()
+        output = workspace.checked_output(args.output)
         if output.is_symlink() or output.exists() or not output.parent.is_dir():
             raise ValueError("Output report must be a new file")
         import os
@@ -166,6 +166,11 @@ def main(argv=None):
     except (OSError, ValueError, TypeError, KeyError) as exc:
         print("ERROR: " + type(exc).__name__ + ": " + str(exc), file=sys.stderr)
         return 2
+
+ws_spec = importlib.util.spec_from_file_location(
+    "uc_workspace_physical_verify", Path(__file__).with_name("project_workspace.py"))
+workspace = importlib.util.module_from_spec(ws_spec)
+ws_spec.loader.exec_module(workspace)
 
 if __name__ == "__main__":
     raise SystemExit(main())
