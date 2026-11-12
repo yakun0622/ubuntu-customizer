@@ -14,6 +14,34 @@ remaining-work list. [README](../README.md) summarizes it;
 Earlier milestone entries are preserved in Git history. Their v0.1–v0.4
 labels described planning stages, not verified releases or deployment support.
 
+## Portable Mac ARM milestone — 2026-11-12
+
+- `arm_fat32.py` is a pure-Python FAT32/VFAT writer for the USB boot
+  partition, including long filenames such as `aml_autoscript` and
+  `extlinux.conf`. It has no mkfs.vfat/mtools runtime requirement,
+  validates project-only paths, and never touches host block devices.
+  The legacy mtools backend remains available when all tools are
+  explicitly staged inside this project.
+- `arm_preflight.py` is a non-scanning readiness audit. It checks the
+  official RootFS SHA-256, versioned board components, and a
+  project-local ext4 writer, and reports missing inputs. It never claims
+  an OS sandbox was established or that hardware was booted. The Agent
+  performs preflight before requesting offline-build consent.
+- `tests/test_arm_fat32.py` and `tests/test_arm_preflight.py`
+  exercise portable FAT structures, VFAT names, content, unsafe paths
+  and evidence validation. `test_arm_image_builder.py` covers the
+  single-tool default and legacy backend compatibility.
+- An opt-in GitHub-hosted Linux smoke job runs a **real** `mke2fs`,
+  `debugfs`, `fsck.fat`, and `mdir` against synthetic test rootfs
+  and boot files. These binaries are staged only inside CI's outputs,
+  not fetched from a user's Mac. The job runs on main changes and must
+  show a passing result before claiming real filesystem-tool validation.
+- Mac ARM64 is **not yet fully self-contained**: `mke2fs` still needs a
+  trusted project-local binary and OS-enforced process sandbox. This
+  commit does not supply or install one. Physical W152D Kernel/DTB
+  compatibility and true USB boot are unverified; eMMC flashing remains
+  unsupported.
+
 ## Physical ARM USB builder milestone — 2026-11-12
 
 New executable components: `arm_image_builder.py` (pinned Ubuntu Base

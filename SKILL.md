@@ -1,6 +1,6 @@
 ---
 name: ubuntu-customizer
-description: Agent-led read-only discovery and evidence analysis for Ubuntu, Debian, Armbian and compatible Linux systems over SSH, ADB, managed picocom TTL or local access, with legacy passive TTL capture; assess image compatibility, customize existing VM images with a fixed offline recipe, and optionally verify AMD64 guest health. Maintenance and recovery are planning only; physical image assembly and flashing are unsupported.
+description: Agent-led read-only discovery and evidence analysis for Ubuntu, Debian, Armbian and compatible Linux systems over SSH, ADB, managed picocom TTL or local access, with legacy passive TTL capture; assess image compatibility, customize existing VM images with a fixed offline recipe, and optionally verify AMD64 guest health. Maintenance and recovery are planning only; offline physical ARM IMG candidate assembly is implemented, but verified W152D USB boot and flashing are not.
 ---
 
 # Ubuntu Customizer — AI Agent Skill
@@ -44,9 +44,10 @@ and another candidate iteration, NOT a final `physical_evidence_only`
 result. `arm_baseline.py` implements an approved, fixed-hash download into
 `outputs/baselines/`; `arm_candidate.py` stages project-local components
 into new numbered revisions in `outputs/arm-candidates/`. These are the
-first implemented pieces of the pipeline. Physical bootable IMG assembly,
-driver patch compilation, USB boot testing and flashing are NOT yet
-implemented; never claim otherwise.
+first implemented pieces of the pipeline. Offline FAT32/ext4 IMG
+assembly now exists; W152D-compatible boot-chain assembly, driver patch
+compilation, physical USB boot testing and flashing remain UNVERIFIED
+or unsupported. Never claim otherwise.
 
 ## Strict project-local file access (highest priority)
 
@@ -88,14 +89,23 @@ In particular, identify whether W152D/gxlx4 requires `boot.scr`,
 `boot.ini`, `aml_autoscript` or another genuine vendor loader path;
 **never infer that extlinux or a FAT32 partition alone will boot**.
 
+Run `arm_preflight.py` after board component staging: it inspects
+only project-local source, component hashes, and the project-local
+ext4 writer. It never searches the Mac or executes host binaries.
+A missing tool is a concrete remediation target, not a reason to search
+outside the project. The Agent's `arm_preflight` stage must finish
+before asking for offline-build consent.
+
 With separate offline-build consent, `arm_image_builder.py` extracts the
 checksum-pinned Ubuntu Base in a private output directory, optionally
 applies a hash-pinned kernel modules/firmware overlay, creates a 1 MiB aligned
 MBR with FAT32 (`UCBOOT`) and ext4 (`UCROOT`) partitions, stages board
 boot assets, creates a RAW `.img` **ordinary file**, and publishes its hash
-and an explicit list of unverified gates. Tools `mkfs.vfat`, `mcopy`,
-`mmd`, `mke2fs` must be provided as project-local executables by an
-OS-confined build environment. No direct disk paths, `dd`, mounts, loop
+and an explicit list of unverified gates. The portable `arm_fat32.py` backend now creates the FAT32 boot volume
+using only the Python standard library; `mkfs.vfat`, `mcopy` and
+`mmd` are optional legacy alternatives. Ext4 still requires a
+compatible, explicitly provided project-local `mke2fs` tool executed
+under an OS-confining environment. No direct disk paths, `dd`, mounts, loop
 devices, `/dev` writes or eMMC writes are permitted.
 
 For each physically tested USB candidate, save that **revision's** UART log

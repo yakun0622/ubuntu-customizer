@@ -182,7 +182,7 @@ class AgentJourneyTests(unittest.TestCase):
     def test_physical_arm_builds_then_requires_current_usb_log_for_diagnosis(self):
         state = self.ready("physical-device")
         state = answer(state, "baseline_download", True)
-        for step in ("arm_baseline", "arm_research", "arm_candidate"):
+        for step in ("arm_baseline", "arm_research", "arm_candidate", "arm_preflight"):
             self.assertEqual(journey.next_step(state)["step"], step)
             state = finish(state, step)
         self.assertEqual(journey.next_step(state)["field"], "offline_build")
@@ -215,7 +215,7 @@ class AgentJourneyTests(unittest.TestCase):
 
     def test_arm_build_needs_separate_approval_and_failed_build_can_iterate(self):
         state = answer(self.ready("physical-device"), "baseline_download", True)
-        for step in ("arm_baseline", "arm_research", "arm_candidate"):
+        for step in ("arm_baseline", "arm_research", "arm_candidate", "arm_preflight"):
             state = finish(state, step)
         with self.assertRaises(ValueError):
             finish(state, "arm_build")
@@ -226,6 +226,19 @@ class AgentJourneyTests(unittest.TestCase):
         self.assertEqual(journey.next_step(state)["step"], "arm_research")
         self.assertIsNone(state["consent"]["offline_build"])
 
+    def test_arm_preflight_blocks_missing_tools_before_build(self):
+        state = answer(self.ready("physical-device"), "baseline_download", True)
+        for step in ("arm_baseline", "arm_research", "arm_candidate"):
+            state = finish(state, step)
+        task = journey.next_step(state)
+        self.assertEqual(task["step"], "arm_preflight")
+        self.assertTrue(task["no_host_path_scan"])
+        state = finish(state, "arm_preflight", "blocked")
+        self.assertEqual(journey.next_step(state)["kind"], "halt")
+        state = journey.transition(state, {"type": "iterate_arm"})
+        self.assertEqual(journey.next_step(state)["step"], "arm_research")
+        self.assertNotIn("arm_preflight", state["steps"])
+
     def test_declined_baseline_does_not_search_local_files(self):
         state = self.ready("physical-device")
         state = answer(state, "baseline_download", False)
@@ -235,7 +248,7 @@ class AgentJourneyTests(unittest.TestCase):
 
     def test_arm_recovery_iteration_after_evidence_block(self):
         state = answer(self.ready("physical-device"), "baseline_download", True)
-        for step in ("arm_baseline", "arm_research", "arm_candidate"):
+        for step in ("arm_baseline", "arm_research", "arm_candidate", "arm_preflight"):
             state = finish(state, step)
         state = answer(state, "offline_build", True)
         state = finish(state, "arm_build")

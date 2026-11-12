@@ -32,6 +32,7 @@ sandbox is required for an absolute, whole-process access guarantee.
 ## Physical ARM build/diagnose revisions (new executable handoffs)
 
 The physical ARM stage continues after versioned component staging:
+`arm_preflight` (project-local source/component/ext4 readiness) →
 `offline_build` consent → `arm_build` using `arm_image_builder.build`
 → `usb_log_ready` choice → verified local physical boot evidence →
 `arm_diagnose` linked to the exact candidate manifest/image SHA-256 →

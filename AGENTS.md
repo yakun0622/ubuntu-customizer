@@ -30,7 +30,7 @@ device customization, diagnostic, image build, or boot-verification requests.
 The physical-device image path includes real, guarded helpers:
 `arm_baseline.acquire` → evidence/board research → optional
 `arm_dtb_adapter.compile_dts` → `arm_candidate.stage` →
-**separately approved** `arm_image_builder.build` →
+`arm_preflight.inspect` → **separately approved** `arm_image_builder.build` →
 user-provided current-revision USB serial log →
 `physical_verify.evaluate` → `arm_boot_diagnose.diagnose` → revise.
 
@@ -41,9 +41,10 @@ user-provided current-revision USB serial log →
   Extlinux and vendor-script are alternatives, not verified board defaults.
 - The official Ubuntu Base archive is ARM64 *userspace*, not a finished
   system. The builder records missing init and real USB boot gates.
-- The mkfs/mtools/dtc tools must be explicit project-local executables and
-  executed inside a real host filesystem sandbox if absolute isolation is
-  required. Tool arguments are fixed. No arbitrary target commands.
+- FAT32 boot creation is now pure Python; the old mkfs.vfat/mtools path is optional.
+  Ext4 still needs a project-local `mke2fs`, DTS compilation an optional `dtc`,
+  and real OS sandboxing for strict process-wide access confinement.
+  `arm_preflight.inspect` does not scan host PATH or external directories.
 - Link each USB serial log to its exact candidate SHA-256 and revision.
   Failed boot automatically means diagnose/new iteration, not a claim of
   `boot_confirmed` or `deployment_allowed`.

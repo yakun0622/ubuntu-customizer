@@ -28,8 +28,10 @@ Ubuntu Base ARM64 RootFS 创建 MBR 磁盘镜像（FAT32 启动分区、ext4 根
 
 **边界**：可生成候选 IMG 文件，但没有实机验证 W152D 能通过 USB 启动，
 也不保证原厂 U-Boot 会执行通用 extlinux 配置。构建和 DTB 编译的
-`mkfs.vfat`、`mcopy`、`mmd`、`mke2fs`、`dtc` 需由隔离的环境以
-当前项目内可执行文件方式提供；模拟测试不代表真实工具链已验证。
+FAT32 启动分区已改为 Python 标准库实现，不再强制依赖 `mkfs.vfat`、`mcopy`、`mmd`。
+ext4 仍需项目内的 `mke2fs`，DTS 编译需项目内的 `dtc`。
+`arm_preflight.py` 先核对官方 RootFS、板级组件、工具是否齐全；不搜索 Mac 其他目录。
+模拟测试不等于真实工具链或 W152D 实机启动验证。
 绝不写实体 eMMC、自动刷盘或自动重启。所有本地文件输入都必须在
 当前项目中，生成内容只进入 `outputs/`；若要求限制底层动态库等隐式
 访问，也必须使用操作系统级文件沙箱。

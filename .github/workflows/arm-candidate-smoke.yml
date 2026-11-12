@@ -1,0 +1,50 @@
+name: ARM candidate smoke
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/workflow/arm_*.py'
+      - 'tests/test_arm_*.py'
+      - '.github/workflows/arm-candidate-smoke.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  arm-candidate-smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Provide real filesystem utilities in isolated project test output
+        run: |
+          set -euo pipefail
+          mkdir -p outputs/toolchain/bin outputs/tmp
+          # GitHub-hosted Linux runner only; not an instruction to scan a user's Mac.
+          # Tools remain separate from Skill's project-only production paths.
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq e2fsprogs mtools dosfstools
+          install -m 0755 /usr/sbin/mke2fs outputs/toolchain/bin/mke2fs
+          install -m 0755 /usr/sbin/debugfs outputs/toolchain/bin/debugfs
+          install -m 0755 /usr/bin/fsck.fat outputs/toolchain/bin/fsck.fat
+          install -m 0755 /usr/bin/mdir outputs/toolchain/bin/mdir
+      - name: Run real FAT32 and ext4 image build, without block devices
+        env:
+          UC_REAL_ARM_SMOKE: '1'
+          TMPDIR: ${{ github.workspace }}/outputs/tmp
+        run: |
+          set -euo pipefail
+          python3 -B -m unittest discover -s tests -p 'test_arm_real_smoke.py' -v
+      - name: Run portable FAT32 and isolated build regression suite
+        env:
+          TMPDIR: ${{ github.workspace }}/outputs/tmp
+        run: |
+          set -euo pipefail
+          python3 -B -m unittest discover -s tests -p 'test_arm_fat32.py' -v
+          python3 -B -m unittest discover -s tests -p 'test_arm_image_builder.py' -v
+          python3 -B -m unittest discover -s tests -p 'test_arm_preflight.py' -v
+      - name: Full repository unit-test regression
+        env:
+          TMPDIR: ${{ github.workspace }}/outputs/tmp
+        run: |
+          set -euo pipefail
+          python3 -B -m unittest discover -s tests -v

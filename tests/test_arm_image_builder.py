@@ -103,6 +103,28 @@ class ArmImageBuilderTests(unittest.TestCase):
             img.build(self.candidate, boot_mib=64, root_mib=256,
                       tools=self.tools, runner=self.runner, approved=True)
 
+    def test_portable_fat32_build_requires_only_project_mke2fs(self):
+        image = img.build(self.candidate, boot_mib=64, root_mib=256,
+                          boot_mode='vendor-script',
+                          tools={'mke2fs': self.tools['mke2fs']},
+                          runner=self.runner, approved=True)
+        self.assertEqual(image['boot_filesystem_backend'], 'python-fat32')
+        self.assertGreaterEqual(image['boot_filesystem_details']['clusters'], 65525)
+        self.assertEqual(len(self.commands), 1)
+        self.assertIn('mke2fs', self.commands[0][0][0])
+        with (ROOT / image['image']).open('rb') as data:
+            data.seek(image['boot_partition']['offset'])
+            vbr = data.read(512)
+        self.assertEqual(vbr[82:90], b'FAT32   ')
+        self.assertEqual(vbr[71:82], b'UCBOOT     ')
+        self.assertEqual(vbr[510:512], b'\\x55\\xaa')
+
+    def test_partial_legacy_fat_tools_rejected(self):
+        with self.assertRaisesRegex(ValueError, 'requires mkfs.vfat'):
+            img.build(self.candidate, tools={
+                'mkfs.vfat': self.tools['mkfs.vfat'],
+                'mke2fs': self.tools['mke2fs']}, approved=True)
+
     def test_missing_kernel_or_dtb_blocks_prior_to_directory_creation(self):
         stage = json.loads(self.candidate.read_text())
         stage['components'].pop('dtb')

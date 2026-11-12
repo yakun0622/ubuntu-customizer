@@ -31,8 +31,11 @@ links the UART log SHA-256 to the exact generated image SHA-256 and reports
 specific next actions for FDT, kernel, rootfs, userspace init, USB, RX.
 `agent_journey.py` keeps iterating rather than ending at
 `physical_evidence_only`. Real W152D USB boot is not yet verified.
-Required project-only mkfs/mtools tools and an OS sandbox may be missing
-on macOS; do not silently access global filesystem paths.
+Python now constructs FAT32 boot volumes without mkfs.vfat/mtools. A verified
+project-local `mke2fs` is still required for ext4. `arm_preflight.py` reports
+missing official RootFS, board components and ext4 tools without reading Mac
+home directories. OS-level sandboxing remains necessary for strict
+process-wide confinement.
 
 ## Current scope
 

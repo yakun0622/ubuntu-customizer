@@ -30,6 +30,7 @@ def sibling(name):
 
 workspace = sibling('project_workspace')
 baseline = sibling('arm_baseline')
+fat32 = sibling('arm_fat32')
 SECTOR = 512
 ALIGN = 2048
 MBR_BOOT_TYPE = 0x0C  # FAT32 LBA
@@ -245,18 +246,26 @@ def mbr_bytes(boot_mib, root_mib):
 
 
 def _tools(provided=None):
-    names = ('mkfs.vfat', 'mcopy', 'mmd', 'mke2fs')
-    result = provided or {}
-    for name in names:
-        path = result.get(name)
+    """Only mke2fs is required; the FAT32 implementation is pure Python.
+
+    Older projects may explicitly pass all three mtools binaries to keep
+    their historical workflow. Partial explicit overrides fail closed.
+    """
+    provided = dict(provided or {})
+    legacy = ('mkfs.vfat', 'mcopy', 'mmd')
+    selected = tuple(legacy) + ('mke2fs',) if any(provided.get(k) for k in legacy) else ('mke2fs',)
+    if any(provided.get(k) for k in legacy) and not all(provided.get(k) for k in legacy):
+        raise ValueError('Legacy mtools backend requires mkfs.vfat, mcopy and mmd together')
+    result = {}
+    for name in selected:
         try:
-            binary = workspace.checked_input(path)
+            binary = workspace.checked_input(provided.get(name))
         except (ValueError, TypeError, OSError) as exc:
             raise ValueError('Approved project-local build tool missing: ' + name) from exc
         if not os.access(binary, os.X_OK):
             raise ValueError('Build tool is not executable: ' + name)
         result[name] = str(binary)
-    return {key: str(value) for key, value in result.items() if key in names}
+    return result
 
 
 def _run(argv, cwd, runner=subprocess.run):
@@ -382,15 +391,22 @@ def build(candidate_manifest, *, boot_mib=128, root_mib=1024,
             f.truncate(boot_mib * 1024 * 1024)
         with rootimg.open('xb') as f:
             f.truncate(root_bytes)
-        _run([toolset['mkfs.vfat'], '-F', '32', '-n', 'UCBOOT', str(bootimg)], tmp, runner)
+        if 'mkfs.vfat' in toolset:
+            _run([toolset['mkfs.vfat'], '-F', '32', '-n', 'UCBOOT', str(bootimg)], tmp, runner)
+            boot_contents = None
+        else:
+            # Portable, real FAT32 filesystem with VFAT long filename support.
+            # Uses only Python stdlib; avoids three host executables on macOS.
+            boot_contents = fat32.write_fat32(boot, bootimg, volume_label='UCBOOT')
         _run([toolset['mke2fs'], '-F', '-t', 'ext4', '-L', 'UCROOT', '-d',
               str(root), str(rootimg)], tmp, runner)
-        for item in sorted(boot.rglob('*')):
-            rel = item.relative_to(boot).as_posix()
-            if item.is_dir():
-                _run([toolset['mmd'], '-i', str(bootimg), '::/' + rel], tmp, runner)
-            else:
-                _run([toolset['mcopy'], '-i', str(bootimg), str(item), '::/' + rel], tmp, runner)
+        if 'mkfs.vfat' in toolset:
+            for item in sorted(boot.rglob('*')):
+                rel = item.relative_to(boot).as_posix()
+                if item.is_dir():
+                    _run([toolset['mmd'], '-i', str(bootimg), '::/' + rel], tmp, runner)
+                else:
+                    _run([toolset['mcopy'], '-i', str(bootimg), str(item), '::/' + rel], tmp, runner)
         img = target / ('%s-r%04d-usb.img' % (candidate['board'], candidate['revision']))
         with img.open('xb') as disk:
             disk.truncate(image_bytes)
@@ -419,6 +435,9 @@ def build(candidate_manifest, *, boot_mib=128, root_mib=1024,
             'bytes': image_bytes, 'sha256': sha256(img),
             'candidate_manifest_sha256': sha256(manifest_file),
             'rootfs': inventory, 'driver_overlay': driver_overlay,
+            'boot_filesystem_backend': ('legacy-mtools' if 'mkfs.vfat' in toolset
+                                        else 'python-fat32'),
+            'boot_filesystem_details': boot_contents,
             'userspace_init_present': has_init,
             'boot_mode': boot_mode, 'boot_script_verified_on_hardware': False,
             'usb_boot_confirmed': False, 'deployment_allowed': False,
@@ -447,13 +466,14 @@ def main(argv=None):
     p.add_argument('--driver-overlay', help='Project-local gzip tar of usr/lib/modules or firmware')
     p.add_argument('--driver-overlay-sha256', help='Trusted overlay archive SHA-256')
     for name in ('mkfs.vfat', 'mcopy', 'mmd', 'mke2fs'):
-        p.add_argument('--tool-' + name.replace('.', '-'), required=True,
-                       help='Approved tool executable from a confined Linux build environment')
+        p.add_argument('--tool-' + name.replace('.', '-'), required=name == 'mke2fs',
+                       help='Project-local executable; only mke2fs is required (Python FAT32 is default)')
     p.add_argument('--approved', action='store_true')
     args = p.parse_args(argv)
     try:
         tools = {name: getattr(args, 'tool_' + name.replace('.', '_').replace('-', '_'))
-                 for name in ('mkfs.vfat', 'mcopy', 'mmd', 'mke2fs')}
+                 for name in ('mkfs.vfat', 'mcopy', 'mmd', 'mke2fs')
+                 if getattr(args, 'tool_' + name.replace('.', '_').replace('-', '_'))}
         result = build(args.candidate, boot_mib=args.boot_mib, root_mib=args.root_mib,
                        boot_mode=args.boot_mode, cmdline=args.cmdline,
                        overlay=args.driver_overlay, overlay_sha256=args.driver_overlay_sha256,

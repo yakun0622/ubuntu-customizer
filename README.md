@@ -33,8 +33,11 @@ binds each revision's serial log and candidate image hashes to guide the
 next board-specific correction.
 
 These are **unverified USB boot candidates**, not a W152D boot guarantee.
-The tools need project-local mkfs/mtools/dtc executables and a real
-OS-enforced sandbox for whole-process filesystem confinement. No attached
+FAT32 boot creation now runs in pure Python (no required mkfs.vfat/mtools).
+The ext4 writer still needs a verified project-local `mke2fs`, and DTS
+compilation optionally needs `dtc`. `arm_preflight.py` checks source hashes,
+board assets and the ext4 writer without probing external host directories.
+An OS-enforced sandbox is still necessary for process-wide confinement. No attached
 disks, eMMC, host mounts, or automatic flashing are accessed. All input
 paths remain within the current repository, all artifacts within
 `outputs/`; synthetic tests cannot prove W152D boots.

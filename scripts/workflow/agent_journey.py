@@ -53,6 +53,7 @@ ACTIONS = {
     "arm_baseline": ("arm_baseline.acquire", "R1", "在项目 outputs 中下载并校验官方 ARM64 最小系统"),
     "arm_research": ("agent.research_board_sources", "R0", "从官方或可信上游研究启动组件与驱动，不扫描宿主机文件"),
     "arm_candidate": ("arm_candidate.stage", "R1", "创建包含基础 RootFS 和已验证板级组件的版本化候选目录"),
+    "arm_preflight": ("arm_preflight.inspect", "R0", "在当前项目内核对基础系统、板级组件和 ext4 工具，不扫描宿主机"),
     "arm_build": ("arm_image_builder.build", "R1", "离线创建 USB FAT32/ext4 ARM 镜像并校验分区/哈希"),
     "arm_diagnose": ("arm_boot_diagnose.diagnose", "R0", "将串口启动证据关联到本轮 USB 镜像并提出下一版修复方向"),
     "image_inspect": ("image_inspect.inspect", "R0", "检查基础系统镜像"),
@@ -120,6 +121,9 @@ def _action(name, state):
         result["revision"] = state["choices"]["arm_revision"]
         result["output_root"] = "outputs"
         result["boot_confirmed"] = False
+    if name == "arm_preflight":
+        result["output_root"] = "outputs"
+        result["no_host_path_scan"] = True
     if name == "arm_build":
         result["approval_required"] = "offline_build"
         result["no_block_devices"] = True
@@ -209,7 +213,7 @@ def next_step(state):
             return {"kind": "pause", "result": "baseline_download_declined",
                     "reason": "No automatic local image search or fallback",
                     "boot_confirmed": False}
-        for name in ("arm_baseline", "arm_research", "arm_candidate"):
+        for name in ("arm_baseline", "arm_research", "arm_candidate", "arm_preflight"):
             current = _stage(state, name)
             if current:
                 return current
@@ -361,14 +365,14 @@ def transition(state, event):
         if (state.get("target") != "physical-device" or
                 not (current["kind"] == "pause" and current.get("result") == "arm_iteration_required"
                      or current["kind"] == "halt"
-                     and current.get("step") in ("arm_research", "arm_candidate", "arm_build",
-                                                 "physical_evidence", "arm_diagnose"))):
+                     and current.get("step") in ("arm_research", "arm_candidate", "arm_preflight",
+                                                 "arm_build", "physical_evidence", "arm_diagnose"))):
             raise ValueError("ARM iteration requires a completed or blocked ARM stage")
         if updated["choices"]["arm_revision"] >= 9999:
             raise ValueError("ARM revision limit reached")
         updated["choices"]["arm_revision"] += 1
-        for stage in ("arm_research", "arm_candidate", "arm_build",
-                      "physical_evidence", "arm_diagnose"):
+        for stage in ("arm_research", "arm_candidate", "arm_preflight",
+                      "arm_build", "physical_evidence", "arm_diagnose"):
             updated["steps"].pop(stage, None)
         updated["consent"]["offline_build"] = None
         updated["choices"]["usb_log_ready"] = None
