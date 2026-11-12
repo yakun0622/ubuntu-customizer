@@ -5,6 +5,7 @@ Only allowlisted stage, state and integer counters. No free-form text,
 credentials, paths or command output are persisted. The agent owns the stage.
 """
 import argparse
+import importlib.util
 from datetime import datetime, timezone
 import json
 import os
@@ -53,11 +54,16 @@ def main(argv=None):
     p.add_argument("--total", type=int, default=0)
     args = p.parse_args(argv)
     try:
-        print(json.dumps(update(args.session, args.stage, args.state, args.completed, args.total)))
+        print(json.dumps(update(str(workspace.checked_output(args.session)), args.stage, args.state, args.completed, args.total)))
         return 0
     except (OSError, ValueError) as exc:
         print("ERROR: " + str(exc), file=sys.stderr)
         return 2
+
+ws_spec = importlib.util.spec_from_file_location(
+    "uc_workspace_status", Path(__file__).with_name("project_workspace.py"))
+workspace = importlib.util.module_from_spec(ws_spec)
+ws_spec.loader.exec_module(workspace)
 
 if __name__ == "__main__":
     raise SystemExit(main())
