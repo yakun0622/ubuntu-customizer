@@ -124,7 +124,9 @@ def main(argv=None):
     p.add_argument("--report", required=True, help="new verification JSON file")
     args = p.parse_args(argv)
     try:
-        path = Path(args.report)
+        path = workspace.checked_output(args.report)
+        if args.serial_log:
+            args.serial_log = str(workspace.checked_output(args.serial_log))
         if path.exists() or path.is_symlink():
             raise ValueError("Report already exists")
         result = json.loads(Path(args.build_manifest).read_text(encoding="utf-8"))
@@ -142,6 +144,13 @@ def main(argv=None):
             progress.report_error(progress.session_from_build(result), "verify")
         print("ERROR: " + str(exc), file=sys.stderr)
         return 2
+
+# The CLI enforces the project's outputs-only policy. Internal library functions
+# continue to accept isolated temporary test fixtures without changing their API.
+ws_spec = importlib.util.spec_from_file_location(
+    "uc_workspace_verify_vm", Path(__file__).with_name("project_workspace.py"))
+workspace = importlib.util.module_from_spec(ws_spec)
+ws_spec.loader.exec_module(workspace)
 
 if __name__ == "__main__":
     raise SystemExit(main())
