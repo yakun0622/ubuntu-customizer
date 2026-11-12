@@ -28,6 +28,7 @@ GUEST_CHECKS = (
 # Each action is a fixed Skill helper, never a synthesized shell command.
 ACTIONS = {
     "host": ("host_capabilities.inspect", "R0", "检查本机能力"),
+    "workspace": ("project_workspace.prepare", "R1", "在当前项目创建 .venv 和私有 outputs 目录"),
     "collect": ("adaptive.run", "R0", "读取目标设备信息"),
     "analyze": ("dossier.verify_session", "R0", "验证并分析采集证据"),
     # Agent-owned conversation stage: ask missing OS/version/boot media/features one by one.
@@ -79,6 +80,8 @@ def _action(name, state):
         result["preview_approved"] = (state["choices"]["preview"] is True
                                       and state["consent"]["plan_confirm"] is True)
         result["transport"] = state["choices"]["transport"]
+        result["output_root"] = "outputs"
+        result["python_env"] = ".venv"
         result["start_preview_before_probes"] = result["preview_approved"]
     if name == "rootfs_build":
         result["approval_required"] = "offline_build"
@@ -101,9 +104,10 @@ def next_step(state):
     for field in ("choices", "consent", "steps"):
         if not isinstance(state.get(field), dict):
             raise ValueError("Missing workflow state: " + field)
-    current = _stage(state, "host")
-    if current:
-        return current
+    for initial in ("host", "workspace"):
+        current = _stage(state, initial)
+        if current:
+            return current
     if state["goal"] is None:
         return _ask("goal", "这次要做什么？", GOALS)
     if state["goal"] == "image" and state["target"] is None:
@@ -125,6 +129,7 @@ def next_step(state):
                       "分析后逐步规划定制；不会重启、改网、写盘或刷机。",
                       (True, False), False)
         result["plan"] = {
+            "workspace": ".venv / outputs (初始化不连接目标设备)",
             "transport": state["choices"]["transport"],
             "connection": "用户已选择并提供接口；具体标识由 Agent 私有持有",
             "preview": ("127.0.0.1 动态端口（启动成功后提供实际 URL）"
