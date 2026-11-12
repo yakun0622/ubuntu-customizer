@@ -62,6 +62,22 @@ def output_path(*parts, root=None):
     return result
 
 
+def checked_output(value, root=None):
+    """Validate a CLI output as a new path inside the current outputs tree."""
+    base = ensure_outputs(root)
+    candidate = Path(value).expanduser()
+    if not candidate.is_absolute():
+        candidate = project_root(root) / candidate
+    try:
+        relative = candidate.relative_to(base)
+    except ValueError as exc:
+        raise ValueError("All Skill output files must be under ./outputs") from exc
+    if not relative.parts:
+        raise ValueError("Choose a new file or session beneath outputs")
+    return output_path(*relative.parts, root=root)
+
+
+
 def prepare(root=None, create_venv=True):
     base = project_root(root)
     folder = ensure_outputs(base)
