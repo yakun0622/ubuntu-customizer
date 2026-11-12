@@ -8,7 +8,6 @@ import argparse
 import json
 import os
 from pathlib import Path
-import stat
 import subprocess
 import sys
 
@@ -57,8 +56,10 @@ def output_path(*parts, root=None):
         candidate /= part
         if candidate.is_symlink():
             raise ValueError("Output path must not include symlinks")
-    if not result.resolve().is_relative_to(base.resolve()):
-        raise ValueError("Output escapes outputs directory")
+    try:
+        result.resolve().relative_to(base.resolve())
+    except ValueError as exc:
+        raise ValueError("Output escapes outputs directory") from exc
     return result
 
 
