@@ -25,7 +25,7 @@ jobs:
           sudo apt-get install -y -qq e2fsprogs mtools dosfstools
           install -m 0755 /usr/sbin/mke2fs outputs/toolchain/bin/mke2fs
           install -m 0755 /usr/sbin/debugfs outputs/toolchain/bin/debugfs
-          install -m 0755 /usr/bin/fsck.fat outputs/toolchain/bin/fsck.fat
+          install -m 0755 /usr/sbin/fsck.fat outputs/toolchain/bin/fsck.fat
           install -m 0755 /usr/bin/mdir outputs/toolchain/bin/mdir
       - name: Run real FAT32 and ext4 image build, without block devices
         env:
