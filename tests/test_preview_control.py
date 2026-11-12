@@ -44,9 +44,18 @@ class PreviewControlTests(unittest.TestCase):
             self.assertFalse((root / control.RUNTIME).exists())
 
     def test_start_status_stop_end_to_end(self):
-        # Uses a temporary directory and localhost-only ephemeral port;
-        # no remote connection or target operation is performed.
-        with tempfile.TemporaryDirectory() as d:
+        # The preview is a real localhost child process; retain its Popen
+        # handle until stop so unittest can reap it without ResourceWarning.
+        children = []
+        popen = control.subprocess.Popen
+
+        def tracked_popen(*args, **kwargs):
+            child = popen(*args, **kwargs)
+            children.append(child)
+            return child
+
+        with tempfile.TemporaryDirectory(dir=control.workspace.ensure_outputs()) as d, \
+             patch.object(control.subprocess, "Popen", side_effect=tracked_popen):
             root = Path(d)
             started = control.start(root, port=0)
             try:
@@ -59,7 +68,11 @@ class PreviewControlTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     control.start(root, port=0)
             finally:
-                self.assertEqual(control.stop(root)["state"], "stopped")
+                try:
+                    self.assertEqual(control.stop(root)["state"], "stopped")
+                finally:
+                    for child in children:
+                        child.wait(timeout=3)
             self.assertEqual(control.status(root)["state"], "not_started")
 
 if __name__ == "__main__":

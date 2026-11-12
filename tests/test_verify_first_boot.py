@@ -275,7 +275,7 @@ class FirstBootHealthTests(unittest.TestCase):
             self.assertEqual(report["reason"],"guest_agent_or_health_timeout")
 
     def test_private_sanitized_failure_report(self):
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory(dir=health.workspace.ensure_outputs()) as tmp:
             root = Path(tmp)
             report = root/"report.json"
             self.assertEqual(health.main(["--bundle",str(root/"missing"),

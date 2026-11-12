@@ -113,7 +113,7 @@ class DeviceManagementTests(unittest.TestCase):
                 manage.session_path(root, "device-01", "../escape")
 
     def test_manager_denies_registry_outside_outputs(self):
-        with patch.object(manage.collect_device) as collect:
+        with patch.object(manage, "collect_device") as collect:
             self.assertEqual(manage.main(["--data-dir", "/tmp/outside-uc-catalog", "list"]), 2)
             collect.assert_not_called()
 

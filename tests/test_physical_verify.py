@@ -96,7 +96,8 @@ class PhysicalEvidenceTests(unittest.TestCase):
             self.assertFalse(result["physical_deployment_allowed"])
 
     def test_report_permissions_and_no_raw_uart_data(self):
-        with tempfile.TemporaryDirectory() as d:
+        # CLI reports must live inside the project's private outputs tree.
+        with tempfile.TemporaryDirectory(dir=physical.workspace.ensure_outputs()) as d:
             root = Path(d)
             log = root / "uart.log"
             log.write_text(LOG)

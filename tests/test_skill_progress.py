@@ -141,7 +141,7 @@ class SkillProgressTests(unittest.TestCase):
             self.assertEqual(read_state(session)["state"], "blocked")
 
     def test_nocloud_cli_reports_complete_and_invalid_plan_blocked(self):
-        with tempfile.TemporaryDirectory() as d:
+        with tempfile.TemporaryDirectory(dir=nocloud.workspace.ensure_outputs()) as d:
             root = Path(d)
             session = make_session(root)
             plan = {
@@ -199,7 +199,7 @@ class SkillProgressTests(unittest.TestCase):
                 self.assertEqual(read_state(session)["state"], "failed")
 
     def test_verify_cli_unconfirmed_boot_returns_failure_exit_code(self):
-        with tempfile.TemporaryDirectory() as d:
+        with tempfile.TemporaryDirectory(dir=verifier.workspace.ensure_outputs()) as d:
             root = Path(d)
             session = make_session(root)
             image = root / "disk.qcow2"
