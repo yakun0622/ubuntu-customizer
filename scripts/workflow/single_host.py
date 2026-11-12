@@ -200,12 +200,23 @@ def parser():
 def main(argv=None):
     args = parser().parse_args(argv)
     try:
+        if args.action in ("inspect", "plan") and args.output:
+            args.output = str(workspace.checked_output(args.output))
+        elif args.action == "rootfs" and not args.dry_run and args.output_dir:
+            args.output_dir = str(workspace.checked_output(args.output_dir))
+        elif args.action == "verify-boot" and args.report:
+            args.report = str(workspace.checked_output(args.report))
         result = execute(args.action, args, args.backend, args.lima_instance)
         print(json.dumps(result))
         return 0 if result["status"] in ("ready", "completed") else 2
     except (OSError, ValueError, KeyError, TypeError, subprocess.TimeoutExpired) as exc:
         print("ERROR: " + type(exc).__name__ + ": " + str(exc), file=sys.stderr)
         return 2
+
+ws_spec = importlib.util.spec_from_file_location(
+    "uc_workspace_single_host", Path(__file__).with_name("project_workspace.py"))
+workspace = importlib.util.module_from_spec(ws_spec)
+ws_spec.loader.exec_module(workspace)
 
 if __name__ == "__main__":
     raise SystemExit(main())
