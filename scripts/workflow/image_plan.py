@@ -216,7 +216,7 @@ def main(argv=None):
     try:
         result = plan(args.session, args.target, args.format, args.source, args.sha256,
                       args.source_arch, selected_firmware=args.boot_mode)
-        output = Path(args.output)
+        output = workspace.checked_output(args.output)
         if output.exists() or output.is_symlink():
             raise ValueError("Output already exists")
         with output.open("x", encoding="utf-8") as out:
@@ -231,6 +231,13 @@ def main(argv=None):
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2
     return 0
+
+# The CLI enforces the project's outputs-only policy. Internal library functions
+# continue to accept isolated temporary test fixtures without changing their API.
+ws_spec = importlib.util.spec_from_file_location(
+    "uc_workspace_image_plan", Path(__file__).with_name("project_workspace.py"))
+workspace = importlib.util.module_from_spec(ws_spec)
+ws_spec.loader.exec_module(workspace)
 
 if __name__ == "__main__":
     raise SystemExit(main())
