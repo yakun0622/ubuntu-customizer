@@ -47,7 +47,7 @@ their CLI prompts are not the primary user interface.
 - Work from the current repository directory; run
   `python3 scripts/workflow/project_workspace.py` without extra user prompts
   for this routine project-local operation.
-- Use `./.venv/bin/python` for Python helpers (on Windows,
+- Use `./.venv/bin/python -B` for Python helpers without project-root bytecode cache (on Windows,
   `./.venv/Scripts/python.exe`). The helper does not install packages.
 - Keep all persistent runtime artifacts under `./outputs/`, with private
   device sessions and logs. Use the workspace path validator; do not
