@@ -260,7 +260,7 @@ def write_fat32(source_directory, image_file, *, volume_label='UCBOOT'):
                     dotdot = Entry('..',short=b'..         ')
                     rows += _short_entry(dot,entry.clusters[0],attr=0x10)
                     parent = entry.parent
-                    rows += _short_entry(dotdot,parent.clusters[0],attr=0x10)
+                    rows += _short_entry(dotdot,0 if parent is root else parent.clusters[0],attr=0x10)
                 for child in entry.children:
                     rows += child.lfn
                     rows += _short_entry(child,child.clusters[0] if child.clusters else 0,
