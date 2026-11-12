@@ -156,6 +156,21 @@ class DeviceManagementTests(unittest.TestCase):
                 self.assertEqual(prompt.call_count, 1)
                 collector.assert_not_called()
 
+    def test_manager_ttl_plan_includes_actual_baud(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = manage._private_dir(Path(d) / "manager")
+            manage.register(root, "w152d", "ttl", "/dev/cu.wchusbserial1140")
+            manifest = {"state": "complete", "items": [], "skipped": []}
+            with patch.object(manage.adaptive.workspace, "checked_output", return_value=root), \
+                 patch.object(manage, "collect_device",
+                              return_value=(root / "session", manifest)) as collector, \
+                 patch("builtins.input", return_value="yes") as prompt:
+                self.assertEqual(manage.main([
+                    "--data-dir", str(root), "collect", "w152d", "--baud", "921600"
+                ]), 0)
+            self.assertEqual(prompt.call_count, 1)
+            self.assertEqual(collector.call_args.kwargs["baud"], 921600)
+
     def test_collect_uses_existing_engine(self):
         with tempfile.TemporaryDirectory() as d:
             root = manage._private_dir(Path(d) / "data")
