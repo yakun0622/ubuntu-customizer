@@ -75,6 +75,9 @@ boots, Lima execution and full Agent handoffs remain unverified. See the
   trusted SSH Host alias; authorized ADB serial/address; observed /dev serial
   port with baud rate; or the authorized local control machine.
 - Reuse already-known choices; never silently invent a port/address.
+- Populate the reviewed plan with the **actual endpoint**, not a generic
+  readiness assertion. TTL plans display the chosen `/dev/` port and baud;
+  plan approval is blocked until that summary is present.
 - Existing picocom and the managed adapter must not own the same serial port concurrently.
 - Recovery can be assessed and planned, but has no execution backend or
   dedicated goal in the pure policy.
@@ -91,7 +94,9 @@ boots, Lima execution and full Agent handoffs remain unverified. See the
 ### 3. Launch viewer before interactive discovery
 - After approval, create the private session then start preview on loopback.
 - For managed TTL/ADB/SSH use `adaptive.py --interactive-shell-approved
-  --preview-approved --yes` (Agent supplies confirmed inputs).
+  --preview-approved --yes` (Agent supplies confirmed inputs). The old
+  `manage.py collect` CLI shows the combined plan only once; monitor is
+  included unless `--no-preview` is explicitly selected.
 - The backend outputs a `preview_ready` line after readiness check and
   before probes; report ONLY the actual URL. If unavailable, say so.
 - Use a persistent verified shell for interactive TTL/ADB/SSH; the old
