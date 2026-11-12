@@ -204,6 +204,23 @@ class AgentJourneyTests(unittest.TestCase):
         state = answer(state, "plan_confirm", True)
         self.assertTrue(journey.next_step(state)["preview_approved"])
 
+    def test_explicit_monitor_opt_out_keeps_readonly_collection(self):
+        state = journey.start("inspect", transport="local")
+        state = finish(state, "host")
+        state = journey.transition(state, {"type": "preview_preference", "enabled": False})
+        self.assertIn("关闭监控", journey.next_step(state)["plan"]["preview"])
+        state = answer(state, "plan_confirm", True)
+        task = journey.next_step(state)
+        self.assertEqual(task["step"], "collect")
+        self.assertFalse(task["preview_approved"])
+
+    def test_preview_preference_cannot_change_after_plan_approved(self):
+        state = journey.start("inspect", transport="local")
+        state = finish(state, "host")
+        state = answer(state, "plan_confirm", True)
+        with self.assertRaises(ValueError):
+            journey.transition(state, {"type": "preview_preference", "enabled": False})
+
     def test_answer_must_match_current_question(self):
         state = journey.start()
         with self.assertRaises(ValueError):
