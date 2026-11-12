@@ -94,7 +94,7 @@ behind conservative guest inspection gates, but is not a complete OS builder.
 Start a guided connection and evidence collection workflow:
 
 ```bash
-python3 scripts/workflow/collect.py
+./.venv/bin/python scripts/workflow/collect.py
 ```
 
 Select SSH, ADB, TTL (passive RX) or local. The workflow saves raw category-specific evidence and a `manifest.json` with paths and SHA-256 hashes under a new local directory. It does **not** perform hardware modification, device flashing or automatically upload diagnostics. TTL requires optional `pyserial`.
@@ -122,7 +122,7 @@ python3 scripts/remote/ssh_probe.py ubuntu-server
 Create a snapshot of explicitly selected local files:
 
 ```bash
-python3 scripts/safety/snapshot.py --output-dir /tmp/uc-snapshot-001 /etc/hostname
+python3 scripts/safety/snapshot.py --output-dir ./outputs/snapshot-001 /etc/hostname
 ```
 
 Snapshots do not provide an automatic restore capability. They should be stored in a secure location.
@@ -146,9 +146,9 @@ Do not include credentials in profiles or commit any machine-generated diagnosti
 Collect a session with the existing interactive wizard, then build its evidence-indexed dossier:
 
 ```bash
-python3 scripts/workflow/collect.py
-python3 scripts/workflow/dossier.py ./devices/example-device/session-001
-python3 scripts/workflow/compare.py ./devices/example-device/session-001/device.json ./devices/example-device/session-002/device.json
+./.venv/bin/python scripts/workflow/collect.py
+./.venv/bin/python scripts/workflow/dossier.py ./devices/example-device/session-001
+./.venv/bin/python scripts/workflow/compare.py ./devices/example-device/session-001/device.json ./devices/example-device/session-002/device.json
 ```
 
 Dossier creation verifies each evidence file's SHA-256 digest and distinguishes missing collection from missing hardware. The comparison reports observed identity changes and evidence-file changes; it does not by itself diagnose a fault. Detailed guide: [device discovery](references/device-discovery.md).
@@ -161,9 +161,9 @@ New discovery sessions collect limited sysfs binding evidence from network, seri
 GPIO, platform, I2C, SPI and MDIO devices. Generate the conservative topology:
 
 ```bash
-python3 scripts/workflow/collect.py
-python3 scripts/workflow/dossier.py ./devices/example-device/session-001
-python3 scripts/workflow/topology.py ./devices/example-device/session-001
+./.venv/bin/python scripts/workflow/collect.py
+./.venv/bin/python scripts/workflow/dossier.py ./devices/example-device/session-001
+./.venv/bin/python scripts/workflow/topology.py ./devices/example-device/session-001
 ```
 
 The new `topology.json` stores device and driver nodes, observed `bound_to`
@@ -180,10 +180,10 @@ the collector captures a decompiled DTS alongside driver bindings and
 platform-device `of_node` paths. All probes remain read-only.
 
 ```bash
-python3 scripts/workflow/collect.py
-python3 scripts/workflow/device_tree.py ./devices/example-device/session-001
-python3 scripts/workflow/topology.py ./devices/example-device/session-001
-python3 scripts/workflow/link_graph.py ./devices/example-device/session-001
+./.venv/bin/python scripts/workflow/collect.py
+./.venv/bin/python scripts/workflow/device_tree.py ./devices/example-device/session-001
+./.venv/bin/python scripts/workflow/topology.py ./devices/example-device/session-001
+./.venv/bin/python scripts/workflow/link_graph.py ./devices/example-device/session-001
 ```
 
 Outputs:
@@ -205,7 +205,7 @@ must remain optional extensions.
 After a discovery session, determine which classes of diagnostics were available:
 
 ```bash
-python3 scripts/workflow/capabilities.py ./devices/example-device/session-001
+./.venv/bin/python scripts/workflow/capabilities.py ./devices/example-device/session-001
 ```
 
 The output `capabilities.json` describes observation availability (`available`,
@@ -223,15 +223,15 @@ checkpointed `manifest.json` so interrupted sessions can be inspected.
 
 ```bash
 # Interactive SSH / ADB / TTL / local wizard
-python3 scripts/workflow/adaptive.py
+./.venv/bin/python scripts/workflow/adaptive.py
 
 # Explicitly approved unattended read-only collection (preconfigured SSH alias)
-python3 scripts/workflow/adaptive.py --transport ssh --target my-linux-host \\
-  --output ./new-session-001 --modules auto --yes
+./.venv/bin/python scripts/workflow/adaptive.py --transport ssh --target my-linux-host \\
+  --output ./outputs/new-session-001 --modules auto --yes
 
 # Select only specific modules
-python3 scripts/workflow/adaptive.py --transport local --target local \\
-  --modules network,drivers --output ./new-session-002 --yes
+./.venv/bin/python scripts/workflow/adaptive.py --transport local --target local \\
+  --modules network,drivers --output ./outputs/new-session-002 --yes
 ```
 
 **Restrictions:** `--yes` explicitly authorizes only read-only probes; it does
@@ -249,22 +249,22 @@ embeds passwords in its catalog.
 
 ```bash
 # Interactive menu
-python3 scripts/workflow/manage.py
+./.venv/bin/python scripts/workflow/manage.py
 
 # Enumerate candidate configured SSH Host aliases, authorized ADB devices,
 # local serial-port names, and the local target
-python3 scripts/workflow/manage.py discover
+./.venv/bin/python scripts/workflow/manage.py discover
 
 # Register a target without contacting it
-python3 scripts/workflow/manage.py add lab-server --transport ssh --target server-alias
+./.venv/bin/python scripts/workflow/manage.py add lab-server --transport ssh --target server-alias
 
 # View catalog; collect using the existing staged read-only engine
-python3 scripts/workflow/manage.py list
-python3 scripts/workflow/manage.py collect lab-server --modules hardware,drivers,network
+./.venv/bin/python scripts/workflow/manage.py list
+./.venv/bin/python scripts/workflow/manage.py collect lab-server --modules hardware,drivers,network
 
 # Inspect stored sessions and category summaries
-python3 scripts/workflow/manage.py sessions lab-server
-python3 scripts/workflow/manage.py inspect lab-server SESSION_ID
+./.venv/bin/python scripts/workflow/manage.py sessions lab-server
+./.venv/bin/python scripts/workflow/manage.py inspect lab-server SESSION_ID
 ```
 
 The catalog defaults to `~/.local/share/ubuntu-customizer/registry.json` and
@@ -296,25 +296,25 @@ browse node relationships and prepare an **execution-disabled** plan.
 
 ```bash
 # Interactive: choose 7. Explore from device manager
-python3 scripts/workflow/manage.py
+./.venv/bin/python scripts/workflow/manage.py
 
 # List nodes from a saved session
-python3 scripts/workflow/manage.py explore lab-server SESSION_ID
+./.venv/bin/python scripts/workflow/manage.py explore lab-server SESSION_ID
 
 # Inspect a specific node and its relationships
-python3 scripts/workflow/manage.py explore lab-server SESSION_ID --node 'device:platform:example-controller'
+./.venv/bin/python scripts/workflow/manage.py explore lab-server SESSION_ID --node 'device:platform:example-controller'
 
 # Generate a diagnosis plan scoped to a verified node (no target actions)
-python3 scripts/workflow/manage.py explore lab-server SESSION_ID \
+./.venv/bin/python scripts/workflow/manage.py explore lab-server SESSION_ID \
   --task diagnose --node 'device:platform:example-controller' \
   --goal 'Investigate why the controller is not responding'
 
 # Run standalone wizard on a session directory
-python3 scripts/workflow/explore.py ~/.local/share/ubuntu-customizer/devices/lab-server/sessions/SESSION_ID
+./.venv/bin/python scripts/workflow/explore.py ~/.local/share/ubuntu-customizer/devices/lab-server/sessions/SESSION_ID
 
 # Generate a safe JSON plan file without overwriting existing plans
-python3 scripts/workflow/explore.py SESSION_DIRECTORY --mode plan \
-  --task maintain --output ./my-plan.json
+./.venv/bin/python scripts/workflow/explore.py SESSION_DIRECTORY --mode plan \
+  --task maintain --output ./outputs/my-plan.json
 ```
 
 Supported plan kinds: `diagnose`, `maintain`, `image`. A plan references
@@ -336,13 +336,13 @@ required to browse it.
 
 ```bash
 # From the registered device manager (command 8 in the interactive menu)
-python3 scripts/workflow/manage.py browse lab-server SESSION_ID
+./.venv/bin/python scripts/workflow/manage.py browse lab-server SESSION_ID
 
 # Custom destination (must not exist; never overwrites)
-python3 scripts/workflow/manage.py browse lab-server SESSION_ID --output /tmp/lab-hardware.html
+./.venv/bin/python scripts/workflow/manage.py browse lab-server SESSION_ID --output ./outputs/lab-hardware.html
 
 # Directly from an existing collection session
-python3 scripts/workflow/export_html.py SESSION_DIRECTORY --output /tmp/hardware.html
+./.venv/bin/python scripts/workflow/export_html.py SESSION_DIRECTORY --output ./outputs/hardware.html
 ```
 
 Open the resulting HTML file locally in a browser. The left panel supports
@@ -372,23 +372,23 @@ source architecture, readiness gaps, and the intended output format.
 
 ```bash
 # Generate plan for an existing verified base image and a VM target
-python3 scripts/workflow/image_plan.py SESSION_DIRECTORY \
+./.venv/bin/python scripts/workflow/image_plan.py SESSION_DIRECTORY \
   --target virtual-machine --format qcow2 \
   --source /srv/images/base.img \
   --sha256 VERIFIED_64_HEX_SHA256 --source-arch amd64 \
-  --output ./image-plan.json
+  --output ./outputs/image-plan.json
 
 # The same plan can be created from a registered device
-python3 scripts/workflow/manage.py image-plan lab-server SESSION_ID \
+./.venv/bin/python scripts/workflow/manage.py image-plan lab-server SESSION_ID \
   --target virtual-machine --format qcow2 \
   --source /srv/images/base.img \
   --sha256 VERIFIED_64_HEX_SHA256 --source-arch amd64 \
-  --output ./image-plan.json
+  --output ./outputs/image-plan.json
 
 # Once the plan reports build_allowed=true, perform OFFLINE conversion
 # (requires qemu-img installed on the build host)
-python3 scripts/workflow/build_image.py ./image-plan.json \
-  --output ./output.qcow2
+./.venv/bin/python scripts/workflow/build_image.py ./image-plan.json \
+  --output ./outputs/output.qcow2
 ```
 
 This generates an image and `output.qcow2.manifest.json`, including the
@@ -423,7 +423,7 @@ collection.
 For a session that already exists (or is currently collecting):
 
 ```bash
-python3 scripts/workflow/preview.py SESSION_DIR --port 8765
+./.venv/bin/python scripts/workflow/preview.py SESSION_DIR --port 8765
 # Browser: http://127.0.0.1:8765/
 ```
 
@@ -432,7 +432,7 @@ Agent-led stages (analysis / image planning / conversion / verification),
 the Agent may publish safe stage/count updates:
 
 ```bash
-python3 scripts/workflow/status.py SESSION_DIR \
+./.venv/bin/python scripts/workflow/status.py SESSION_DIR \
   --stage image-plan --state running --completed 1 --total 3
 ```
 
@@ -451,9 +451,9 @@ The host runs only approved read-only probes (`--yes` in the internal
 CLI); viewer consent does not authorize target system modification:
 
 ```bash
-python3 scripts/workflow/adaptive.py \
+./.venv/bin/python scripts/workflow/adaptive.py \
   --transport ssh --target trusted-host-alias \
-  --output ./sessions/run-003 --yes --preview-approved
+  --output ./outputs/run-003 --yes --preview-approved
 ```
 
 After creating the session directory, the collector starts a localhost-only
@@ -462,8 +462,8 @@ does **not** stop collection. The page remains available for final review
 until the user requests it be closed.
 
 ```bash
-python3 scripts/workflow/preview_control.py status ./sessions/run-003
-python3 scripts/workflow/preview_control.py stop ./sessions/run-003
+./.venv/bin/python scripts/workflow/preview_control.py status ./sessions/run-003
+./.venv/bin/python scripts/workflow/preview_control.py stop ./sessions/run-003
 ```
 
 For a preexisting session, `preview_control.py start SESSION_DIR --approved`
@@ -502,14 +502,14 @@ establish GPT/MBR partitioning, guest Linux architecture/OS, installed kernel
 and BIOS/UEFI + bootloader. Missing evidence blocks conversion.
 
 ```bash
-python3 scripts/workflow/image_inspect.py /srv/images/base.img \
+./.venv/bin/python scripts/workflow/image_inspect.py /srv/images/base.img \
   --sha256 TRUSTED_SOURCE_SHA256 \
-  --output ./source-inspection.json
+  --output ./outputs/source-inspection.json
 
-python3 scripts/workflow/image_plan.py SESSION_DIR \
+./.venv/bin/python scripts/workflow/image_plan.py SESSION_DIR \
   --target virtual-machine --format qcow2 --source /srv/images/base.img \
   --sha256 TRUSTED_SOURCE_SHA256 --source-arch amd64 \
-  --output ./image-plan.json
+  --output ./outputs/image-plan.json
 ```
 
 `image-plan.json` now includes observed source details and a per-check
@@ -536,16 +536,16 @@ run arbitrary commands or prove bootability.
 
 ```bash
 # Check requirements and exact planned operations without writing an image.
-python3 scripts/workflow/rootfs_builder.py image-plan.json \
-  --config rootfs-config.json --dry-run
+./.venv/bin/python scripts/workflow/rootfs_builder.py image-plan.json \
+  --config ./outputs/rootfs-config.json --dry-run
 
 # Only after Agent obtains explicit separate approval.
-python3 scripts/workflow/rootfs_builder.py image-plan.json \
-  --config rootfs-config.json --output-dir ./new-rootfs-bundle --approved
+./.venv/bin/python scripts/workflow/rootfs_builder.py image-plan.json \
+  --config ./outputs/rootfs-config.json --output-dir ./outputs/new-rootfs-bundle --approved
 
 # Independently verify the published image, NoCloud seed and hashes.
-python3 scripts/workflow/rootfs_builder.py \
-  --verify-bundle ./new-rootfs-bundle
+./.venv/bin/python scripts/workflow/rootfs_builder.py \
+  --verify-bundle ./outputs/new-rootfs-bundle
 ```
 
 Requires qemu-img and libguestfs tools on the **build host**. The source
@@ -566,10 +566,10 @@ The Skill now offers a separately approved, isolated **first-boot health
 check** for a completed Portable RootFS Builder bundle:
 
 ```bash
-python3 scripts/workflow/rootfs_builder.py --verify-bundle ./rootfs-bundle
-python3 scripts/workflow/verify_first_boot.py \
-  --bundle ./rootfs-bundle --timeout 300 \
-  --report ./first-boot-health.json --approved
+./.venv/bin/python scripts/workflow/rootfs_builder.py --verify-bundle ./rootfs-bundle
+./.venv/bin/python scripts/workflow/verify_first_boot.py \
+  --bundle ./outputs/rootfs-bundle --timeout 300 \
+  --report ./outputs/first-boot-health.json --approved
 
 # For UEFI guests additionally supply:
 # --ovmf-code /trusted/OVMF_CODE.fd --ovmf-vars /trusted/OVMF_VARS.fd
