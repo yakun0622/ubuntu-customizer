@@ -21,16 +21,21 @@ booting an Ubuntu image.
 
 ## Agent invocation (internal helper, not a user setup checklist)
 
-The Agent must first observe a real available connection and obtain explicit
-read-only interactive scope approval, then invoke exactly one host command.
+The Agent must first select the connection method, resolve its exact
+interface, explain a detailed read-only execution/monitoring plan and wait
+for explicit confirmation. That consent covers a single interactive probe
+batch and the loopback-only viewer, never device writes or reboot.
 Use a unique private output directory, normally under the Agent's local
-user-data directory, not a Git working tree. The commands below are
-illustrative implementation calls:
+user-data directory, not a Git working tree. Add
+`--preview-approved` to the managed `adaptive.py` invocation when the
+reviewed plan includes the viewer: the session starts it **before** probes
+and emits a `preview_ready` URL. Do not invent a URL or expose it to
+other machines. The commands below are illustrative implementation calls:
 
     python3 scripts/workflow/adaptive.py \
       --transport ttl --target /dev/cu.wchusbserial1140 \
       --baud 921600 --output /private/safe/session-unique \
-      --interactive-shell-approved --yes
+      --interactive-shell-approved --preview-approved --yes
 
     python3 scripts/workflow/adaptive.py \
       --transport adb --target SERIAL \
@@ -45,6 +50,22 @@ illustrative implementation calls:
 The device-session helper can also be run directly with --approved-readonly.
 It is **never** appropriate to ask ordinary users to select flags unless the
 host Agent has no local execution capability.
+
+
+## Live progress for persistent sessions
+
+Once the plan is confirmed, the Agent invokes the managed adapter with
+`--interactive-shell-approved --preview-approved --yes`. The backend
+creates a mode-0700 session directory, checkpoints its manifest, starts
+the loopback observer, and emits a verified `preview_ready` URL before
+connecting and issuing fixed shell probes. The manifest updates after
+each named probe; the web page polls only sanitized status counts.
+A user-specified preview opt-out omits the flag. Startup failure is
+recorded as `preview.state=unavailable`; collection continues.
+
+Viewer address `127.0.0.1` is available only on the controlling host.
+Remote viewing requires separately reviewed secure access, not an
+automatically exposed `0.0.0.0` listener.
 
 ## TTL login/shell rules
 
