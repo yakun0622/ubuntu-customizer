@@ -123,15 +123,15 @@ class DeviceManagementTests(unittest.TestCase):
             manage.register(root, "board", "ssh", "trusted-host")
             manifest = {"state": "complete", "items": [], "skipped": [],
                         "preview": {"state": "running", "url": "http://127.0.0.1:1234/"}}
-            with patch.object(manage.adaptive.workspace, "checked_output", return_value=root), \\
-                 patch.object(manage, "collect_device", return_value=(root / "session", manifest)) as collector, \\
+            with patch.object(manage.adaptive.workspace, "checked_output", return_value=root), \
+                 patch.object(manage, "collect_device", return_value=(root / "session", manifest)) as collector, \
                  patch("builtins.input", side_effect=AssertionError("unnecessary prompt")):
                 rc = manage.main(["--data-dir", str(root), "collect", "board", "--yes"])
                 self.assertEqual(rc, 0)
                 self.assertTrue(collector.call_args.kwargs["preview_approved"])
                 self.assertTrue(callable(collector.call_args.kwargs["preview_notify"]))
-            with patch.object(manage.adaptive.workspace, "checked_output", return_value=root), \\
-                 patch.object(manage, "collect_device", return_value=(root / "session", manifest)) as collector, \\
+            with patch.object(manage.adaptive.workspace, "checked_output", return_value=root), \
+                 patch.object(manage, "collect_device", return_value=(root / "session", manifest)) as collector, \
                  patch("builtins.input", side_effect=AssertionError("unnecessary prompt")):
                 self.assertEqual(manage.main(["--data-dir", str(root), "collect", "board",
                                               "--yes", "--no-preview"]), 0)
@@ -142,15 +142,15 @@ class DeviceManagementTests(unittest.TestCase):
             root = manage._private_dir(Path(d) / "manager")
             manage.register(root, "board", "ssh", "trusted-host")
             manifest = {"state": "complete", "items": [], "skipped": []}
-            with patch.object(manage.adaptive.workspace, "checked_output", return_value=root), \\
-                 patch.object(manage, "collect_device", return_value=(root / "session", manifest)) as collector, \\
+            with patch.object(manage.adaptive.workspace, "checked_output", return_value=root), \
+                 patch.object(manage, "collect_device", return_value=(root / "session", manifest)) as collector, \
                  patch("builtins.input", return_value="yes") as prompt:
                 self.assertEqual(manage.main(["--data-dir", str(root), "collect", "board"]), 0)
                 self.assertEqual(prompt.call_count, 1)
                 self.assertIn("监控方案", prompt.call_args.args[0])
                 self.assertTrue(collector.call_args.kwargs["preview_approved"])
-            with patch.object(manage.adaptive.workspace, "checked_output", return_value=root), \\
-                 patch.object(manage, "collect_device") as collector, \\
+            with patch.object(manage.adaptive.workspace, "checked_output", return_value=root), \
+                 patch.object(manage, "collect_device") as collector, \
                  patch("builtins.input", return_value="no") as prompt:
                 self.assertEqual(manage.main(["--data-dir", str(root), "collect", "board"]), 1)
                 self.assertEqual(prompt.call_count, 1)
