@@ -156,7 +156,7 @@ def main(argv=None):
                 tracker.blocked()
             folder, manifest = make_files(plan, args.hostname, args.username,
                                           args.ssh_public_key, args.instance_id,
-                                          args.output_dir)
+                                          str(workspace.checked_output(args.output_dir)))
             tracker.advance(1)  # NoCloud user-data/meta-data generated
             if args.iso:
                 manifest["iso"] = make_iso(folder, args.iso)
@@ -174,6 +174,13 @@ def main(argv=None):
     except (OSError, ValueError, TypeError, KeyError, RuntimeError, subprocess.TimeoutExpired) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2
+
+# The CLI enforces the project's outputs-only policy. Internal library functions
+# continue to accept isolated temporary test fixtures without changing their API.
+ws_spec = importlib.util.spec_from_file_location(
+    "uc_workspace_nocloud", Path(__file__).with_name("project_workspace.py"))
+workspace = importlib.util.module_from_spec(ws_spec)
+ws_spec.loader.exec_module(workspace)
 
 if __name__ == "__main__":
     raise SystemExit(main())
