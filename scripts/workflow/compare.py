@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Compare two verified device dossier snapshots without contacting devices."""
 import argparse
+import importlib.util
 import json
 from pathlib import Path
 import sys
@@ -41,7 +42,7 @@ def main(argv=None):
         result = compare(before, after)
         body = json.dumps(result, indent=2, ensure_ascii=False) + "\n"
         if args.output:
-            p = Path(args.output)
+            p = workspace.checked_output(args.output)
             if p.exists() or p.is_symlink():
                 raise ValueError("Refusing to overwrite comparison file")
             p.write_text(body)
@@ -52,6 +53,11 @@ def main(argv=None):
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2
     return 0
+
+ws_spec = importlib.util.spec_from_file_location(
+    "uc_workspace_compare", Path(__file__).with_name("project_workspace.py"))
+workspace = importlib.util.module_from_spec(ws_spec)
+ws_spec.loader.exec_module(workspace)
 
 if __name__ == "__main__":
     raise SystemExit(main())
