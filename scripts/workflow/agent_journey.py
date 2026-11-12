@@ -11,6 +11,19 @@ rootfs_builder.py and verify_first_boot.py remain independently mandatory.
 from copy import deepcopy
 
 GOALS = ("inspect", "diagnose", "image", "maintain")
+
+def _validate_interface_display(value, transport):
+    """A human-readable, nonsecret summary; never a shell command."""
+    if (not isinstance(value, str) or not value.strip()
+            or len(value) > 180 or any(ord(ch) < 32 for ch in value)
+            or "://" in value or "@" in value.split(":")[0]):
+        raise ValueError("Provide a short interface label, not credentials or a URL")
+    if transport == "ttl" and not any(len(t) >= 4 and t.isdecimal()
+                                       for t in value.replace("(", " ").replace(")", " ")
+                                       .replace("（", " ").replace("）", " ").split()):
+        raise ValueError("TTL plan must show the selected serial baud rate")
+    return value.strip()
+
 TARGETS = ("virtual-machine", "physical-device")
 TRANSPORTS = ("ssh", "adb", "ttl", "local")
 INTERFACE_PROMPTS = {
@@ -43,7 +56,8 @@ ACTIONS = {
     "qemu_verify": ("verify_first_boot.verify_first_boot", "R1", "隔离启动来宾健康验证"),
 }
 
-def start(goal=None, target=None, transport=None, interface_ready=None):
+def start(goal=None, target=None, transport=None, interface_ready=None,
+          interface_display=None):
     """Start only a conversational state, not a program/VM/device operation."""
     if goal is not None and goal not in GOALS:
         raise ValueError("Unsupported intent")
@@ -55,12 +69,17 @@ def start(goal=None, target=None, transport=None, interface_ready=None):
         raise ValueError("Invalid interface readiness")
     if transport is None and interface_ready is not None:
         raise ValueError("Connection method required before selecting interface")
+    if interface_display is not None:
+        if interface_ready is not True and transport != "local":
+            raise ValueError("Interface must be ready before supplying its details")
+        _validate_interface_display(interface_display, transport)
     return {
         "schema_version": 1, "goal": goal, "target": target,
         # A local-only observer is included in the approved execution plan.
         # The boolean never authorizes connection or starts a server by itself.
         "choices": {"transport": transport,
                     "interface_ready": True if transport == "local" else interface_ready,
+                    "interface_display": ("本机" if transport == "local" else interface_display),
                     "preview": True, "source_ready": None, "run_boot": None},
         "consent": {"plan_confirm": None, "offline_build": None,
                     "isolated_vm_boot": None},
@@ -80,6 +99,7 @@ def _action(name, state):
         result["preview_approved"] = (state["choices"]["preview"] is True
                                       and state["consent"]["plan_confirm"] is True)
         result["transport"] = state["choices"]["transport"]
+        result["interface_display"] = state["choices"]["interface_display"]
         result["output_root"] = "outputs"
         result["python_env"] = ".venv"
         result["start_preview_before_probes"] = result["preview_approved"]
@@ -121,6 +141,8 @@ def next_step(state):
     if state["choices"]["interface_ready"] is False:
         return {"kind": "pause", "reason": "Device interface is unavailable",
                 "boot_confirmed": False}
+    if state["choices"]["interface_display"] is None:
+        return _ask("interface_display", "请提供实际连接接口（TTL 须包含串口路径及波特率），以便在执行方案中明确展示。", ())
     if state["consent"]["plan_confirm"] is None:
         result = _ask("plan_confirm",
                       "确认执行以下方案吗？确认后"
@@ -131,7 +153,7 @@ def next_step(state):
         result["plan"] = {
             "workspace": ".venv / outputs (初始化不连接目标设备)",
             "transport": state["choices"]["transport"],
-            "connection": "用户已选择并提供接口；具体标识由 Agent 私有持有",
+            "connection": state["choices"]["interface_display"],
             "preview": ("127.0.0.1 动态端口（启动成功后提供实际 URL）"
                         if state["choices"]["preview"] else "用户选择关闭监控"),
             "steps": (("建立私有会话",)
@@ -230,6 +252,10 @@ def transition(state, event):
         field, value = event.get("field"), event.get("value")
         if current["kind"] != "ask" or field != current["field"]:
             raise ValueError("Answer does not match the current question")
+        if field == "interface_display":
+            updated["choices"]["interface_display"] = _validate_interface_display(
+                value, state["choices"]["transport"])
+            return updated
         if value not in current["options"] or (type(value) is bool) != (
                 type(current["options"][0]) is bool):
             raise ValueError("Invalid choice for current question")
@@ -238,6 +264,7 @@ def transition(state, event):
         elif field == "transport":
             updated["choices"]["transport"] = value
             updated["choices"]["interface_ready"] = True if value == "local" else None
+            updated["choices"]["interface_display"] = "本机" if value == "local" else None
         elif field in updated["choices"]:
             updated["choices"][field] = value
         elif field in updated["consent"]:
