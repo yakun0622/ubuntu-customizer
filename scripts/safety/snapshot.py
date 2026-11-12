@@ -6,6 +6,7 @@ Does not restore files or change the system. A snapshot is NOT a complete rollba
 """
 import argparse
 import hashlib
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -20,9 +21,12 @@ def main():
     parser.add_argument("--output-dir", required=True, help="new directory to create; must not exist")
     parser.add_argument("files", nargs="+", help="absolute paths to regular files")
     args = parser.parse_args()
-    out = Path(args.output_dir)
-    if not out.is_absolute() or out.exists() or out.is_symlink():
-        parser.error("Output directory must be a new absolute path")
+    try:
+        out = workspace.checked_output(args.output_dir)
+    except (OSError, ValueError) as exc:
+        parser.error(str(exc))
+    if out.exists() or out.is_symlink():
+        parser.error("Output directory must be new under ./outputs")
     sources = []
     for index, item in enumerate(args.files):
         src = Path(item)
@@ -68,6 +72,11 @@ def main():
         raise
     print(json.dumps({"snapshot": str(out), "files": len(sources), "notice": "Backup created, restore must be planned and approved."}))
     return 0
+
+workspace_spec = importlib.util.spec_from_file_location(
+    "uc_snapshot_workspace", Path(__file__).resolve().parents[1] / "workflow" / "project_workspace.py")
+workspace = importlib.util.module_from_spec(workspace_spec)
+workspace_spec.loader.exec_module(workspace)
 
 if __name__ == "__main__":
     raise SystemExit(main())
