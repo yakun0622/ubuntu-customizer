@@ -168,7 +168,8 @@ def main(argv=None):
     p.add_argument("--output", required=True, help="new local .html file")
     args = p.parse_args(argv)
     try:
-        path = export(args.session, str(workspace.checked_output(args.output)))
+        path = export(str(workspace.checked_project_dir(args.session)),
+                      str(workspace.checked_output(args.output)))
         print("Offline hardware browser: " + str(path))
         return 0
     except (OSError, ValueError, TypeError, KeyError) as exc:

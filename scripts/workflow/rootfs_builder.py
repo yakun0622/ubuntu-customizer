@@ -383,12 +383,14 @@ def main(argv=None):
         if args.verify_bundle:
             if args.plan or args.config or args.output_dir or args.approved or args.dry_run:
                 raise ValueError("Bundle verification cannot be combined with build options")
-            print(json.dumps(verify_bundle(args.verify_bundle), ensure_ascii=False, indent=2))
+            bundle = workspace.checked_project_dir(args.verify_bundle)
+            print(json.dumps(verify_bundle(bundle), ensure_ascii=False, indent=2))
             return 0
         if not args.plan or not args.config:
             raise ValueError("Plan and --config are required for dry-run/build")
-        plan = read_json_regular(args.plan)
-        config = read_json_regular(args.config, MAX_CONFIG)
+        plan = read_json_regular(workspace.checked_input(args.plan))
+        config = read_json_regular(workspace.checked_input(args.config, max_bytes=MAX_CONFIG), MAX_CONFIG)
+        workspace.checked_input(plan.get("source", {}).get("path"))
         if args.dry_run:
             print(json.dumps(dry_run(plan, config), ensure_ascii=False, indent=2))
         else:

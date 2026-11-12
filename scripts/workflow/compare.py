@@ -35,8 +35,8 @@ def main(argv=None):
     parser.add_argument("--output", help="new JSON output; by default print to stdout")
     args = parser.parse_args(argv)
     try:
-        before = json.loads(Path(args.before).read_text())
-        after = json.loads(Path(args.after).read_text())
+        before = json.loads(workspace.checked_input(args.before).read_text())
+        after = json.loads(workspace.checked_input(args.after).read_text())
         if before.get("type") != "ubuntu-customizer/device-dossier" or after.get("type") != "ubuntu-customizer/device-dossier":
             raise ValueError("Expected device dossiers created by dossier.py")
         result = compare(before, after)

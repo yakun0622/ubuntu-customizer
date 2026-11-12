@@ -146,7 +146,7 @@ def main(argv=None):
     p.add_argument("--iso", help="optional new NoCloud seed ISO output")
     args = p.parse_args(argv)
     try:
-        with Path(args.plan).open(encoding="utf-8") as f:
+        with workspace.checked_input(args.plan).open(encoding="utf-8") as f:
             plan = json.load(f)
         with progress.tracking(progress.session_from_plan(plan), "first-boot",
                                3 if args.iso else 2) as tracker:

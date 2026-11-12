@@ -309,7 +309,8 @@ def main(argv=None):
             output = adaptive.workspace.checked_output(args.output)
             if output.exists() or output.is_symlink():
                 raise ValueError("Image plan output exists")
-            result = image_plan.plan(folder, args.target, args.format, args.source,
+            source = adaptive.workspace.checked_input(args.source)
+            result = image_plan.plan(folder, args.target, args.format, str(source),
                                      args.sha256, args.source_arch, selected_firmware=args.boot_mode)
             with output.open("x", encoding="utf-8") as f:
                 json.dump(result, f, indent=2, ensure_ascii=False)

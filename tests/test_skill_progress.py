@@ -98,7 +98,7 @@ class SkillProgressTests(unittest.TestCase):
                 self.assertEqual(read_state(session)["state"], "failed")
 
     def test_planner_cli_write_failure_overrides_success(self):
-        with tempfile.TemporaryDirectory() as d:
+        with tempfile.TemporaryDirectory(dir=planner.workspace.ensure_outputs()) as d:
             root = Path(d)
             session = make_session(root)
             source, sha = make_source(root)

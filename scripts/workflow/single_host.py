@@ -200,6 +200,15 @@ def parser():
 def main(argv=None):
     args = parser().parse_args(argv)
     try:
+        # Reject cross-project local source arguments before backend selection.
+        for name in ("source", "plan", "config", "ovmf_code", "ovmf_vars"):
+            value = getattr(args, name)
+            if value:
+                setattr(args, name, str(workspace.checked_input(value)))
+        for name in ("session", "bundle"):
+            value = getattr(args, name)
+            if value:
+                setattr(args, name, str(workspace.checked_project_dir(value)))
         if args.action in ("inspect", "plan") and args.output:
             args.output = str(workspace.checked_output(args.output))
         elif args.action == "rootfs" and not args.dry_run and args.output_dir:

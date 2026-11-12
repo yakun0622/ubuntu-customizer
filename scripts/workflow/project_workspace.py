@@ -88,6 +88,8 @@ def checked_input(value, root=None, max_bytes=None):
     directories. This is an application guard, not an OS sandbox.
     """
     base = project_root(root)
+    if not isinstance(value, (str, os.PathLike)):
+        raise ValueError("Project path must be a string or Path")
     candidate = Path(value).expanduser()
     if not candidate.is_absolute():
         candidate = base / candidate
@@ -116,6 +118,8 @@ def checked_input(value, root=None, max_bytes=None):
 def checked_project_dir(value, root=None):
     """Validate an existing directory within the active project."""
     base = project_root(root)
+    if not isinstance(value, (str, os.PathLike)):
+        raise ValueError("Project path must be a string or Path")
     candidate = Path(value).expanduser()
     if not candidate.is_absolute():
         candidate = base / candidate

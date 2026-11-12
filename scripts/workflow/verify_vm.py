@@ -129,7 +129,11 @@ def main(argv=None):
             args.serial_log = str(workspace.checked_output(args.serial_log))
         if path.exists() or path.is_symlink():
             raise ValueError("Report already exists")
-        result = json.loads(Path(args.build_manifest).read_text(encoding="utf-8"))
+        manifest = workspace.checked_input(args.build_manifest)
+        if args.seed_iso:
+            args.seed_iso = str(workspace.checked_input(args.seed_iso))
+        result = json.loads(manifest.read_text(encoding="utf-8"))
+        workspace.checked_input(result.get("output_path"))
         report = verify(result, args.boot, args.timeout, args.serial_log, args.seed_iso)
         with path.open("x", encoding="utf-8") as f:
             json.dump(report, f, indent=2)

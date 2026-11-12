@@ -207,7 +207,7 @@ def main(argv=None):
     p.add_argument("--output", required=True, help="new JSON report")
     args = p.parse_args(argv)
     try:
-        result = inspect(args.source, args.sha256)
+        result = inspect(str(workspace.checked_input(args.source)), args.sha256)
         output = workspace.checked_output(args.output)
         if output.exists() or output.is_symlink():
             raise ValueError("Report already exists")

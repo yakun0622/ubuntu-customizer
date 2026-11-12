@@ -182,8 +182,10 @@ def main(argv=None):
     p.add_argument("--output", required=True, help="new image filename")
     args = p.parse_args(argv)
     try:
-        plan_path = safe_regular(args.plan)
+        plan_path = safe_regular(str(workspace.checked_input(args.plan)))
         plan = json.loads(plan_path.read_text(encoding="utf-8"))
+        source_path = plan.get("source", {}).get("path")
+        workspace.checked_input(source_path)
         result = build(plan, str(workspace.checked_output(args.output)))
         print(json.dumps(result, indent=2, ensure_ascii=False))
         return 0

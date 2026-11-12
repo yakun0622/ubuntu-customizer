@@ -214,7 +214,9 @@ def main(argv=None):
     p.add_argument("--output", required=True, help="new JSON plan path")
     args = p.parse_args(argv)
     try:
-        result = plan(args.session, args.target, args.format, args.source, args.sha256,
+        session = workspace.checked_project_dir(args.session)
+        source = workspace.checked_input(args.source)
+        result = plan(str(session), args.target, args.format, str(source), args.sha256,
                       args.source_arch, selected_firmware=args.boot_mode)
         output = workspace.checked_output(args.output)
         if output.exists() or output.is_symlink():
@@ -227,7 +229,9 @@ def main(argv=None):
     except (OSError, ValueError, TypeError, KeyError) as exc:
         # Plan derivation might have succeeded while persisting the JSON failed.
         # The CLI outcome must take precedence over the earlier stage result.
-        progress.report_error(args.session, "image-plan")
+        # Do not touch an unvalidated external session path on failure.
+        if "session" in locals():
+            progress.report_error(str(session), "image-plan")
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2
     return 0

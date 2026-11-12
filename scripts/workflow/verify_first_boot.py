@@ -447,7 +447,10 @@ def main(argv=None):
         destination = workspace.checked_output(args.report)
         if destination.exists() or destination.is_symlink() or not destination.parent.is_dir():
             raise ValueError("Health report must be new in an existing directory")
-        result = verify_first_boot(args.bundle, args.timeout, args.ovmf_code, args.ovmf_vars)
+        bundle = workspace.checked_project_dir(args.bundle)
+        ovmf_code = workspace.checked_input(args.ovmf_code) if args.ovmf_code else None
+        ovmf_vars = workspace.checked_input(args.ovmf_vars) if args.ovmf_vars else None
+        result = verify_first_boot(bundle, args.timeout, ovmf_code, ovmf_vars)
         save_report(destination, result)
         print(json.dumps({"report": str(destination), "status": result["status"],
                           "boot_confirmed": result["boot_confirmed"]}))

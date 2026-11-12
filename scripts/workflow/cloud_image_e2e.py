@@ -363,6 +363,16 @@ def main(argv=None):
     args = parser().parse_args(argv)
     try:
         args.workdir = str(workspace.checked_output(args.workdir))
+        if args.session:
+            args.session = str(workspace.checked_project_dir(args.session))
+        if args.public_key:
+            args.public_key = str(workspace.checked_input(args.public_key))
+        if args.image:
+            args.image = str(workspace.checked_input(args.image))
+        if args.ovmf_code:
+            args.ovmf_code = str(workspace.checked_input(args.ovmf_code))
+        if args.ovmf_vars:
+            args.ovmf_vars = str(workspace.checked_input(args.ovmf_vars))
         if args.preflight:
             location = Path(args.workdir).expanduser().absolute().parent
             report = host_preflight(location, "uefi" if args.download else None,

@@ -140,8 +140,9 @@ def main(argv=None):
     parser.add_argument("--output", help="new dossier JSON path; defaults to session/device.json")
     args = parser.parse_args(argv)
     try:
-        dossier = make_dossier(args.session)
-        output = workspace.checked_output(args.output or (Path(args.session) / "device.json"))
+        session = workspace.checked_project_dir(args.session)
+        dossier = make_dossier(session)
+        output = workspace.checked_output(args.output or (session / "device.json"))
         if output.exists() or output.is_symlink():
             raise ValueError("Output exists; refusing overwrite: " + str(output))
         output.write_text(json.dumps(dossier, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
