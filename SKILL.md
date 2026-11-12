@@ -27,6 +27,55 @@ and [Agent workflow](references/agent-workflow.md) first. Then read
 [ARM hardware](references/arm-hardware.md), or
 [Safety](references/safety.md) *only for relevant stages*.
 
+## Default project workspace, outputs and local command authorization (highest priority)
+
+When the Agent has real execution access to the user's **current**
+`ubuntu-customizer` project directory, it automatically performs the
+project-local bootstrap **before choosing a device connection**, without
+asking for another confirmation:
+
+```bash
+# Agent invocation from the current repository directory, not user onboarding.
+python3 scripts/workflow/project_workspace.py
+```
+
+The helper invokes the current Python interpreter's standard-library
+`venv` module to create **`./.venv/`**, or reuses a valid existing
+virtual environment. It creates **`./outputs/`** with private mode 0700,
+and performs no package download, `pip install`, device connection, reboot,
+or host configuration change. The Agent must then use
+`./.venv/bin/python` (Windows: `./.venv/Scripts/python.exe`) for Python
+helpers and tests; do not install dependencies globally. A broken or
+unavailable interpreter/venv must be reported as a blocker, not silently
+replaced by global installation.
+
+**All generated/persistent runtime results belong under `./outputs/`**:
+device-session directories, raw/filtered evidence, logs, manifests, preview
+runtime records, hardware reports, graphs, downloaded source inputs,
+intermediate files, plans, built images, checksums and verification reports.
+Use `project_workspace.output_path(...)` (or its validated
+`checked_output(...)` CLI interface) to build new destinations. Never write
+them into the repository root or sibling paths, or follow output symlinks
+outside the project. Only `./.venv/` is an explicit environment exception;
+tracked source code/documentation edits stay in their original paths.
+Do not move or delete preexisting user files without approval. `outputs/`
+and `.venv/` are excluded from Git.
+
+**Standing local authorization:** This user has approved routine, reversible
+project-scoped operations and commands *inside the current project*, such as
+creating the virtual environment, creating private output directories,
+running local tests, inspecting/editing project source and writing new
+files under `outputs/`. Do not ask for fresh user approval for every such
+operation. This does **not** waive permissions imposed by the host/OS/tool
+sandbox; the Skill cannot suppress those prompts. It does not authorize
+connections to target hardware, remote code execution, destructive deletion
+or overwrite, package downloads or execution of untrusted scripts,
+privileged host actions, modifying system configuration, booting a VM,
+rebooting/powering off a device, writing disks or flashing firmware.
+Those actions keep their existing explicit risk and consent boundaries.
+Do not mistake a local `cwd` for containment when a command targets
+absolute paths, remote hosts, devices, mounts or external resources.
+
 ## Persistent device access (preferred for interactive hardware)
 
 For TTL/picocom, ADB and SSH, the preferred **authorized** collection path
@@ -79,7 +128,7 @@ commands or grants approvals. The Agent invokes the appropriate existing
 Python helpers only when its host execution tool is actually connected,
 records observed outcomes and automatically continues to the next safe stage.
 
-A normal journey is **host detection → resolve only missing intent/target →
+A normal journey is **host detection → automatic local .venv/outputs bootstrap → resolve only missing intent/target →
 select SSH/ADB/TTL/local transport → choose its actual available interface →
 explain the complete connection, collection and monitoring plan → obtain one
 explicit approval for that plan → create a private session and start its
@@ -117,6 +166,10 @@ follow-up button where the client supports it.
 
 ## Primary workflow
 
+0. **Prepare the local project automatically.** If a real host execution
+   bridge exists, run `project_workspace.py` from the current project
+   directory, use its `.venv` interpreter and route all generated files
+   under `outputs/`. No repeat prompt for safe, project-local commands.
 1. **Establish intent.** Ask whether the user needs discovery, diagnosis,
    maintenance, recovery or a portable system image. Distinguish target,
    control host and build host.
