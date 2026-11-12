@@ -13,9 +13,9 @@ python3 scripts/workflow/collect.py
 Noninteractive selection with a final explicit local collection confirmation:
 
 ```bash
-python3 scripts/workflow/collect.py --transport ssh --target ubuntu-server --output ./devices/ubuntu-server/2026-11-09-01
-python3 scripts/workflow/collect.py --transport adb --target SERIAL123 --output ./devices/android/2026-11-09-01
-python3 scripts/workflow/collect.py --transport ttl --target /dev/cu.usbserial-110 --baud 115200 --duration 20 --output ./devices/board/serial-01
+python3 scripts/workflow/collect.py --transport ssh --target ubuntu-server --output ./outputs/devices/ubuntu-server/2026-11-09-01
+python3 scripts/workflow/collect.py --transport adb --target SERIAL123 --output ./outputs/devices/android/2026-11-09-01
+python3 scripts/workflow/collect.py --transport ttl --target /dev/cu.usbserial-110 --baud 115200 --duration 20 --output ./outputs/devices/board/serial-01
 ```
 
 These `collect.py` examples are the **legacy passive collector**. Target for SSH is a configured OpenSSH Host alias with a previously trusted host key. ADB requires a device serial from `adb devices`. Legacy TTL requires optional `pyserial` and only receives data. For **Agent-controlled interactive TTL**, use the persistent picocom adapter instead; see [device sessions](device-session.md). Opening a serial port may change handshake lines, so verify adapter wiring before running.
@@ -69,8 +69,8 @@ After successful collection, transform the immutable evidence bundle into a
 separate indexed dossier:
 
 ```bash
-python3 scripts/workflow/dossier.py ./devices/example-device/session-001
-# creates ./devices/example-device/session-001/device.json
+python3 scripts/workflow/dossier.py ./outputs/devices/example-device/session-001
+# creates ./outputs/devices/example-device/session-001/device.json
 ```
 
 `device.json` contains the observed OS, kernel, CPU identifiers, RAM,
@@ -83,9 +83,9 @@ For historical comparison (for example before/after a kernel upgrade):
 
 ```bash
 python3 scripts/workflow/compare.py \
-  ./devices/example-device/session-001/device.json \
-  ./devices/example-device/session-002/device.json \
-  --output ./devices/example-device/kernel-diff.json
+  ./outputs/devices/example-device/session-001/device.json \
+  ./outputs/devices/example-device/session-002/device.json \
+  --output ./outputs/devices/example-device/kernel-diff.json
 ```
 
 The diff contains field-level identity changes plus changed evidence hashes.
@@ -109,8 +109,8 @@ GPIO, platform, I2C, SPI and MDIO devices. Generate the conservative topology:
 
 ```bash
 python3 scripts/workflow/collect.py
-python3 scripts/workflow/dossier.py ./devices/example-device/session-001
-python3 scripts/workflow/topology.py ./devices/example-device/session-001
+python3 scripts/workflow/dossier.py ./outputs/devices/example-device/session-001
+python3 scripts/workflow/topology.py ./outputs/devices/example-device/session-001
 ```
 
 The new `topology.json` stores device and driver nodes, observed `bound_to`
@@ -128,9 +128,9 @@ platform-device `of_node` paths. All probes remain read-only.
 
 ```bash
 python3 scripts/workflow/collect.py
-python3 scripts/workflow/device_tree.py ./devices/example-device/session-001
-python3 scripts/workflow/topology.py ./devices/example-device/session-001
-python3 scripts/workflow/link_graph.py ./devices/example-device/session-001
+python3 scripts/workflow/device_tree.py ./outputs/devices/example-device/session-001
+python3 scripts/workflow/topology.py ./outputs/devices/example-device/session-001
+python3 scripts/workflow/link_graph.py ./outputs/devices/example-device/session-001
 ```
 
 Outputs:
@@ -149,7 +149,7 @@ Base the next probe stage on prior evidence and recorded permission or tool
 errors. From an existing session:
 
 ```bash
-python3 scripts/workflow/capabilities.py ./devices/example-device/session-001
+python3 scripts/workflow/capabilities.py ./outputs/devices/example-device/session-001
 ```
 
 `capabilities.json` records status for system identity, CPU/memory, storage,
@@ -186,7 +186,7 @@ U-Boot, login and unknown prompts remain blocked from automatic commands.
 
 ```bash
 python3 scripts/workflow/adaptive.py
-python3 scripts/workflow/adaptive.py --transport ssh --target my-linux-host --output ./session-A --yes
+python3 scripts/workflow/adaptive.py --transport ssh --target my-linux-host --output ./outputs/session-A --yes
 python3 -m unittest discover -s tests -v
 ```
 
@@ -269,7 +269,7 @@ python3 scripts/workflow/explore.py ~/.local/share/ubuntu-customizer/devices/lab
 
 # Generate a safe JSON plan file without overwriting existing plans
 python3 scripts/workflow/explore.py SESSION_DIRECTORY --mode plan \
-  --task maintain --output ./my-plan.json
+  --task maintain --output ./outputs/my-plan.json
 ```
 
 Supported plan kinds: `diagnose`, `maintain`, `image`. A plan references
@@ -294,10 +294,10 @@ required to browse it.
 python3 scripts/workflow/manage.py browse lab-server SESSION_ID
 
 # Custom destination (must not exist; never overwrites)
-python3 scripts/workflow/manage.py browse lab-server SESSION_ID --output /tmp/lab-hardware.html
+python3 scripts/workflow/manage.py browse lab-server SESSION_ID --output ./outputs/lab-hardware.html
 
 # Directly from an existing collection session
-python3 scripts/workflow/export_html.py SESSION_DIRECTORY --output /tmp/hardware.html
+python3 scripts/workflow/export_html.py SESSION_DIRECTORY --output ./outputs/hardware.html
 ```
 
 Open the resulting HTML file locally in a browser. The left panel supports
