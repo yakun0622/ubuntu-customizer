@@ -73,7 +73,10 @@ device-session directories, raw/filtered evidence, logs, manifests, preview
 runtime records, hardware reports, graphs, downloaded source inputs,
 intermediate files, plans, built images, checksums and verification reports.
 Use `project_workspace.output_path(...)` (or its validated
-`checked_output(...)` CLI interface) to build new destinations. Never write
+`checked_output(...)` CLI interface) to build new destinations. All public
+CLI writer entrypoints, including standalone image-build and diagnostic
+helpers, enforce this policy; test-fixture library functions may retain
+an isolated temporary directory for unit tests. Never write
 them into the repository root or sibling paths, or follow output symlinks
 outside the project. Only `./.venv/` is an explicit environment exception;
 tracked source code/documentation edits stay in their original paths.
@@ -196,14 +199,20 @@ follow-up button where the client supports it.
    was given, ask for SSH / authorized ADB / managed picocom TTL / local.
    Then discover or request the matching interface: trusted SSH Host alias,
    authorized ADB serial or connected address, exact /dev serial port with
-   observed baud rate, or the approved local computer. Reuse already-known
+   observed baud rate, or the approved local computer. Store a short,
+   nonsecret *actual interface display* in the policy and show it in the plan;
+   refuse plan confirmation while the interface is still unspecified. Reuse already-known
    selections; never guess a port or fabricate access. Close existing
    picocom before handing TTL ownership to the managed collector.
 3. **Review the entire plan and obtain explicit confirmation.** Explain the
-   target, interface, connection mode, read-only probe scope, evidence
-   handling, planned stages, the local monitoring page, risks and limits.
+   target, the **actual chosen endpoint (TTL port AND baud rate)**,
+   connection mode, read-only probe scope, evidence handling, planned
+   stages, the local monitoring page, risks and limits.
    A single confirmed plan authorizes ONE read-only session plus a
-   loopback-only preview. Before that answer do not open the device or start
+   loopback-only preview. The legacy `manage.py collect` CLI must display
+   this combined plan once (unless `--yes` already represents approved
+   scope); monitor is included by default and `--no-preview` is an explicit
+   opt-out. Before that answer do not open the device or start
    the collector or preview. If the user declines the preview, honor that
    exception and keep the rest of the plan unchanged.
 4. **Start monitoring, then discover.** After confirmation, create a new
@@ -296,7 +305,7 @@ Agent owns the progression, choices and tool invocation.
 
 # Only when every mandatory guest inspection check passed AND the
 # verified plan says build_allowed=true:
-./.venv/bin/python -B scripts/workflow/build_image.py image-plan.json \
+./.venv/bin/python -B scripts/workflow/build_image.py ./outputs/image-plan.json \
   --output ./outputs/portable.qcow2
 
 # Optional fixed offline RootFS customization (requires approved image-plan):
