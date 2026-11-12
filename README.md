@@ -6,7 +6,7 @@
 当 Agent 具备本机执行权限时，启动 Skill 会先在**当前项目目录**自动运行
 `python3 scripts/workflow/project_workspace.py`，创建或复用 `.venv/`，
 并创建私有的 `outputs/` 目录。后续 Python 命令使用
-`./.venv/bin/python`，不污染全局 Python 环境，也不自动联网安装依赖。
+`./.venv/bin/python -B`（不在仓库源码目录生成 bytecode 缓存），不污染全局 Python 环境，也不自动联网安装依赖。
 
 **所有产生的文件**（采集会话、日志、硬件信息、实时监控状态、报表、
 系统镜像、构建中间文件和校验结果）都统一存放在 `./outputs/`。
@@ -22,7 +22,7 @@
 
 ```bash
 python3 scripts/workflow/project_workspace.py
-./.venv/bin/python -m unittest discover -s tests -v
+./.venv/bin/python -B -m unittest discover -s tests -v
 ```
 
 ## 开始使用：只需要告诉 Agent「开始定制系统」
@@ -94,7 +94,7 @@ behind conservative guest inspection gates, but is not a complete OS builder.
 Start a guided connection and evidence collection workflow:
 
 ```bash
-./.venv/bin/python scripts/workflow/collect.py
+./.venv/bin/python -B scripts/workflow/collect.py
 ```
 
 Select SSH, ADB, TTL (passive RX) or local. The workflow saves raw category-specific evidence and a `manifest.json` with paths and SHA-256 hashes under a new local directory. It does **not** perform hardware modification, device flashing or automatically upload diagnostics. TTL requires optional `pyserial`.
@@ -146,9 +146,9 @@ Do not include credentials in profiles or commit any machine-generated diagnosti
 Collect a session with the existing interactive wizard, then build its evidence-indexed dossier:
 
 ```bash
-./.venv/bin/python scripts/workflow/collect.py
-./.venv/bin/python scripts/workflow/dossier.py ./devices/example-device/session-001
-./.venv/bin/python scripts/workflow/compare.py ./devices/example-device/session-001/device.json ./devices/example-device/session-002/device.json
+./.venv/bin/python -B scripts/workflow/collect.py
+./.venv/bin/python -B scripts/workflow/dossier.py ./devices/example-device/session-001
+./.venv/bin/python -B scripts/workflow/compare.py ./devices/example-device/session-001/device.json ./devices/example-device/session-002/device.json
 ```
 
 Dossier creation verifies each evidence file's SHA-256 digest and distinguishes missing collection from missing hardware. The comparison reports observed identity changes and evidence-file changes; it does not by itself diagnose a fault. Detailed guide: [device discovery](references/device-discovery.md).
@@ -161,9 +161,9 @@ New discovery sessions collect limited sysfs binding evidence from network, seri
 GPIO, platform, I2C, SPI and MDIO devices. Generate the conservative topology:
 
 ```bash
-./.venv/bin/python scripts/workflow/collect.py
-./.venv/bin/python scripts/workflow/dossier.py ./devices/example-device/session-001
-./.venv/bin/python scripts/workflow/topology.py ./devices/example-device/session-001
+./.venv/bin/python -B scripts/workflow/collect.py
+./.venv/bin/python -B scripts/workflow/dossier.py ./devices/example-device/session-001
+./.venv/bin/python -B scripts/workflow/topology.py ./devices/example-device/session-001
 ```
 
 The new `topology.json` stores device and driver nodes, observed `bound_to`
@@ -180,10 +180,10 @@ the collector captures a decompiled DTS alongside driver bindings and
 platform-device `of_node` paths. All probes remain read-only.
 
 ```bash
-./.venv/bin/python scripts/workflow/collect.py
-./.venv/bin/python scripts/workflow/device_tree.py ./devices/example-device/session-001
-./.venv/bin/python scripts/workflow/topology.py ./devices/example-device/session-001
-./.venv/bin/python scripts/workflow/link_graph.py ./devices/example-device/session-001
+./.venv/bin/python -B scripts/workflow/collect.py
+./.venv/bin/python -B scripts/workflow/device_tree.py ./devices/example-device/session-001
+./.venv/bin/python -B scripts/workflow/topology.py ./devices/example-device/session-001
+./.venv/bin/python -B scripts/workflow/link_graph.py ./devices/example-device/session-001
 ```
 
 Outputs:
@@ -205,7 +205,7 @@ must remain optional extensions.
 After a discovery session, determine which classes of diagnostics were available:
 
 ```bash
-./.venv/bin/python scripts/workflow/capabilities.py ./devices/example-device/session-001
+./.venv/bin/python -B scripts/workflow/capabilities.py ./devices/example-device/session-001
 ```
 
 The output `capabilities.json` describes observation availability (`available`,
@@ -223,14 +223,14 @@ checkpointed `manifest.json` so interrupted sessions can be inspected.
 
 ```bash
 # Interactive SSH / ADB / TTL / local wizard
-./.venv/bin/python scripts/workflow/adaptive.py
+./.venv/bin/python -B scripts/workflow/adaptive.py
 
 # Explicitly approved unattended read-only collection (preconfigured SSH alias)
-./.venv/bin/python scripts/workflow/adaptive.py --transport ssh --target my-linux-host \\
+./.venv/bin/python -B scripts/workflow/adaptive.py --transport ssh --target my-linux-host \\
   --output ./outputs/new-session-001 --modules auto --yes
 
 # Select only specific modules
-./.venv/bin/python scripts/workflow/adaptive.py --transport local --target local \\
+./.venv/bin/python -B scripts/workflow/adaptive.py --transport local --target local \\
   --modules network,drivers --output ./outputs/new-session-002 --yes
 ```
 
@@ -249,22 +249,22 @@ embeds passwords in its catalog.
 
 ```bash
 # Interactive menu
-./.venv/bin/python scripts/workflow/manage.py
+./.venv/bin/python -B scripts/workflow/manage.py
 
 # Enumerate candidate configured SSH Host aliases, authorized ADB devices,
 # local serial-port names, and the local target
-./.venv/bin/python scripts/workflow/manage.py discover
+./.venv/bin/python -B scripts/workflow/manage.py discover
 
 # Register a target without contacting it
-./.venv/bin/python scripts/workflow/manage.py add lab-server --transport ssh --target server-alias
+./.venv/bin/python -B scripts/workflow/manage.py add lab-server --transport ssh --target server-alias
 
 # View catalog; collect using the existing staged read-only engine
-./.venv/bin/python scripts/workflow/manage.py list
-./.venv/bin/python scripts/workflow/manage.py collect lab-server --modules hardware,drivers,network
+./.venv/bin/python -B scripts/workflow/manage.py list
+./.venv/bin/python -B scripts/workflow/manage.py collect lab-server --modules hardware,drivers,network
 
 # Inspect stored sessions and category summaries
-./.venv/bin/python scripts/workflow/manage.py sessions lab-server
-./.venv/bin/python scripts/workflow/manage.py inspect lab-server SESSION_ID
+./.venv/bin/python -B scripts/workflow/manage.py sessions lab-server
+./.venv/bin/python -B scripts/workflow/manage.py inspect lab-server SESSION_ID
 ```
 
 The catalog defaults to `~/.local/share/ubuntu-customizer/registry.json` and
@@ -296,24 +296,24 @@ browse node relationships and prepare an **execution-disabled** plan.
 
 ```bash
 # Interactive: choose 7. Explore from device manager
-./.venv/bin/python scripts/workflow/manage.py
+./.venv/bin/python -B scripts/workflow/manage.py
 
 # List nodes from a saved session
-./.venv/bin/python scripts/workflow/manage.py explore lab-server SESSION_ID
+./.venv/bin/python -B scripts/workflow/manage.py explore lab-server SESSION_ID
 
 # Inspect a specific node and its relationships
-./.venv/bin/python scripts/workflow/manage.py explore lab-server SESSION_ID --node 'device:platform:example-controller'
+./.venv/bin/python -B scripts/workflow/manage.py explore lab-server SESSION_ID --node 'device:platform:example-controller'
 
 # Generate a diagnosis plan scoped to a verified node (no target actions)
-./.venv/bin/python scripts/workflow/manage.py explore lab-server SESSION_ID \
+./.venv/bin/python -B scripts/workflow/manage.py explore lab-server SESSION_ID \
   --task diagnose --node 'device:platform:example-controller' \
   --goal 'Investigate why the controller is not responding'
 
 # Run standalone wizard on a session directory
-./.venv/bin/python scripts/workflow/explore.py ~/.local/share/ubuntu-customizer/devices/lab-server/sessions/SESSION_ID
+./.venv/bin/python -B scripts/workflow/explore.py ~/.local/share/ubuntu-customizer/devices/lab-server/sessions/SESSION_ID
 
 # Generate a safe JSON plan file without overwriting existing plans
-./.venv/bin/python scripts/workflow/explore.py SESSION_DIRECTORY --mode plan \
+./.venv/bin/python -B scripts/workflow/explore.py SESSION_DIRECTORY --mode plan \
   --task maintain --output ./outputs/my-plan.json
 ```
 
@@ -336,13 +336,13 @@ required to browse it.
 
 ```bash
 # From the registered device manager (command 8 in the interactive menu)
-./.venv/bin/python scripts/workflow/manage.py browse lab-server SESSION_ID
+./.venv/bin/python -B scripts/workflow/manage.py browse lab-server SESSION_ID
 
 # Custom destination (must not exist; never overwrites)
-./.venv/bin/python scripts/workflow/manage.py browse lab-server SESSION_ID --output ./outputs/lab-hardware.html
+./.venv/bin/python -B scripts/workflow/manage.py browse lab-server SESSION_ID --output ./outputs/lab-hardware.html
 
 # Directly from an existing collection session
-./.venv/bin/python scripts/workflow/export_html.py SESSION_DIRECTORY --output ./outputs/hardware.html
+./.venv/bin/python -B scripts/workflow/export_html.py SESSION_DIRECTORY --output ./outputs/hardware.html
 ```
 
 Open the resulting HTML file locally in a browser. The left panel supports
@@ -372,14 +372,14 @@ source architecture, readiness gaps, and the intended output format.
 
 ```bash
 # Generate plan for an existing verified base image and a VM target
-./.venv/bin/python scripts/workflow/image_plan.py SESSION_DIRECTORY \
+./.venv/bin/python -B scripts/workflow/image_plan.py SESSION_DIRECTORY \
   --target virtual-machine --format qcow2 \
   --source /srv/images/base.img \
   --sha256 VERIFIED_64_HEX_SHA256 --source-arch amd64 \
   --output ./outputs/image-plan.json
 
 # The same plan can be created from a registered device
-./.venv/bin/python scripts/workflow/manage.py image-plan lab-server SESSION_ID \
+./.venv/bin/python -B scripts/workflow/manage.py image-plan lab-server SESSION_ID \
   --target virtual-machine --format qcow2 \
   --source /srv/images/base.img \
   --sha256 VERIFIED_64_HEX_SHA256 --source-arch amd64 \
@@ -387,7 +387,7 @@ source architecture, readiness gaps, and the intended output format.
 
 # Once the plan reports build_allowed=true, perform OFFLINE conversion
 # (requires qemu-img installed on the build host)
-./.venv/bin/python scripts/workflow/build_image.py ./image-plan.json \
+./.venv/bin/python -B scripts/workflow/build_image.py ./image-plan.json \
   --output ./outputs/output.qcow2
 ```
 
@@ -423,7 +423,7 @@ collection.
 For a session that already exists (or is currently collecting):
 
 ```bash
-./.venv/bin/python scripts/workflow/preview.py SESSION_DIR --port 8765
+./.venv/bin/python -B scripts/workflow/preview.py SESSION_DIR --port 8765
 # Browser: http://127.0.0.1:8765/
 ```
 
@@ -432,7 +432,7 @@ Agent-led stages (analysis / image planning / conversion / verification),
 the Agent may publish safe stage/count updates:
 
 ```bash
-./.venv/bin/python scripts/workflow/status.py SESSION_DIR \
+./.venv/bin/python -B scripts/workflow/status.py SESSION_DIR \
   --stage image-plan --state running --completed 1 --total 3
 ```
 
@@ -451,7 +451,7 @@ The host runs only approved read-only probes (`--yes` in the internal
 CLI); viewer consent does not authorize target system modification:
 
 ```bash
-./.venv/bin/python scripts/workflow/adaptive.py \
+./.venv/bin/python -B scripts/workflow/adaptive.py \
   --transport ssh --target trusted-host-alias \
   --output ./outputs/run-003 --yes --preview-approved
 ```
@@ -462,8 +462,8 @@ does **not** stop collection. The page remains available for final review
 until the user requests it be closed.
 
 ```bash
-./.venv/bin/python scripts/workflow/preview_control.py status ./sessions/run-003
-./.venv/bin/python scripts/workflow/preview_control.py stop ./sessions/run-003
+./.venv/bin/python -B scripts/workflow/preview_control.py status ./sessions/run-003
+./.venv/bin/python -B scripts/workflow/preview_control.py stop ./sessions/run-003
 ```
 
 For a preexisting session, `preview_control.py start SESSION_DIR --approved`
@@ -502,11 +502,11 @@ establish GPT/MBR partitioning, guest Linux architecture/OS, installed kernel
 and BIOS/UEFI + bootloader. Missing evidence blocks conversion.
 
 ```bash
-./.venv/bin/python scripts/workflow/image_inspect.py /srv/images/base.img \
+./.venv/bin/python -B scripts/workflow/image_inspect.py /srv/images/base.img \
   --sha256 TRUSTED_SOURCE_SHA256 \
   --output ./outputs/source-inspection.json
 
-./.venv/bin/python scripts/workflow/image_plan.py SESSION_DIR \
+./.venv/bin/python -B scripts/workflow/image_plan.py SESSION_DIR \
   --target virtual-machine --format qcow2 --source /srv/images/base.img \
   --sha256 TRUSTED_SOURCE_SHA256 --source-arch amd64 \
   --output ./outputs/image-plan.json
@@ -536,15 +536,15 @@ run arbitrary commands or prove bootability.
 
 ```bash
 # Check requirements and exact planned operations without writing an image.
-./.venv/bin/python scripts/workflow/rootfs_builder.py image-plan.json \
+./.venv/bin/python -B scripts/workflow/rootfs_builder.py image-plan.json \
   --config ./outputs/rootfs-config.json --dry-run
 
 # Only after Agent obtains explicit separate approval.
-./.venv/bin/python scripts/workflow/rootfs_builder.py image-plan.json \
+./.venv/bin/python -B scripts/workflow/rootfs_builder.py image-plan.json \
   --config ./outputs/rootfs-config.json --output-dir ./outputs/new-rootfs-bundle --approved
 
 # Independently verify the published image, NoCloud seed and hashes.
-./.venv/bin/python scripts/workflow/rootfs_builder.py \
+./.venv/bin/python -B scripts/workflow/rootfs_builder.py \
   --verify-bundle ./outputs/new-rootfs-bundle
 ```
 
@@ -566,8 +566,8 @@ The Skill now offers a separately approved, isolated **first-boot health
 check** for a completed Portable RootFS Builder bundle:
 
 ```bash
-./.venv/bin/python scripts/workflow/rootfs_builder.py --verify-bundle ./rootfs-bundle
-./.venv/bin/python scripts/workflow/verify_first_boot.py \
+./.venv/bin/python -B scripts/workflow/rootfs_builder.py --verify-bundle ./rootfs-bundle
+./.venv/bin/python -B scripts/workflow/verify_first_boot.py \
   --bundle ./outputs/rootfs-bundle --timeout 300 \
   --report ./outputs/first-boot-health.json --approved
 
