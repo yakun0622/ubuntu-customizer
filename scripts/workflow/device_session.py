@@ -407,7 +407,8 @@ def main(argv=None):
     if not 1200 <= args.baud <= 3000000 or not 2 <= args.timeout <= 120:
         parser.error("Invalid baud/timeout")
     try:
-        folder, manifest = run_collection(args.transport, args.target, args.output,
+        folder, manifest = run_collection(args.transport, args.target,
+                                          str(workspace.checked_output(args.output)),
                                           args.baud, args.timeout, args.wake_console)
     except (OSError, RuntimeError, ValueError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
@@ -418,6 +419,13 @@ def main(argv=None):
                       "collected": len(manifest["items"])}, ensure_ascii=False))
     return 0 if manifest["state"] == "complete" else 2
 
+
+# The CLI enforces the project's outputs-only policy. Internal library functions
+# continue to accept isolated temporary test fixtures without changing their API.
+ws_spec = importlib.util.spec_from_file_location(
+    "uc_workspace_device_session", Path(__file__).with_name("project_workspace.py"))
+workspace = importlib.util.module_from_spec(ws_spec)
+ws_spec.loader.exec_module(workspace)
 
 if __name__ == "__main__":
     raise SystemExit(main())
