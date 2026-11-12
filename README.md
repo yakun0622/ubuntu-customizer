@@ -2,6 +2,19 @@
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
+## Device command approval: one plan, no per-command prompts
+
+After the user approves the exact transport/endpoint and overall device
+diagnostics plan once, the Agent may run project-local device-targeted
+Python collectors/analyses and the supported read-only commands inside
+the verified SSH/ADB/TTL session without asking again for each command.
+The backend still uses a fixed safe-probe allowlist and blocks unknown
+shell/U-Boot/login prompts. Destructive/disruptive actions (eMMC or
+partition writes, firmware flashing, reboot, network lockout, privilege
+escalation, untrusted scripts) remain separately gated. Host platform
+permissions cannot be disabled by this Skill. All host artifacts remain
+under `outputs/`; Python runs from the project `.venv/`.
+
 ## New physical ARM path: official baseline before board drivers
 
 For physical ARM hardware, the Agent no longer begins by searching your

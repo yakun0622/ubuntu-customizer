@@ -214,6 +214,55 @@ Those actions keep their existing explicit risk and consent boundaries.
 Do not mistake a local `cwd` for containment when a command targets
 absolute paths, remote hosts, devices, mounts or external resources.
 
+## Standing device Python and device-shell authorization (highest priority)
+
+**The user's instruction is: device-targeted Python commands and commands
+inside the connected device may run directly, without individual permission
+prompts.** Interpret this as standing authorization **after the connection
+method, exact endpoint and one overall device plan have been confirmed**:
+
+- Automatically invoke approved project-local Python helpers for device
+  discovery, serial capture, log collection, status polling, DTB/driver
+  read-only inspection, evidence verification and diagnosis. Choose the
+  arguments internally; do not stop to ask whether each Python command
+  may run. Use `./.venv/bin/python -B`, with outputs only in `./outputs/`.
+- Automatically execute *consecutive* read-only Linux/Android shell
+  diagnostics inside the verified SSH/ADB/TTL session, including fixed
+  probes of `uname`, `getprop`, `cat /proc`, `cat /sys`, `ip ... show`,
+  `ethtool` status/statistics, `dmesg` and boot diagnostics where
+  supported and scoped. One confirmed plan covers the whole safe sequence;
+  **never ask the user to authorize each device command again**.
+  Continue collecting and interpreting results until the investigation
+  reaches a genuine missing prerequisite or a new risk boundary.
+- The implemented `device_session.py` backend still enforces a fixed
+  read-only probe allowlist; Agent discretion does not bypass that
+  execution constraint. If a needed diagnostic is not supported by the
+  backend, extend/review the supported diagnostic workflow rather than
+  blindly sending arbitrary Shell text or interrupting the user with
+  repeated consent questions.
+- **This is not blanket permission for destructive or disruptive effects.**
+  A new, explicit scope/permission boundary still applies to eMMC writes,
+  formatting/partition edits, raw flash/firmware or U-Boot writes, kernel
+  installation, reboot/shutdown, network/SSH changes that could disconnect
+  the device, privilege escalation, executing untrusted downloads/scripts,
+  and other irreversible operations. Do not use `su`, `sudo`, `dd`,
+  `flash_erase`, `fw_setenv`, or shell redirection into devices/sysfs
+  under read-only standing authorization. Do not reinterpret an unsafe
+  command as safe just because it uses `python` or runs inside the device.
+- Hardware access remains restricted to the selected approved interface.
+  Never invent ports, silently connect to another host, run on unknown
+  UART/U-Boot/login prompts, or access the controlling Mac's local files
+  outside the current repository. Device paths such as `/proc` and
+  `/sys` belong to the **device**, not the Mac; do not conflate them.
+  Host/Codex/OS sandbox permissions and transport authentication cannot
+  be bypassed by Skill text.
+
+The approved plan's `collect` step exposes
+`device_python_auto_run=true`, `device_shell_auto_run=true` and
+`per_command_user_confirmation=false`. These state facts mean **no
+additional conversational permission for scoped diagnostics**; they do
+not enable arbitrary remote execution or cancel any higher-risk gate.
+
 ## Persistent device access (preferred for interactive hardware)
 
 For TTL/picocom, ADB and SSH, the preferred **authorized** collection path
@@ -226,10 +275,12 @@ console.log, SHA-256 manifest and per-probe result files. This uses
 
 - Discover already-present ports, configured SSH aliases and authorized ADB
   serials before access; choose a unique observed device, never guess a port.
-- After the user grants **one clearly scoped read-only interactive session**
-  authorization, batch all permitted commands into one host tool invocation.
-  Codex/host sandbox approval is separate and **cannot be waived by a Skill**.
-  Do not request a fresh user confirmation for each allowlisted read.
+- After the user confirms the connection and overall read-only diagnostic
+  scope once, automatically run the supported device-facing Python helper
+  commands and all allowlisted device-internal Shell probes, without asking
+  permission for each command. Continue the same safe investigation without
+  repeating consent prompts. Codex/host sandbox approvals remain separate
+  and **cannot be waived by a Skill**.
 - The agent recognizes Android/Linux shells and reports U-Boot, login or
   unknown prompts as **blocked**. TTL must observe a trusted shell prompt
   before sending anything. Never type a password, interrupt U-Boot or send
@@ -248,8 +299,9 @@ console.log, SHA-256 manifest and per-probe result files. This uses
 
 Existing adaptive.py without --interactive-shell-approved remains a
 backward-compatible passive TTL or one-command-at-a-time SSH/ADB collector.
-The new persistent path is the default for a user's **interactive device
-customization** request, not a bypass for OS-image build approvals.
+The persistent path is the default for a user's **interactive device
+customization** request. Its initial connection-plan flag is not a
+per-command prompt, and it does not bypass OS-image build approvals.
 See [Interactive device consoles](references/device-session.md).
 
 ## One-start Agent entrypoint (highest priority)

@@ -19,12 +19,32 @@ to a separate 0600 file, and checkpoints a SHA-256 manifest. Unknown or
 unavailable probes are reported; a completed session is **not** evidence of
 booting an Ubuntu image.
 
+## Direct device commands after one confirmed plan
+
+Once the user confirms the device connection and read-only diagnostic
+scope, execute device-targeted Python helpers and the supported shell
+probes inside this verified session **automatically**, without asking
+for consent before every Python or Linux/Android command.
+`--approved-readonly`, `--interactive-shell-approved` and `--yes`
+are CLI records of the *already-confirmed plan*, not instructions to
+ask again. Reuse one process/PTY, stream progress and continue diagnostics.
+
+This backend intentionally enforces named fixed read-only commands;
+it is **not** an unrestricted Shell executor. Do not send arbitrary
+user-provided commands or text copied from UART logs. Unknown prompts,
+login and U-Boot remain blocked. Separate authorization remains
+necessary for network changes, reboot, eMMC/partition/firmware writes,
+privilege escalation, untrusted code and other destructive actions.
+The OS and host tool sandbox can still require its own permission.
+
 ## Agent invocation (internal helper, not a user setup checklist)
 
 The Agent must first select the connection method, resolve its exact
 interface, explain a detailed read-only execution/monitoring plan and wait
-for explicit confirmation. That consent covers a single interactive probe
-batch and the loopback-only viewer, never device writes or reboot.
+for explicit confirmation. That consent covers the full scoped session of consecutive read-only
+device Python and remote shell diagnostics plus the loopback-only viewer,
+**without per-command permission prompts**. It does not authorize
+device writes or reboot.
 Use a unique private session under the current project's **./outputs/**
 directory. Do not put evidence in the repository root or a different folder. Add
 `--preview-approved` to the managed `adaptive.py` invocation when the

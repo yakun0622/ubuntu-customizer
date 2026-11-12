@@ -40,6 +40,11 @@ class AdaptiveTests(unittest.TestCase):
             self.assertEqual(folder, dest.resolve())
             self.assertEqual(result["state"], "complete")
             self.assertTrue(result["read_only"])
+            self.assertEqual(result["authorization_scope"], "initial_device_plan")
+            self.assertTrue(result["device_python_auto_run"])
+            self.assertTrue(result["device_shell_auto_run"])
+            self.assertFalse(result["per_command_user_confirmation"])
+            self.assertEqual(result["command_policy"], "fixed-readonly-probe-allowlist")
             self.assertTrue((dest / "manifest.json").exists())
             self.assertTrue(result["skipped"])
             for item in result["items"]:

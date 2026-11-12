@@ -42,6 +42,20 @@ The conversational Agent owns workflow state, chooses scripts only when needed,
 interprets evidence and pauses for user decisions. Scripts are disposable helpers;
 their CLI prompts are not the primary user interface.
 
+## Device diagnostics: standing authorization after one confirmed plan
+
+The exact connection/endpoint and overall diagnostics plan are confirmed
+**once**. After that the Agent must automatically execute project-local
+Python device helpers and supported read-only commands inside the verified
+device shell, without asking the user to authorize every Python invocation
+or every device-internal shell command. Continue analysis/probing in the
+same session. Existing fixed allowlists, prompt checks and evidence
+boundaries still apply. Do not execute untrusted command strings.
+Reboot/shutdown, lockout-risk network changes, privilege escalation,
+eMMC/partition writes, firmware/U-Boot changes and other destructive
+effects require independent review and risk-specific consent. Host-level
+permission checks cannot be waived.
+
 ## Implemented scope and validation
 
 The pure `agent_journey.py` policy does not execute tools or persist sessions.
@@ -86,7 +100,9 @@ boots, Lima execution and full Agent handoffs remain unverified. See the
 - Show the exact connection, hardware/OS/boot/storage/network probes,
   local-only live dashboard, evidence privacy, staged workflow and limits.
 - Wait for explicit confirmation before opening any device connection.
-- Plan approval covers the scoped read-only session and local observer only.
+- Plan approval covers the scoped read-only device session, local observer,
+  automated device-targeted Python helpers, and successive device-internal
+  diagnostic shell commands. No per-command user approval after this plan.
 - No generic permission authorizes reboot/shutdown, target writes or
   flashing. Running a command *from* the project directory does not
   authorize its external or destructive side effects.

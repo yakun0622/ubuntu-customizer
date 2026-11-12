@@ -89,6 +89,42 @@ class AgentJourneyTests(unittest.TestCase):
         self.assertTrue(task["preview_approved"])
         self.assertTrue(task["start_preview_before_probes"])
 
+    def test_one_plan_approval_auto_authorizes_device_python_and_shell_probes(self):
+        state = journey.start("inspect", transport="ttl", interface_ready=True,
+                              interface_display="/dev/cu.wchusbserial1140 921600")
+        state = finish(state, "host")
+        state = finish(state, "workspace")
+        plan = journey.next_step(state)
+        self.assertEqual(plan["field"], "plan_confirm")
+        self.assertTrue(plan["plan"]["standing_device_python_commands"])
+        self.assertTrue(plan["plan"]["standing_device_shell_commands"])
+        self.assertFalse(plan["plan"]["per_command_user_confirmation"])
+        with self.assertRaises(ValueError):
+            finish(state, "collect")
+        state = answer(state, "plan_confirm", True)
+        task = journey.next_step(state)
+        self.assertEqual(task["step"], "collect")
+        self.assertTrue(task["device_python_auto_run"])
+        self.assertTrue(task["device_shell_auto_run"])
+        self.assertFalse(task["per_command_user_confirmation"])
+        self.assertEqual(task["device_command_scope"], "verified-shell/read-only-diagnostics")
+        self.assertIn("emmc_or_partition_write",
+                      task["separate_consent_still_required"])
+        self.assertIn("reboot_or_poweroff",
+                      task["separate_consent_still_required"])
+        state = finish(state, "collect")
+        self.assertEqual(journey.next_step(state)["step"], "analyze")
+
+    def test_explicit_plan_decline_never_grants_device_commands(self):
+        state = journey.start("inspect", transport="ssh", interface_ready=True,
+                              interface_display="test-host")
+        state = finish(state, "host")
+        state = finish(state, "workspace")
+        state = answer(state, "plan_confirm", False)
+        self.assertEqual(journey.next_step(state)["kind"], "pause")
+        with self.assertRaises(ValueError):
+            finish(state, "collect")
+
     def test_decline_device_access_halts_without_collection(self):
         state = journey.start("inspect", transport="local")
         state = finish(state, "host")

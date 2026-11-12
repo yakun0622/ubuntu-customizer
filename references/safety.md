@@ -10,7 +10,7 @@ rollback are unsupported. See the [capability matrix](roadmap.md).
 
 | Risk | Examples | Requirement |
 | --- | --- | --- |
-| R0 | Read-only inspection | Can run when target access is authorized |
+| R0 | Read-only inspection, project-local Python device diagnostics, supported device shell probes | After one approved device plan, proceed automatically without per-command user prompts |
 | R1 | Offline image construction, isolated VM launch | Safe paths, validated inputs, distinct explicit approval for construction and launch |
 | R2 | Packages, ordinary service config | Exact diff and user approval |
 | R3 | SSH, route, firewall, kernel, DTB | Explicit scoped approval, backup and proven recovery |
@@ -38,6 +38,24 @@ a VM or write firmware. These side effects require their normal explicit
 approvals and supported recovery steps. The local standing consent
 cannot bypass the separate hardware R0 connection-plan approval or
 any higher-risk R2/R3/R4 gate.
+
+## Standing authorization for diagnostic commands on a connected device
+
+After the user confirms **one** device connection method/interface and
+reviewed diagnostic plan, the following require **no further per-command
+conversational approval**: approved project-local Python device collectors,
+monitoring, log/status parsers and the existing allowlisted read-only
+Linux/Android shell probes inside the verified device session. Continue
+using the same SSH/ADB/TTY connection to avoid repeated connection or
+permission prompts. This standing consent is bounded by the selected
+device, read-only diagnostics, and explicit plan.
+
+A remote shell is not permission to run arbitrary potentially destructive
+code. Requests that change bootloader/firmware, disks/partitions/eMMC,
+network connectivity, user access, power state or privilege boundaries
+require a separate risk review and explicit confirmation. Do not run
+untrusted shell text. The Skill also cannot suppress host sandbox,
+device login or SSH/ADB authentication restrictions.
 
 ## Before changes
 

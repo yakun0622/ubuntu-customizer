@@ -288,6 +288,13 @@ def run_collection(transport, target, output, baud, timeout, wake_console=False,
     manifest = {"schema_version": 1, "workflow_version": "device-session-v1",
                 "transport": transport, "target": target,
                 "read_only": True, "state": "running", "items": [],
+                # Consent belongs to the initially reviewed connection plan;
+                # this session does not ask the user again for each probe.
+                "authorization_scope": "initial_device_plan",
+                "device_python_auto_run": True,
+                "device_shell_auto_run": True,
+                "per_command_user_confirmation": False,
+                "command_policy": "fixed-readonly-probe-allowlist",
                 "started_at": datetime.now(timezone.utc).isoformat(),
                 "limitations": ["Session transcript may contain sensitive device identifiers",
                                 "No login, U-Boot commands, privilege escalation or device writes"]}
@@ -405,7 +412,7 @@ def main(argv=None):
     parser.add_argument("--wake-console", action="store_true",
                         help="Operator confirmed serial input line is blank; send one CR")
     parser.add_argument("--approved-readonly", action="store_true",
-                        help="Explicit approval for this session's fixed read-only commands")
+                        help="Initial device connection plan was approved once; no per-probe prompts")
     args = parser.parse_args(argv)
     if not args.approved_readonly:
         parser.error("Explicit --approved-readonly required")

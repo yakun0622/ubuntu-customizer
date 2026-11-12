@@ -5,6 +5,14 @@ on:
     paths:
       - 'scripts/workflow/arm_*.py'
       - 'tests/test_arm_*.py'
+      - 'scripts/workflow/agent_journey.py'
+      - 'scripts/workflow/device_session.py'
+      - 'scripts/workflow/adaptive.py'
+      - 'tests/test_agent_journey.py'
+      - 'tests/test_device_session.py'
+      - 'tests/test_adaptive.py'
+      - 'SKILL.md'
+      - 'AGENTS.md'
       - '.github/workflows/arm-candidate-smoke.yml'
   workflow_dispatch:
 permissions:

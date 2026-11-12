@@ -73,6 +73,23 @@ privileged changes, VM boot and disk/image writes keep their specific
 permission requirements. Host sandbox or OS prompts still apply; the Skill
 cannot waive them.
 
+## Approved device session: automatic device Python and shell commands
+
+Once the user confirms the exact connection and overall diagnostic plan
+**once**, run project-local Python device scripts and successive supported
+read-only commands **inside the verified SSH/ADB/TTL device** directly. Do
+not ask for per-command permission or stop to make the user choose Python
+flags. Continue collecting and interpreting evidence automatically until
+the next real blocker. The consent covers the stated diagnostic scope,
+not a different machine or destructive/disruptive operations.
+
+The collection state advertises `device_python_auto_run=true`,
+`device_shell_auto_run=true`, and
+`per_command_user_confirmation=false`. The verified prompt and fixed
+safe-probe allowlist remain mandatory; the user authorization does not
+bypass host tool sandbox gates or permit reboot, network cutover,
+privilege escalation, eMMC/partition/firmware writes or untrusted code.
+
 ## User experience
 
 The four mandatory phases are **connection choice → plan review/confirmation
@@ -96,9 +113,10 @@ The four mandatory phases are **connection choice → plan review/confirmation
    intended target and interface, connection details, fixed read-only probe
    scope, evidence retention, privacy, stage sequence, local live monitor
    and limitations. Ask once whether to approve this plan. Rejecting it
-   pauses all device activity. This plan approval is read-only R0 scope
-   and includes launching a localhost viewer; it never authorizes
-   reboot/shutdown, network changes, disk writes or flashing.
+   pauses all device activity. This plan approval covers the whole R0 read-only device diagnostic
+   session (Python and device shell, with no per-command prompts) plus
+   the localhost viewer; it never authorizes reboot/shutdown, network
+   changes, disk writes or flashing.
 4. **Start monitor, then work** — After confirmation, create a private
    evidence session, start the loopback live viewer BEFORE shell probes,
    and provide the **actual** confirmed `http://127.0.0.1:<dynamic-port>/`
@@ -171,8 +189,9 @@ requests end with evidence and blockers, without building or flashing.
 - Then select `transport` and `interface_ready`, strictly before
   requesting `plan_confirm`. The Agent stores concrete ports, IPs,
   addresses and baud separately in its private runtime, not the policy state.
-- `plan_confirm=True` authorizes the displayed read-only session and
-  local observer; a `collect` result is otherwise out of sequence.
+- `plan_confirm=True` authorizes the read-only device session,
+  local observer and all supported Python/shell diagnostic commands with
+  no per-command consent; a `collect` result is otherwise out of sequence.
 - The `collect` action carries `preview_approved=True` so the
   backend starts the observer before running fixed probes.
 - The Agent-owned `requirements` action is conversational: gather missing

@@ -135,6 +135,11 @@ def run(transport, target, output, timeout, modules, baud=115200, duration=10,
         "transport": transport, "target": target,
         "collected_at": datetime.now(timezone.utc).isoformat(),
         "state": "running", "read_only": True,
+        "authorization_scope": "initial_device_plan",
+        "device_python_auto_run": True,
+        "device_shell_auto_run": True,
+        "per_command_user_confirmation": False,
+        "command_policy": "fixed-readonly-probe-allowlist",
         "selected_modules": modules, "items": [], "skipped": [],
         "expected_probes": len(BOOTSTRAP) + 1 + sum(len(MODULES[m]) for m in modules),
         "limitations": ["Probes can be denied or truncated; unknown is not absent.",
@@ -201,7 +206,8 @@ def main(argv=None):
     parser.add_argument("--timeout", type=int, default=12)
     parser.add_argument("--baud", type=int, default=115200)
     parser.add_argument("--duration", type=int, default=10)
-    parser.add_argument("--yes", action="store_true", help="Explicit permission for unattended read-only collection")
+    parser.add_argument("--yes", action="store_true",
+                        help="Initial reviewed device plan was approved; run scoped read-only Python/shell probes without per-command prompts")
     parser.add_argument("--preview-approved", action="store_true",
                         help="Start local-only status preview after user approves the presented execution plan")
     parser.add_argument("--interactive-shell-approved", action="store_true",

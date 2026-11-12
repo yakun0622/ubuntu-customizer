@@ -49,6 +49,25 @@ user-provided current-revision USB serial log →
   Failed boot automatically means diagnose/new iteration, not a claim of
   `boot_confirmed` or `deployment_allowed`.
 
+## Standing authorization after confirming the device plan
+
+Once the user confirms the connection method, exact endpoint and overall
+diagnostic plan, **run device-targeted Python helpers and supported read-only
+commands inside that device directly, without asking permission for each
+command**. Use the approved .venv Python for collection, monitoring, parsing,
+network/DTB/boot logs and evidence checks. Reuse the verified SSH/ADB/TTL
+shell and its fixed probe allowlist; process all safe diagnostic steps
+without repeated conversation prompts.
+
+The initial plan is the authorization boundary, **not every individual
+command**. Host artifacts stay within `./outputs/`; never scan the Mac
+outside the repository. Device-local `/proc` and `/sys` are not Mac paths.
+The backend still blocks unknown serial consoles/U-Boot prompts and arbitrary
+untrusted shell strings. Reboot/shutdown, eMMC or partition writes, network
+loss, privilege escalation, firmware/U-Boot/kernel modifications and
+destructive operations keep their independent approval/recovery boundaries.
+Host sandbox permissions and SSH/ADB authentication cannot be bypassed.
+
 ## User-facing behavior
 
 When the user says **“开始” / “开始定制系统” / “开始检查设备”**:
@@ -77,9 +96,11 @@ When the user says **“开始” / “开始定制系统” / “开始检查�
    before collection. Print the actual returned URL, never a guessed port.
    If the user opts out of preview, honor that; if startup fails, report
    unavailability, never claim the link works.
-5. Execute permitted discovery and SHA-256 verification through the selected
-   workflow. Managed SSH/ADB/TTL uses a persistent read-only adapter and
-   supports `--preview-approved`; do not conflict with existing picocom.
+5. After the overall plan is approved, automatically run device-targeted
+   Python diagnostics and supported device-internal read-only shell probes
+   **without per-command user permission prompts**. Verify SHA-256 evidence.
+   Reuse the managed SSH/ADB/TTL adapter and its session; do not conflict
+   with existing picocom.
 6. Use evidence to ask for missing target OS/version, boot medium, services,
    drivers and storage preferences one at a time, then proceed through the
    actually supported customization stages. Physical ARM image assembly
@@ -130,10 +151,11 @@ than launching picocom, ssh or adb separately for every hardware probe.
 - Execute only the immutable read-only probe allowlist and log results to a
   new private local session; record errors, skipped evidence and transcript
   hashes without confusing an empty session with successful identification.
-- Obtain **one user consent for the read-only connection and probe scope**,
-  then execute it as one host tool operation. Host/Codex sandbox prompts are
-  not under Skill control; do not claim they can be disabled. Never split the
-  same authorized read-only batch into dozens of host invocations.
+- Obtain **one user consent for the connection and overall read-only
+  diagnostic scope**, then automatically run all supported Python and
+  device-internal shell probes as a batch. Do not ask per command.
+  Host/Codex sandbox prompts are independent and cannot be disabled here.
+  Never split the same approved batch into many host invocations.
 - Work toward the user's actual OS customization goal. After discovery,
   proceed to board boot-chain/BSP, image-building prerequisites and concrete
   implementation blockers; do not redirect to unrelated hardware repairs.

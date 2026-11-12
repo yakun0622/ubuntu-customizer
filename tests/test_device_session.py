@@ -146,6 +146,11 @@ class TestCollection(unittest.TestCase):
             self.assertTrue(inst.woke)
             self.assertEqual(len(inst.sent), 1 + len(ds.PROBES["common"]) + len(ds.PROBES["android"]))
             self.assertEqual(len(manifest["items"]), len(inst.sent))
+            self.assertEqual(manifest["authorization_scope"], "initial_device_plan")
+            self.assertTrue(manifest["device_python_auto_run"])
+            self.assertTrue(manifest["device_shell_auto_run"])
+            self.assertFalse(manifest["per_command_user_confirmation"])
+            self.assertEqual(manifest["command_policy"], "fixed-readonly-probe-allowlist")
             self.assertEqual(json.loads((folder / "manifest.json").read_text())["state"], "complete")
             self.assertIn(("hardware", "android-product-model"),
                           {(i["category"], i["name"]) for i in manifest["items"]})

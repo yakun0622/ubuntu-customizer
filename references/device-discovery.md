@@ -28,6 +28,17 @@ Explicit transport selection with a final interactive collection confirmation:
 
 These `collect.py` examples are the **legacy passive collector**. Target for SSH is a configured OpenSSH Host alias with a previously trusted host key. ADB requires a device serial from `adb devices`. Legacy TTL requires optional `pyserial` and only receives data. For **Agent-controlled interactive TTL**, use the persistent picocom adapter instead; see [device sessions](device-session.md). Opening a serial port may change handshake lines, so verify adapter wiring before running.
 
+## Device Python and remote commands: no repeated approvals
+
+After confirming the exact device interface and read-only diagnostics plan once,
+automatically invoke the project-local Python collectors and run all supported
+read-only shell commands **inside the verified device** without asking for
+each command's permission. Continue gathering logs, DTB/kernel/network data
+and explaining genuine blockers. The planned scope does not authorize
+untrusted commands, reboot, network changes, privilege escalation, flash,
+partition/eMMC writes or firmware installation. The host platform may still
+enforce its own sandbox permissions.
+
 ## Collection layers
 
 1. Device identity: `/etc/os-release`, kernel, CPU, memory
@@ -36,7 +47,7 @@ These `collect.py` examples are the **legacy passive collector**. Target for SSH
 4. Pinctrl and DT: debugfs pinctrl discovery, `gpioinfo` if installed, `dtc -I fs` if installed
 5. Network: links, routes, driver tools
 6. Storage/boot: block device and boot directory listing
-7. TTL: serial receive log only; subsequent shell interaction requires a separately scoped, reviewed command workflow
+7. TTL: passive receive mode sends nothing. Once the connection/diagnostic plan is approved and a Linux/Android shell prompt is verified, the managed interactive adapter automatically sends supported read-only device commands with no per-command consent. Unknown, login and U-Boot prompts remain blocked.
 
 The collector writes under a **new**, user-selected session directory:
 

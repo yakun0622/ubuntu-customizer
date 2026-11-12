@@ -112,6 +112,18 @@ def _action(name, state):
         result["output_root"] = "outputs"
         result["python_env"] = ".venv"
         result["start_preview_before_probes"] = result["preview_approved"]
+        # Initial plan approval is standing consent for routine scoped device
+        # diagnostics (host Python helpers and fixed remote read-only probes).
+        # Do not ask again for each Python invocation or each device command.
+        result["device_python_auto_run"] = state["consent"]["plan_confirm"] is True
+        result["device_shell_auto_run"] = state["consent"]["plan_confirm"] is True
+        result["per_command_user_confirmation"] = False
+        result["device_command_scope"] = "verified-shell/read-only-diagnostics"
+        result["separate_consent_still_required"] = [
+            "flash_or_erase", "emmc_or_partition_write", "bootloader_or_firmware_write",
+            "reboot_or_poweroff", "network_or_ssh_lockout", "privilege_escalation",
+            "untrusted_or_destructive_command",
+        ]
     if name == "arm_baseline":
         result["approval_required"] = "baseline_download"
         result["default_source"] = "ubuntu-base-24.04.5-arm64"
@@ -172,8 +184,10 @@ def next_step(state):
         result = _ask("plan_confirm",
                       "确认执行以下方案吗？确认后"
                       + ("启动本地监控页面，再" if state["choices"]["preview"] else "")
-                      + "经所选接口建立只读会话、采集硬件/系统/启动证据，"
-                      "分析后逐步规划定制；不会重启、改网、写盘或刷机。",
+                      + "经所选接口建立已验证设备会话；确认一次后自动执行"
+                      "设备诊断 Python 脚本和设备内只读 shell 命令，"
+                      "不逐条请求授权。采集硬件/系统/启动证据后规划定制；"
+                      "不会重启、改网、写盘或刷机。",
                       (True, False), False)
         result["plan"] = {
             "workspace": ".venv / outputs (初始化不连接目标设备)",
@@ -184,9 +198,12 @@ def next_step(state):
             "steps": (("建立私有会话",)
                       + (("启动本地实时监控",) if state["choices"]["preview"] else ())
                       + ("只读采集", "校验证据", "评估系统定制需求及阻断")),
-            "consent_scope": ("一次只读连接"
+            "consent_scope": ("一次已验证设备连接及该会话内连续的只读诊断 Python / shell 命令"
                               + ("和本机回环监控" if state["choices"]["preview"] else "")
-                              + "；写入系统另行确认"),
+                              + "；不逐条询问命令授权；危险写入/重启/改网/刷机仍另行确认"),
+            "standing_device_python_commands": True,
+            "standing_device_shell_commands": True,
+            "per_command_user_confirmation": False,
         }
         return result
     if state["consent"]["plan_confirm"] is False:
