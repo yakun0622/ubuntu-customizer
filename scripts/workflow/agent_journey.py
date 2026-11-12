@@ -50,7 +50,7 @@ def start(goal=None, target=None, transport=None, interface_ready=None):
         raise ValueError("Unsupported target")
     if transport is not None and transport not in TRANSPORTS:
         raise ValueError("Unsupported connection method")
-    if interface_ready not in (None, True, False):
+    if interface_ready is not None and type(interface_ready) is not bool:
         raise ValueError("Invalid interface readiness")
     if transport is None and interface_ready is not None:
         raise ValueError("Connection method required before selecting interface")
@@ -119,8 +119,9 @@ def next_step(state):
                 "boot_confirmed": False}
     if state["consent"]["plan_confirm"] is None:
         result = _ask("plan_confirm",
-                      "确认执行以下方案吗？确认后启动本地监控页面，"
-                      "再经所选接口建立只读会话、采集硬件/系统/启动证据，"
+                      "确认执行以下方案吗？确认后"
+                      + ("启动本地监控页面，再" if state["choices"]["preview"] else "")
+                      + "经所选接口建立只读会话、采集硬件/系统/启动证据，"
                       "分析后逐步规划定制；不会重启、改网、写盘或刷机。",
                       (True, False), False)
         result["plan"] = {
@@ -128,8 +129,9 @@ def next_step(state):
             "connection": "用户已选择并提供接口；具体标识由 Agent 私有持有",
             "preview": ("127.0.0.1 动态端口（启动成功后提供实际 URL）"
                         if state["choices"]["preview"] else "用户选择关闭监控"),
-            "steps": ("建立私有会话", "启动本地实时监控", "只读采集",
-                      "校验证据", "评估系统定制需求及阻断"),
+            "steps": (("建立私有会话",)
+                      + (("启动本地实时监控",) if state["choices"]["preview"] else ())
+                      + ("只读采集", "校验证据", "评估系统定制需求及阻断")),
             "consent_scope": ("一次只读连接"
                               + ("和本机回环监控" if state["choices"]["preview"] else "")
                               + "；写入系统另行确认"),
