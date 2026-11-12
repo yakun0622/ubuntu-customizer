@@ -269,7 +269,19 @@ class PersistentConsole:
         self.closed = True
 
 
-def run_collection(transport, target, output, baud, timeout, wake_console=False, console_factory=PersistentConsole):
+def start_preview(folder):
+    """Start the approved loopback observer; never exposes raw evidence."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "uc_device_preview_control", Path(__file__).with_name("preview_control.py"))
+    control = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(control)
+    return control.start(folder, port=0)
+
+
+def run_collection(transport, target, output, baud, timeout, wake_console=False,
+                   console_factory=PersistentConsole, preview_approved=False,
+                   preview_notify=None):
     argv = transport_argv(transport, target, baud)
     directory = fresh_directory(output)
     manifest = {"schema_version": 1, "workflow_version": "device-session-v1",
@@ -306,6 +318,19 @@ def run_collection(transport, target, output, baud, timeout, wake_console=False,
         save()
 
     save()
+    if preview_approved:
+        try:
+            preview = start_preview(directory)
+            manifest["preview"] = {"state": "running", "url": preview["url"]}
+            save()
+            # The controlling Agent can surface the URL while collection runs.
+            if preview_notify is not None:
+                preview_notify(preview["url"])
+        except (OSError, RuntimeError, ValueError) as exc:
+            manifest["preview"] = {"state": "unavailable"}
+            manifest["limitations"].append(
+                "Local preview could not start: " + type(exc).__name__)
+            save()
     try:
         with console_factory(argv, directory / "console.log") as console:
             observed = console.observe(min(2, timeout))
