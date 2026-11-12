@@ -21,6 +21,7 @@ class AgentJourneyTests(unittest.TestCase):
         transport = "ttl" if target == "physical-device" else "local"
         state = journey.start("image", target, transport, True)
         state = finish(state, "host")
+        state = finish(state, "workspace")
         self.assertEqual(journey.next_step(state)["field"], "plan_confirm")
         state = answer(state, "plan_confirm", True)
         state = finish(state, "collect")
@@ -46,11 +47,26 @@ class AgentJourneyTests(unittest.TestCase):
         self.assertEqual(task["helper"], "host_capabilities.inspect")
         self.assertEqual(task["risk"], "R0")
         state = finish(state, "host")
+        state = finish(state, "workspace")
         self.assertEqual(journey.next_step(state)["field"], "goal")
+
+    def test_workspace_is_automatic_before_device_choices(self):
+        state = journey.start("inspect", transport="ttl", interface_ready=True)
+        state = finish(state, "host")
+        step = journey.next_step(state)
+        self.assertEqual(step["kind"], "run")
+        self.assertEqual(step["step"], "workspace")
+        self.assertEqual(step["helper"], "project_workspace.prepare")
+        self.assertEqual(step["risk"], "R1")
+        with self.assertRaises(ValueError):
+            answer(state, "plan_confirm", True)
+        state = finish(state, "workspace")
+        self.assertEqual(journey.next_step(state)["field"], "plan_confirm")
 
     def test_only_one_question_at_each_missing_choice(self):
         state = journey.start()
         state = finish(state, "host")
+        state = finish(state, "workspace")
         state = answer(state, "goal", "image")
         self.assertEqual(journey.next_step(state)["field"], "target")
         state = answer(state, "target", "virtual-machine")
@@ -71,6 +87,7 @@ class AgentJourneyTests(unittest.TestCase):
     def test_decline_device_access_halts_without_collection(self):
         state = journey.start("inspect", transport="local")
         state = finish(state, "host")
+        state = finish(state, "workspace")
         self.assertEqual(journey.next_step(state)["field"], "plan_confirm")
         state = answer(state, "plan_confirm", False)
         self.assertEqual(journey.next_step(state)["kind"], "pause")
@@ -179,6 +196,7 @@ class AgentJourneyTests(unittest.TestCase):
     def test_missing_connection_is_not_silently_assumed(self):
         state = journey.start("inspect")
         state = finish(state, "host")
+        state = finish(state, "workspace")
         self.assertEqual(journey.next_step(state)["field"], "transport")
         state = answer(state, "transport", "adb")
         self.assertEqual(journey.next_step(state)["field"], "interface_ready")
@@ -190,6 +208,7 @@ class AgentJourneyTests(unittest.TestCase):
     def test_known_ttl_target_skips_repeated_connection_questions(self):
         state = journey.start("image", "physical-device", "ttl", True)
         state = finish(state, "host")
+        state = finish(state, "workspace")
         self.assertEqual(journey.next_step(state)["field"], "plan_confirm")
         with self.assertRaises(ValueError):
             finish(state, "collect")
@@ -200,6 +219,7 @@ class AgentJourneyTests(unittest.TestCase):
     def test_local_interface_is_implicit_and_monitor_uses_plan_consent(self):
         state = journey.start("inspect", transport="local")
         state = finish(state, "host")
+        state = finish(state, "workspace")
         self.assertEqual(journey.next_step(state)["field"], "plan_confirm")
         state = answer(state, "plan_confirm", True)
         self.assertTrue(journey.next_step(state)["preview_approved"])
@@ -207,6 +227,7 @@ class AgentJourneyTests(unittest.TestCase):
     def test_explicit_monitor_opt_out_keeps_readonly_collection(self):
         state = journey.start("inspect", transport="local")
         state = finish(state, "host")
+        state = finish(state, "workspace")
         state = journey.transition(state, {"type": "preview_preference", "enabled": False})
         self.assertIn("关闭监控", journey.next_step(state)["plan"]["preview"])
         state = answer(state, "plan_confirm", True)
@@ -217,6 +238,7 @@ class AgentJourneyTests(unittest.TestCase):
     def test_preview_preference_cannot_change_after_plan_approved(self):
         state = journey.start("inspect", transport="local")
         state = finish(state, "host")
+        state = finish(state, "workspace")
         state = answer(state, "plan_confirm", True)
         with self.assertRaises(ValueError):
             journey.transition(state, {"type": "preview_preference", "enabled": False})
@@ -229,6 +251,7 @@ class AgentJourneyTests(unittest.TestCase):
             journey.transition(state, {"type": "result", "step": "rootfs_build",
                                        "state": "complete"})
         state = finish(state, "host")
+        state = finish(state, "workspace")
         with self.assertRaises(ValueError):
             answer(state, "goal", "unsupported")
 
