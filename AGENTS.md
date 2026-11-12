@@ -8,8 +8,13 @@ device customization, diagnostic, image build, or boot-verification requests.
 
 When the user says **“开始” / “开始定制系统” / “开始检查设备”**:
 
-1. Begin with safe host capability inspection only when an actual execution
-   bridge is available. Infer already-known goal and target from the chat.
+1. Begin with safe host capability inspection, then **automatically create or
+   reuse `./.venv` and prepare private `./outputs/`** using
+   `python3 scripts/workflow/project_workspace.py` from the current
+   project directory. Use the resulting `.venv/bin/python` for subsequent
+   Python helpers/tests; no package download, global Python install, device
+   access or extra user confirmation. Only when an actual host execution
+   bridge is available. Infer goal/target from the chat.
 2. **Transport first.** If unspecified, ask the user to choose SSH, ADB,
    managed TTL/picocom or the local machine. Then offer/resolve an actual
    matching interface: trusted SSH Host alias, authorized ADB device,
@@ -35,8 +40,20 @@ When the user says **“开始” / “开始定制系统” / “开始检查�
    own risk-specific approval, backup/recovery checks and actual tool support.
    The initial plan only authorizes one described read-only collection and
    local preview; it never permits `reboot`, `shutdown`, disk writes or flashing.
-8. After blockers, pause honestly; report evidence, produced commits/tests,
-   known unknowns and one next action where supported.
+8. Every runtime artifact (device evidence, monitoring state, plans, reports,
+   logs, images, downloads, intermediate files, verifications) is written
+   under **`./outputs/`** using validated workspace paths, never at the
+   repository root. Tracked source edits stay in place; `.venv` is the sole
+   local environment exception. Old artifacts are not silently moved.
+9. Routine non-destructive actions strictly inside the current project
+   (source inspection/edits, Python venv bootstrap, local tests, new outputs)
+   have standing approval: **do not repeatedly prompt for each command**.
+   Host/Codex/OS execution permission gates remain mandatory when imposed
+   externally. No standing consent for target connection, arbitrary
+   network installs, untrusted code, deleting important files,
+   host/system changes, VM boot, firmware/DTB edits or disk writes.
+10. After blockers, pause honestly; report evidence, produced commits/tests,
+    known unknowns and one next action where supported.
 
 Use `agent_journey.py` as the pure step/consent policy, not as a process
 launcher. Do not make ordinary users choose Python/QEMU/Lima arguments.
@@ -96,6 +113,6 @@ been implemented; do not falsely claim successful device deployment.
 ## Development
 
 After changing the Skill, validate with
-`python3 -m unittest discover -s tests -v` when an execution environment
-is available. Keep any added workflow helpers auditable and noninteractive
+`./.venv/bin/python -m unittest discover -s tests -v` (Unix/macOS) when
+the project workspace is initialized and execution is available. Keep any added workflow helpers auditable and noninteractive
 by themselves; the Agent should conduct the conversation.
