@@ -45,7 +45,7 @@ virtual environment. It creates **`./outputs/`** with private mode 0700,
 and performs no package download, `pip install`, device connection, reboot,
 or host configuration change. The Agent must then use
 `./.venv/bin/python` (Windows: `./.venv/Scripts/python.exe`) for Python
-helpers and tests; do not install dependencies globally. A broken or
+helpers and tests with `-B` (disable project-root Python bytecode cache); do not install dependencies globally. A broken or
 unavailable interpreter/venv must be reported as a blocker, not silently
 replaced by global installation.
 
@@ -254,42 +254,42 @@ Agent owns the progression, choices and tool invocation.
 
 ```bash
 # First collect evidence, with the user's approval:
-./.venv/bin/python scripts/workflow/adaptive.py
+./.venv/bin/python -B scripts/workflow/adaptive.py
 # Then assess the evidence:
-./.venv/bin/python scripts/workflow/dossier.py SESSION_DIR
-./.venv/bin/python scripts/workflow/capabilities.py SESSION_DIR
+./.venv/bin/python -B scripts/workflow/dossier.py SESSION_DIR
+./.venv/bin/python -B scripts/workflow/capabilities.py SESSION_DIR
 
 # Optional standalone source inspection report (no image modification):
-./.venv/bin/python scripts/workflow/image_inspect.py /safe/base.img \
+./.venv/bin/python -B scripts/workflow/image_inspect.py /safe/base.img \
   --sha256 TRUSTED_SHA256 --output ./outputs/source-inspection.json
 
 # Analyze an existing trusted base image against a collected session:
-./.venv/bin/python scripts/workflow/image_plan.py SESSION_DIR \
+./.venv/bin/python -B scripts/workflow/image_plan.py SESSION_DIR \
   --target virtual-machine --format qcow2 \
   --source /safe/base.img --sha256 TRUSTED_SHA256 \
   --source-arch amd64 --output ./outputs/image-plan.json
 
 # Only when every mandatory guest inspection check passed AND the
 # verified plan says build_allowed=true:
-./.venv/bin/python scripts/workflow/build_image.py image-plan.json \
+./.venv/bin/python -B scripts/workflow/build_image.py image-plan.json \
   --output ./outputs/portable.qcow2
 
 # Optional fixed offline RootFS customization (requires approved image-plan):
 # Copy profiles/examples/rootfs-config.json and update public key, instance-id.
-./.venv/bin/python scripts/workflow/rootfs_builder.py image-plan.json \
+./.venv/bin/python -B scripts/workflow/rootfs_builder.py image-plan.json \
   --config ./outputs/rootfs-config.json --dry-run
 
 # Separate explicit approval is required to write an isolated image bundle:
-./.venv/bin/python scripts/workflow/rootfs_builder.py image-plan.json \
+./.venv/bin/python -B scripts/workflow/rootfs_builder.py image-plan.json \
   --config ./outputs/rootfs-config.json --output-dir ./outputs/new-rootfs-bundle --approved
 
 # Recheck the published image/seed hashes and qemu metadata, read-only:
-./.venv/bin/python scripts/workflow/rootfs_builder.py \
+./.venv/bin/python -B scripts/workflow/rootfs_builder.py \
   --verify-bundle ./outputs/new-rootfs-bundle
 
 # Only after separate approval, for a VM with QEMU Guest Agent/Python.
 # Add --ovmf-code and --ovmf-vars for verified UEFI guests.
-./.venv/bin/python scripts/workflow/verify_first_boot.py \
+./.venv/bin/python -B scripts/workflow/verify_first_boot.py \
   --bundle ./outputs/new-rootfs-bundle \
   --timeout 300 --report ./outputs/first-boot-health.json --approved
 ```
@@ -328,9 +328,9 @@ The Agent should present that verified URL when the host's execution stream
 permits it; a blocking execution tool may only deliver it upon completion.
 
 ```bash
-./.venv/bin/python scripts/workflow/preview_control.py start SESSION_DIR --approved
-./.venv/bin/python scripts/workflow/preview_control.py status SESSION_DIR
-./.venv/bin/python scripts/workflow/preview_control.py stop SESSION_DIR
+./.venv/bin/python -B scripts/workflow/preview_control.py start SESSION_DIR --approved
+./.venv/bin/python -B scripts/workflow/preview_control.py status SESSION_DIR
+./.venv/bin/python -B scripts/workflow/preview_control.py stop SESSION_DIR
 ```
 
 The start command reports the actual `http://127.0.0.1:<port>/` URL on
@@ -358,7 +358,7 @@ For other Agent-led stages not implemented as image scripts, an authorized
 Agent can still explicitly publish factual progress:
 
 ```bash
-./.venv/bin/python scripts/workflow/status.py SESSION_DIR \
+./.venv/bin/python -B scripts/workflow/status.py SESSION_DIR \
   --stage analyze --state running --completed 1 --total 3
 ```
 
