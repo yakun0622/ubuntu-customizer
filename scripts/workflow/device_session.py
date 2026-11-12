@@ -7,6 +7,7 @@ approved blank-line wake after the operator confirms the input is clear).
 U-Boot, login prompts and unknown consoles never receive shell probes.
 """
 import argparse
+import importlib.util
 from datetime import datetime, timezone
 import errno
 import hashlib
