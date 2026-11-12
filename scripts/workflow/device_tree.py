@@ -150,7 +150,7 @@ def main(argv=None):
     p.add_argument("--output")
     args = p.parse_args(argv)
     try:
-        output = Path(args.output) if args.output else Path(args.session) / "device-tree.json"
+        output = workspace.checked_output(args.output or (Path(args.session) / "device-tree.json"))
         if output.exists() or output.is_symlink():
             raise ValueError("Refusing to overwrite existing output")
         result = build(args.session)
@@ -161,6 +161,11 @@ def main(argv=None):
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2
     return 0
+
+ws_spec = importlib.util.spec_from_file_location(
+    "uc_workspace_device_tree", Path(__file__).with_name("project_workspace.py"))
+workspace = importlib.util.module_from_spec(ws_spec)
+ws_spec.loader.exec_module(workspace)
 
 if __name__ == "__main__":
     raise SystemExit(main())
