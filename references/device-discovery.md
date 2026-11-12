@@ -7,15 +7,15 @@ Inventory a target **before** designing firmware, driver, device tree, network o
 ## Wizard
 
 ```bash
-python3 scripts/workflow/collect.py
+./.venv/bin/python -B scripts/workflow/collect.py
 ```
 
 Noninteractive selection with a final explicit local collection confirmation:
 
 ```bash
-python3 scripts/workflow/collect.py --transport ssh --target ubuntu-server --output ./outputs/ubuntu-server-20261109-01
-python3 scripts/workflow/collect.py --transport adb --target SERIAL123 --output ./outputs/android-20261109-01
-python3 scripts/workflow/collect.py --transport ttl --target /dev/cu.usbserial-110 --baud 115200 --duration 20 --output ./outputs/board-serial-01
+./.venv/bin/python -B scripts/workflow/collect.py --transport ssh --target ubuntu-server --output ./outputs/ubuntu-server-20261109-01
+./.venv/bin/python -B scripts/workflow/collect.py --transport adb --target SERIAL123 --output ./outputs/android-20261109-01
+./.venv/bin/python -B scripts/workflow/collect.py --transport ttl --target /dev/cu.usbserial-110 --baud 115200 --duration 20 --output ./outputs/board-serial-01
 ```
 
 These `collect.py` examples are the **legacy passive collector**. Target for SSH is a configured OpenSSH Host alias with a previously trusted host key. ADB requires a device serial from `adb devices`. Legacy TTL requires optional `pyserial` and only receives data. For **Agent-controlled interactive TTL**, use the persistent picocom adapter instead; see [device sessions](device-session.md). Opening a serial port may change handshake lines, so verify adapter wiring before running.
@@ -69,7 +69,7 @@ After successful collection, transform the immutable evidence bundle into a
 separate indexed dossier:
 
 ```bash
-python3 scripts/workflow/dossier.py ./outputs/example-device-session-001
+./.venv/bin/python -B scripts/workflow/dossier.py ./outputs/example-device-session-001
 # creates ./outputs/example-device-session-001/device.json
 ```
 
@@ -82,7 +82,7 @@ digests before parsing. Uncollected or inaccessible properties are marked
 For historical comparison (for example before/after a kernel upgrade):
 
 ```bash
-python3 scripts/workflow/compare.py \
+./.venv/bin/python -B scripts/workflow/compare.py \
   ./outputs/example-device-session-001/device.json \
   ./outputs/example-device-session-002/device.json \
   --output ./outputs/example-device-kernel-diff.json
@@ -108,9 +108,9 @@ New discovery sessions collect limited sysfs binding evidence from network, seri
 GPIO, platform, I2C, SPI and MDIO devices. Generate the conservative topology:
 
 ```bash
-python3 scripts/workflow/collect.py
-python3 scripts/workflow/dossier.py ./outputs/example-device-session-001
-python3 scripts/workflow/topology.py ./outputs/example-device-session-001
+./.venv/bin/python -B scripts/workflow/collect.py
+./.venv/bin/python -B scripts/workflow/dossier.py ./outputs/example-device-session-001
+./.venv/bin/python -B scripts/workflow/topology.py ./outputs/example-device-session-001
 ```
 
 The new `topology.json` stores device and driver nodes, observed `bound_to`
@@ -127,10 +127,10 @@ the collector captures a decompiled DTS alongside driver bindings and
 platform-device `of_node` paths. All probes remain read-only.
 
 ```bash
-python3 scripts/workflow/collect.py
-python3 scripts/workflow/device_tree.py ./outputs/example-device-session-001
-python3 scripts/workflow/topology.py ./outputs/example-device-session-001
-python3 scripts/workflow/link_graph.py ./outputs/example-device-session-001
+./.venv/bin/python -B scripts/workflow/collect.py
+./.venv/bin/python -B scripts/workflow/device_tree.py ./outputs/example-device-session-001
+./.venv/bin/python -B scripts/workflow/topology.py ./outputs/example-device-session-001
+./.venv/bin/python -B scripts/workflow/link_graph.py ./outputs/example-device-session-001
 ```
 
 Outputs:
@@ -149,7 +149,7 @@ Base the next probe stage on prior evidence and recorded permission or tool
 errors. From an existing session:
 
 ```bash
-python3 scripts/workflow/capabilities.py ./outputs/example-device-session-001
+./.venv/bin/python -B scripts/workflow/capabilities.py ./outputs/example-device-session-001
 ```
 
 `capabilities.json` records status for system identity, CPU/memory, storage,
@@ -185,8 +185,8 @@ shell prompt, and runs fixed read-only probes over that one session.
 U-Boot, login and unknown prompts remain blocked from automatic commands.
 
 ```bash
-python3 scripts/workflow/adaptive.py
-python3 scripts/workflow/adaptive.py --transport ssh --target my-linux-host --output ./outputs/session-A --yes
+./.venv/bin/python -B scripts/workflow/adaptive.py
+./.venv/bin/python -B scripts/workflow/adaptive.py --transport ssh --target my-linux-host --output ./outputs/session-A --yes
 python3 -m unittest discover -s tests -v
 ```
 
@@ -204,26 +204,26 @@ embeds passwords in its catalog.
 
 ```bash
 # Interactive menu
-python3 scripts/workflow/manage.py
+./.venv/bin/python -B scripts/workflow/manage.py
 
 # Enumerate candidate configured SSH Host aliases, authorized ADB devices,
 # local serial-port names, and the local target
-python3 scripts/workflow/manage.py discover
+./.venv/bin/python -B scripts/workflow/manage.py discover
 
 # Register a target without contacting it
-python3 scripts/workflow/manage.py add lab-server --transport ssh --target server-alias
+./.venv/bin/python -B scripts/workflow/manage.py add lab-server --transport ssh --target server-alias
 
 # View catalog; collect using the existing staged read-only engine
-python3 scripts/workflow/manage.py list
-python3 scripts/workflow/manage.py collect lab-server --modules hardware,drivers,network
+./.venv/bin/python -B scripts/workflow/manage.py list
+./.venv/bin/python -B scripts/workflow/manage.py collect lab-server --modules hardware,drivers,network
 
 # Inspect stored sessions and category summaries
-python3 scripts/workflow/manage.py sessions lab-server
-python3 scripts/workflow/manage.py inspect lab-server SESSION_ID
+./.venv/bin/python -B scripts/workflow/manage.py sessions lab-server
+./.venv/bin/python -B scripts/workflow/manage.py inspect lab-server SESSION_ID
 ```
 
-The catalog defaults to `~/.local/share/ubuntu-customizer/registry.json` and
-captures are under `~/.local/share/ubuntu-customizer/devices/<id>/sessions/<session>/`.
+The catalog defaults to `./outputs/device-manager/registry.json` and
+captures are under `./outputs/device-manager/devices/<id>/sessions/<session>/`.
 Directories and the catalog are created with restrictive permissions.
 `--data-dir` selects a different *private* directory.
 
@@ -251,24 +251,24 @@ browse node relationships and prepare an **execution-disabled** plan.
 
 ```bash
 # Interactive: choose 7. Explore from device manager
-python3 scripts/workflow/manage.py
+./.venv/bin/python -B scripts/workflow/manage.py
 
 # List nodes from a saved session
-python3 scripts/workflow/manage.py explore lab-server SESSION_ID
+./.venv/bin/python -B scripts/workflow/manage.py explore lab-server SESSION_ID
 
 # Inspect a specific node and its relationships
-python3 scripts/workflow/manage.py explore lab-server SESSION_ID --node 'device:platform:example-controller'
+./.venv/bin/python -B scripts/workflow/manage.py explore lab-server SESSION_ID --node 'device:platform:example-controller'
 
 # Generate a diagnosis plan scoped to a verified node (no target actions)
-python3 scripts/workflow/manage.py explore lab-server SESSION_ID \
+./.venv/bin/python -B scripts/workflow/manage.py explore lab-server SESSION_ID \
   --task diagnose --node 'device:platform:example-controller' \
   --goal 'Investigate why the controller is not responding'
 
 # Run standalone wizard on a session directory
-python3 scripts/workflow/explore.py ~/.local/share/ubuntu-customizer/devices/lab-server/sessions/SESSION_ID
+./.venv/bin/python -B scripts/workflow/explore.py ./outputs/device-manager/devices/lab-server/sessions/SESSION_ID
 
 # Generate a safe JSON plan file without overwriting existing plans
-python3 scripts/workflow/explore.py SESSION_DIRECTORY --mode plan \
+./.venv/bin/python -B scripts/workflow/explore.py SESSION_DIRECTORY --mode plan \
   --task maintain --output ./outputs/my-plan.json
 ```
 
@@ -291,13 +291,13 @@ required to browse it.
 
 ```bash
 # From the registered device manager (command 8 in the interactive menu)
-python3 scripts/workflow/manage.py browse lab-server SESSION_ID
+./.venv/bin/python -B scripts/workflow/manage.py browse lab-server SESSION_ID
 
 # Custom destination (must not exist; never overwrites)
-python3 scripts/workflow/manage.py browse lab-server SESSION_ID --output ./outputs/lab-hardware.html
+./.venv/bin/python -B scripts/workflow/manage.py browse lab-server SESSION_ID --output ./outputs/lab-hardware.html
 
 # Directly from an existing collection session
-python3 scripts/workflow/export_html.py SESSION_DIRECTORY --output ./outputs/hardware.html
+./.venv/bin/python -B scripts/workflow/export_html.py SESSION_DIRECTORY --output ./outputs/hardware.html
 ```
 
 Open the resulting HTML file locally in a browser. The left panel supports
