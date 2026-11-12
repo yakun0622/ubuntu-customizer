@@ -365,6 +365,7 @@ def run_collection(transport, target, output, baud, timeout, wake_console=False,
                         manifest["reason"] = "OS identity did not match Android or Linux"
                     else:
                         manifest["os_family"] = platform
+                        manifest["expected_probes"] = 1 + len(PROBES["common"]) + len(PROBES[platform])
                         save()
                         for name, command in (*PROBES["common"], *PROBES[platform]):
                             status, body, code = console.run_fixed(command, timeout)
