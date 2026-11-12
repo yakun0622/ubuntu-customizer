@@ -1,5 +1,15 @@
 # ARM / Armbian hardware diagnosis
 
+## Download CA handling
+
+`arm_baseline.py` establishes a verified HTTPS context using the
+Mozilla CA bundle already vendored by the project-local Python `.venv`
+pip installation. An explicit, independently trusted PEM can be passed
+with `--ca-bundle outputs/certs/roots.pem`. Both paths must be within
+the project, not a symlink or external trust store. A certificate-chain
+failure should trigger this diagnosis, not an insecure SSL fallback or
+a search of the host filesystem. SHA-256 pinning still applies.
+
 ## Minimal userspace first, then board adaptation
 
 The physical ARM path selects an official, checksum-pinned minimal ARM64

@@ -27,6 +27,23 @@ and [Agent workflow](references/agent-workflow.md) first. Then read
 [ARM hardware](references/arm-hardware.md), or
 [Safety](references/safety.md) *only for relevant stages*.
 
+## HTTPS CA trust for official ARM baseline downloads
+
+The ARM baseline downloader verifies HTTPS using a trusted PEM CA file
+**inside the current project** rather than assuming Mac Python's global
+certificate store is populated. By default it uses the Mozilla CA bundle
+vendored by `pip` in the project's `.venv/`, after validating that its
+path is within the project. For a separately trusted enterprise or proxy
+CA, the operator can place a PEM bundle under `outputs/certs/` and
+supply `arm_baseline.py --approved-download --ca-bundle
+outputs/certs/roots.pem`. The CA bundle must be obtained and trusted
+independently, not accepted just because the download endpoint returned it.
+
+On a `CERTIFICATE_VERIFY_FAILED` error, do not disable TLS verification,
+set an unverified SSL context, run curl with `-k`, or turn off hash checks.
+Present the CA-bundle remedy, then retry. The baseline's pinned SHA-256
+verification remains mandatory even after HTTPS succeeds.
+
 ## Physical ARM source-first iteration (highest priority)
 
 For a physical ARM target, **never begin by searching the Mac, its home

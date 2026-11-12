@@ -44,6 +44,7 @@ class ArmBaselineTests(unittest.TestCase):
     def test_pinned_download_and_reuse_inside_project_only(self):
         with mock.patch.object(arm, "BASELINE", self.pinned), \
              mock.patch.object(arm.workspace.Path, "cwd", return_value=self.root), \
+             mock.patch.object(arm, "_tls_context", return_value=object()), \
              mock.patch.object(arm, "urlopen", return_value=io.BytesIO(self.payload)) as network:
             result = arm.acquire(True)
             self.assertTrue(result["checksum_verified"])
@@ -57,11 +58,48 @@ class ArmBaselineTests(unittest.TestCase):
 
     def test_bad_digest_leaves_no_download_artifact(self):
         with mock.patch.object(arm.workspace.Path, "cwd", return_value=self.root), \
+             mock.patch.object(arm, "_tls_context", return_value=object()), \
              mock.patch.object(arm, "urlopen", return_value=io.BytesIO(self.payload)):
             with self.assertRaisesRegex(ValueError, "checksum mismatch"):
                 arm.acquire(True)
         files = list((self.root / "outputs" / "baselines").iterdir())
         self.assertEqual(files, [])
+
+
+    def test_explicit_local_certificate_bundle_is_used_with_tls_verification(self):
+        certs = self.root / "outputs" / "certs"
+        certs.mkdir(parents=True)
+        pem = certs / "roots.pem"
+        pem.write_text("test pem placeholder", encoding="ascii")
+        context = object()
+        with mock.patch.object(arm.workspace.Path, "cwd", return_value=self.root), \
+             mock.patch.object(arm.ssl, "create_default_context", return_value=context) as make:
+            self.assertIs(arm._tls_context("outputs/certs/roots.pem"), context)
+            make.assert_called_once_with(cafile=str(pem))
+
+    def test_external_or_symlink_certificate_bundle_is_rejected(self):
+        certs = self.root / "outputs" / "certs"
+        certs.mkdir(parents=True)
+        (certs / "bad.pem").symlink_to("/etc/ssl/cert.pem")
+        with mock.patch.object(arm.workspace.Path, "cwd", return_value=self.root), \
+             mock.patch.object(arm.ssl, "create_default_context") as make:
+            for path in ("/etc/ssl/cert.pem", "../outside.pem", "outputs/certs/bad.pem"):
+                with self.subTest(path=path):
+                    with self.assertRaisesRegex(ValueError, "bundle must be"):
+                        arm._tls_context(path)
+            make.assert_not_called()
+
+    def test_ssl_failure_produces_actionable_error_and_removes_partial_download(self):
+        import ssl
+        from urllib.error import URLError
+
+        with mock.patch.object(arm.workspace.Path, "cwd", return_value=self.root), \
+             mock.patch.object(arm, "_tls_context", return_value=object()), \
+             mock.patch.object(arm, "urlopen", side_effect=URLError(
+                 ssl.SSLCertVerificationError("certificate verify failed"))):
+            with self.assertRaisesRegex(ValueError, "Never disable TLS verification"):
+                arm.acquire(True)
+        self.assertEqual(list((self.root / "outputs" / "baselines").iterdir()), [])
 
 
 if __name__ == "__main__":

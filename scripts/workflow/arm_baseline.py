@@ -11,7 +11,9 @@ import json
 import os
 from pathlib import Path
 import secrets
+import ssl
 import sys
+from urllib.error import URLError
 from urllib.request import Request, urlopen
 
 HERE = Path(__file__).resolve().parent
@@ -53,7 +55,32 @@ def planned():
         "be adapted in subsequent iterations."))
 
 
-def acquire(approved=False):
+def _tls_context(ca_bundle=None):
+    """Use only a CA file inside this workspace, with full TLS verification.
+
+    The project's venv normally includes pip's vendored Mozilla CA bundle.
+    Do not silently fall back to machine/global CA files or insecure TLS.
+    """
+    if ca_bundle is None:
+        try:
+            from pip._vendor import certifi
+            ca_bundle = certifi.where()
+        except ImportError as exc:
+            raise ValueError(
+                "No project-local CA bundle. Use --ca-bundle outputs/certs/roots.pem "
+                "with a trusted certificate file stored inside the project."
+            ) from exc
+    try:
+        path = workspace.checked_input(ca_bundle, max_bytes=2 * 1024 * 1024)
+    except (OSError, ValueError, TypeError) as exc:
+        raise ValueError(
+            "The trusted CA bundle must be a regular file inside this project; "
+            "use --ca-bundle outputs/certs/roots.pem if the venv has no local CA."
+        ) from exc
+    return ssl.create_default_context(cafile=str(path))
+
+
+def acquire(approved=False, ca_bundle=None):
     """Stream a pinned HTTPS source to outputs; preserve its original bytes."""
     if not approved:
         raise ValueError("Official baseline download requires explicit approval")
@@ -77,13 +104,27 @@ def acquire(approved=False):
             try:
                 with os.fdopen(fd, "wb") as stream:
                     request = Request(BASELINE["url"], headers={"User-Agent": "ubuntu-customizer/arm-baseline"})
-                    with urlopen(request, timeout=60) as remote:
-                        for part in iter(lambda: remote.read(1024 * 1024), b""):
-                            count += len(part)
-                            if count > MAX_BYTES:
-                                raise ValueError("Official baseline exceeds size cap")
-                            stream.write(part)
-                            digest.update(part)
+                    try:
+                        with urlopen(request, timeout=60,
+                                     context=_tls_context(ca_bundle)) as remote:
+                            for part in iter(lambda: remote.read(1024 * 1024), b""):
+                                count += len(part)
+                                if count > MAX_BYTES:
+                                    raise ValueError("Official baseline exceeds size cap")
+                                stream.write(part)
+                                digest.update(part)
+                    except URLError as exc:
+                        if (isinstance(exc.reason, ssl.SSLCertVerificationError)
+                                or "CERTIFICATE_VERIFY_FAILED" in str(exc)):
+                            raise ValueError(
+                                "HTTPS certificate chain verification failed with the "
+                                "project-local CA bundle. If this network intercepts TLS, "
+                                "obtain its trusted CA certificate through an independently "
+                                "verified channel, save it inside outputs/certs/, then pass "
+                                "--ca-bundle outputs/certs/roots.pem. Never disable TLS "
+                                "verification."
+                            ) from exc
+                        raise
                 if digest.hexdigest() != BASELINE["sha256"]:
                     raise ValueError("Official baseline checksum mismatch")
                 if destination.exists() or destination.is_symlink():
@@ -113,9 +154,12 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--approved-download", action="store_true",
                         help="Allow one pinned HTTPS download under ./outputs")
+    parser.add_argument("--ca-bundle",
+                        help="Trusted PEM CA bundle stored inside the current project; "
+                             "defaults to the project venv's bundled pip Mozilla CA set")
     args = parser.parse_args(argv)
     try:
-        result = acquire(True) if args.approved_download else planned()
+        result = acquire(True, ca_bundle=args.ca_bundle) if args.approved_download else planned()
         print(json.dumps(result, ensure_ascii=False, indent=2))
         return 0
     except (OSError, ValueError) as exc:

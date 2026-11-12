@@ -2,6 +2,26 @@
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
+## Mac Python HTTPS 证书校验失败
+
+若下载 Ubuntu Base 报 `CERTIFICATE_VERIFY_FAILED`，下载器现在优先使用
+当前项目 `.venv/` 中 pip 自带的 Mozilla CA 证书包执行完整 TLS 校验，
+而不是依赖 Python 在 Mac 上可能缺失的默认证书路径。
+
+通常更新项目后重试即可：
+
+```bash
+mkdir -p outputs/tmp
+TMPDIR="$PWD/outputs/tmp" ./.venv/bin/python -B \
+  scripts/workflow/arm_baseline.py --approved-download
+```
+
+若网络代理替换了 HTTPS 证书，必须通过**独立可信的渠道**取得相应 CA 证书，
+放到项目内 `outputs/certs/roots.pem`，然后使用
+`--ca-bundle outputs/certs/roots.pem` 参数。禁止关闭证书验证、
+使用 `curl -k` 或跳过 Ubuntu Base 的固定 SHA-256 校验。
+所有证书文件必须在当前项目内，外部目录与符号链接路径会被拒绝。
+
 ## 实体 ARM：先官方最小系统，再逐步适配板级驱动
 
 不再优先扫描 Mac 或其他本地目录寻找“现成可用”的 IMG。实体 ARM 目标先选择

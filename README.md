@@ -21,6 +21,20 @@ are disabled in the default path. Direct hardware access and OS subprocess
 file operations need their own approvals/sandbox; Python guards cannot
 guarantee whole-process isolation.
 
+## Mac Python TLS certificate verification
+
+When downloading Ubuntu Base with `arm_baseline.py`, HTTPS verification now
+uses the Mozilla CA bundle vendored by pip in the current project's `.venv/`.
+This prevents relying on a missing or mismatched Mac Python default OpenSSL
+CA directory. No insecure TLS mode is provided.
+
+If a separately trusted corporate HTTPS interception CA is needed, store its
+PEM file inside the project (for example `outputs/certs/roots.pem`), then
+use `--ca-bundle outputs/certs/roots.pem`. The path is checked against the
+project scope and symlinks leaving it are rejected. Obtain and verify the
+trusted CA independently; never disable certificate validation or the
+pinned Ubuntu Base SHA-256 checksum.
+
 ## Physical ARM64 USB candidate image and boot diagnosis
 
 The project now has guarded offline builders: `arm_image_builder.py`
