@@ -50,7 +50,10 @@ The four mandatory phases are **connection choice → plan review/confirmation
    interface. SSH means a trusted Host alias; ADB an authorized serial or
    connected address; TTL an exact /dev path plus verified baud (only one
    owner at a time); local means the Agent's approved execution host.
-   Reuse an already supplied interface instead of asking again.
+   Reuse an already supplied interface instead of asking again. Store a
+   nonsecret `interface_display` in the decision state; for TTL it must
+   include an actual `/dev/` path and selected baud rate. Until supplied,
+   `plan_confirm` cannot be offered.
 3. **Explain and confirm** — Before any device connection, display the
    intended target and interface, connection details, fixed read-only probe
    scope, evidence retention, privacy, stage sequence, local live monitor
@@ -110,7 +113,7 @@ or assert local execution when the execution tool has not run.
 ## Implementation contract (Agent-side, no application frontend)
 
 The small pure planning module `scripts/workflow/agent_journey.py` offers
-`start(goal=None, target=None, transport=None, interface_ready=None)`, `next_step(state)` and
+`start(goal=None, target=None, transport=None, interface_ready=None, interface_display=None)`, `next_step(state)` and
 `transition(state, event)`. These return structured descriptions of the
 next **one** action or question. They do not execute operations, create
 files, connect to devices or grant permissions. The host Agent may keep this
