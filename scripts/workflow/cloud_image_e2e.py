@@ -362,6 +362,7 @@ def parser():
 def main(argv=None):
     args = parser().parse_args(argv)
     try:
+        args.workdir = str(workspace.checked_output(args.workdir))
         if args.preflight:
             location = Path(args.workdir).expanduser().absolute().parent
             report = host_preflight(location, "uefi" if args.download else None,
@@ -377,6 +378,13 @@ def main(argv=None):
     except (OSError, ValueError, RuntimeError) as exc:
         print("ERROR: " + type(exc).__name__ + ": " + str(exc), file=sys.stderr)
         return 2
+
+# The CLI enforces the project's outputs-only policy. Internal library functions
+# continue to accept isolated temporary test fixtures without changing their API.
+ws_spec = importlib.util.spec_from_file_location(
+    "uc_workspace_cloud_image_e2e", Path(__file__).with_name("project_workspace.py"))
+workspace = importlib.util.module_from_spec(ws_spec)
+ws_spec.loader.exec_module(workspace)
 
 if __name__ == "__main__":
     raise SystemExit(main())
