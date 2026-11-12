@@ -11,13 +11,39 @@ pretend that it connected to the user's Mac or ran an image builder. In that
 case it explains the single missing prerequisite or uses an authorized
 computer/remote connector. It does not dump a long manual command checklist.
 
+## Current-directory bootstrap and artifact rule
+
+When an authorized local host execution bridge exists, **before asking for a
+device connection** the Agent invokes
+`python3 scripts/workflow/project_workspace.py` from the current repository
+directory. It creates/reuses `.venv/`, creates private `outputs/` and
+returns the interpreter path. All remaining Python helpers run in `.venv`.
+No downloads, global installs or target contact are part of this step.
+
+Every runtime output is a child of `./outputs/` (evidence sessions,
+status/preview files, plans, artifacts, checksums, images, intermediate
+downloads and test reports). Use `project_workspace.output_path` and
+`checked_output` for untrusted path inputs. Source/document edits remain in
+the tracked project; `.venv` is the sole environment directory exception.
+
+**Local standing consent:** The Agent may inspect/edit source, create a
+virtual environment, write new outputs and run safe project-local test
+commands without individually asking the user. A project-relative working
+directory does not make dangerous commands safe: device I/O, power cycling,
+destructive deletes, package downloads/untrusted scripts, host networking,
+privileged changes, VM boot and disk/image writes keep their specific
+permission requirements. Host sandbox or OS prompts still apply; the Skill
+cannot waive them.
+
 ## User experience
 
 The four mandatory phases are **connection choice → plan review/confirmation
 → start verified live monitor and collect → stepwise customization**.
 
 1. **Start** — The user says “开始定制系统”. Agent observes only local
-   host capabilities it can really access. Reuse the known purpose/target.
+   host capabilities it can really access, then automatically prepares
+   `.venv` and `outputs` in the current directory. Reuse the known
+   purpose/target.
 2. **Connection choice** — If no transport was named, ask one concise
    question offering SSH / ADB / TTL / local. After that choice, discover
    observed matching endpoints and let the user select the appropriate
@@ -85,7 +111,10 @@ next **one** action or question. They do not execute operations, create
 files, connect to devices or grant permissions. The host Agent may keep this
 minimal state in its session to resume a multi-turn conversation.
 
-- The first step is a read-only \`host_capabilities.inspect\` observation.
+- The first step is a read-only \`host_capabilities.inspect\` observation,
+  immediately followed by a project-local \`project_workspace.prepare\`
+  action (before transport selection), requiring actual host execution access
+  but no additional *user conversation* prompt.
 - Then select \`transport\` and \`interface_ready\`, strictly before
   requesting \`plan_confirm\`. The Agent stores concrete ports, IPs,
   addresses and baud separately in its private runtime, not the policy state.
@@ -114,6 +143,7 @@ Example of conceptual transition (not something a user must run):
 ~~~text
 “开始定制系统”
   → Agent: [checks accessible host capabilities, read-only]
+  → Agent: [creates/reuses .venv and outputs in the current project]
   → Agent: “设备怎么连接？SSH / ADB / TTL / 本机” [only if unknown]
   → User: “TTL”
   → Agent: “检测到 /dev/cu.wchusbserial1140，波特率 921600，使用它吗？”
