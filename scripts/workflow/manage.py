@@ -266,6 +266,8 @@ def main(argv=None):
     run = sub.add_parser("collect")
     run.add_argument("id")
     run.add_argument("--modules", default="auto")
+    run.add_argument("--baud", type=int, default=115200,
+                     help="TTL serial baud, explicitly shown in connection plan")
     run.add_argument("--yes", action="store_true",
                      help="Authorize only read-only collection")
     run.add_argument("--preview-approved", action="store_true",
@@ -339,6 +341,9 @@ def main(argv=None):
             modules = list(adaptive.MODULES) if value == "auto" else [x.strip() for x in value.split(",")]
             if not modules or any(x not in adaptive.MODULES for x in modules):
                 raise ValueError("Unknown collection module")
+            baud = getattr(args, "baud", 115200)
+            if not 1200 <= baud <= 3000000:
+                raise ValueError("Invalid serial baud rate")
             if getattr(args, "no_preview", False) and getattr(args, "preview_approved", False):
                 raise ValueError("--no-preview conflicts with --preview-approved")
             preview_approved = not getattr(args, "no_preview", False)
@@ -347,7 +352,9 @@ def main(argv=None):
                 if device is None:
                     raise ValueError("Device is not registered")
                 plan = {"connection_method": device["transport"],
-                        "interface": device["target"], "modules": modules,
+                        "interface": device["target"],
+                        "baud": baud if device["transport"] == "ttl" else None,
+                        "modules": modules,
                         "monitor": "localhost dynamic port" if preview_approved else "disabled",
                         "evidence": "private ./outputs/; IP/MAC/IDs may be collected",
                         "scope": "one read-only connection; no reboot, network changes or disk writes"}
@@ -355,7 +362,7 @@ def main(argv=None):
                 if input("确认以上连接、只读采集及监控方案？[y/N]: ").strip().lower() not in ("y", "yes"):
                     return 1
             path, manifest = collect_device(root, name, modules,
-                                            preview_approved=preview_approved,
+                                            baud=baud, preview_approved=preview_approved,
                                             preview_notify=lambda url: print(json.dumps(
                                                 {"event": "preview_ready", "url": url},
                                                 ensure_ascii=False), flush=True))
