@@ -254,44 +254,44 @@ Agent owns the progression, choices and tool invocation.
 
 ```bash
 # First collect evidence, with the user's approval:
-python3 scripts/workflow/adaptive.py
+./.venv/bin/python scripts/workflow/adaptive.py
 # Then assess the evidence:
-python3 scripts/workflow/dossier.py SESSION_DIR
-python3 scripts/workflow/capabilities.py SESSION_DIR
+./.venv/bin/python scripts/workflow/dossier.py SESSION_DIR
+./.venv/bin/python scripts/workflow/capabilities.py SESSION_DIR
 
 # Optional standalone source inspection report (no image modification):
-python3 scripts/workflow/image_inspect.py /safe/base.img \
-  --sha256 TRUSTED_SHA256 --output source-inspection.json
+./.venv/bin/python scripts/workflow/image_inspect.py /safe/base.img \
+  --sha256 TRUSTED_SHA256 --output ./outputs/source-inspection.json
 
 # Analyze an existing trusted base image against a collected session:
-python3 scripts/workflow/image_plan.py SESSION_DIR \
+./.venv/bin/python scripts/workflow/image_plan.py SESSION_DIR \
   --target virtual-machine --format qcow2 \
   --source /safe/base.img --sha256 TRUSTED_SHA256 \
-  --source-arch amd64 --output image-plan.json
+  --source-arch amd64 --output ./outputs/image-plan.json
 
 # Only when every mandatory guest inspection check passed AND the
 # verified plan says build_allowed=true:
-python3 scripts/workflow/build_image.py image-plan.json \
-  --output portable.qcow2
+./.venv/bin/python scripts/workflow/build_image.py image-plan.json \
+  --output ./outputs/portable.qcow2
 
 # Optional fixed offline RootFS customization (requires approved image-plan):
 # Copy profiles/examples/rootfs-config.json and update public key, instance-id.
-python3 scripts/workflow/rootfs_builder.py image-plan.json \
-  --config rootfs-config.json --dry-run
+./.venv/bin/python scripts/workflow/rootfs_builder.py image-plan.json \
+  --config ./outputs/rootfs-config.json --dry-run
 
 # Separate explicit approval is required to write an isolated image bundle:
-python3 scripts/workflow/rootfs_builder.py image-plan.json \
-  --config rootfs-config.json --output-dir ./new-rootfs-bundle --approved
+./.venv/bin/python scripts/workflow/rootfs_builder.py image-plan.json \
+  --config ./outputs/rootfs-config.json --output-dir ./outputs/new-rootfs-bundle --approved
 
 # Recheck the published image/seed hashes and qemu metadata, read-only:
-python3 scripts/workflow/rootfs_builder.py \
-  --verify-bundle ./new-rootfs-bundle
+./.venv/bin/python scripts/workflow/rootfs_builder.py \
+  --verify-bundle ./outputs/new-rootfs-bundle
 
 # Only after separate approval, for a VM with QEMU Guest Agent/Python.
 # Add --ovmf-code and --ovmf-vars for verified UEFI guests.
-python3 scripts/workflow/verify_first_boot.py \
-  --bundle ./new-rootfs-bundle \
-  --timeout 300 --report first-boot-health.json --approved
+./.venv/bin/python scripts/workflow/verify_first_boot.py \
+  --bundle ./outputs/new-rootfs-bundle \
+  --timeout 300 --report ./outputs/first-boot-health.json --approved
 ```
 
 ## Safety invariants
@@ -328,9 +328,9 @@ The Agent should present that verified URL when the host's execution stream
 permits it; a blocking execution tool may only deliver it upon completion.
 
 ```bash
-python3 scripts/workflow/preview_control.py start SESSION_DIR --approved
-python3 scripts/workflow/preview_control.py status SESSION_DIR
-python3 scripts/workflow/preview_control.py stop SESSION_DIR
+./.venv/bin/python scripts/workflow/preview_control.py start SESSION_DIR --approved
+./.venv/bin/python scripts/workflow/preview_control.py status SESSION_DIR
+./.venv/bin/python scripts/workflow/preview_control.py stop SESSION_DIR
 ```
 
 The start command reports the actual `http://127.0.0.1:<port>/` URL on
@@ -358,7 +358,7 @@ For other Agent-led stages not implemented as image scripts, an authorized
 Agent can still explicitly publish factual progress:
 
 ```bash
-python3 scripts/workflow/status.py SESSION_DIR \
+./.venv/bin/python scripts/workflow/status.py SESSION_DIR \
   --stage analyze --state running --completed 1 --total 3
 ```
 
