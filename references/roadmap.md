@@ -28,6 +28,9 @@ labels described planning stages, not verified releases or deployment support.
 
 | Area | Implemented helpers and scope | Remaining boundary |
 | --- | --- | --- |
+| ARM base-first acquisition (new) | `arm_baseline.py`: pinned Ubuntu Base 24.04.5 ARM64 HTTPS download into `outputs`, SHA-256 integrity verification, non-overwriting manifest | Userspace only; download requires consent; untested against real upstream network; does not contain bootloader, board kernel or DTB |
+| ARM candidate revisions (new) | `arm_candidate.py`: verify pinned base, stage project-local kernel/DTB/bootloader/firmware into immutable numbered revision and report missing components | No DTB patch/compiler, ext4 partitioned USB IMG builder, real board boot or flashing; new stages are not bootable images |
+| Project-local reads (new) | `project_workspace.checked_input/checked_project_dir` and fail-closed CWD; default host discovery avoids external directory enumeration and implicit Lima probing | Application-level guards only; OS subprocess/stdio/serial operations need OS sandbox for whole-process confinement |
 | Guided conversation | `agent_journey.py`: pure next-step/consent policy, workspace bootstrap stage, transport/interface selection, plan confirmation, requirements, halt/retry and optional boot skip | No executor or persistent session store; real Agent tool/permission handoffs unverified; non-image goals finish with evidence analysis |
 | Discovery | `collect.py`, `adaptive.py`, `device_session.py`, detect scripts, `ssh_probe.py`: fixed read-only probes, persistent SSH/ADB/picocom sessions, legacy passive TTL RX, OS/prompt guards and manifest checkpoints | Real Linux/ARM/ADB/TTL integration unverified; no resumable collection or privileged deep-probe authorization workflow |
 | Evidence and graph analysis | `dossier.py`, `compare.py`, `capabilities.py`, `topology.py`, `device_tree.py`, `link_graph.py`: hash checks, evidence references, Linux bindings, DTS hierarchy, phandle candidates and runtime links | No authenticated hardware identity, physical pinout or electrical verification; DTS parsing is experimental, not libfdt or binding-specific decoding |
@@ -42,9 +45,11 @@ labels described planning stages, not verified releases or deployment support.
 | Local host adapters | `host_capabilities.py`, `single_host.py`: native Linux or already-running Mac Lima guest, tool/share checks, fixed invocations, no automatic VM start | Real Lima execution and mount compatibility unverified; an installed or stopped VM is not a usable backend |
 | Plan-approved progress | `preview.py`, `preview_control.py`, `status.py`, `progress.py`: loopback-only observer included in the confirmed plan with explicit opt-out, lifecycle checks and image/rootfs/verification milestones | Local HTTP/lifecycle tests passed; real browser and full Agent journey unverified; no preview control/approval API or implicit restart |
 
-The generic core has no built-in board or assumed SoC. Physical IMG/BSP
-assembly, firmware flashing, installer ISO generation, installed-system
-cloning and automatic rollback are unsupported. A NoCloud `cidata` ISO
+The generic core has no built-in board or assumed SoC. A pinned minimal
+ARM64 RootFS and numbered board component staging now provide the beginning
+of physical-device iteration. Physical IMG/BSP assembly, firmware flashing,
+installer ISO generation, installed-system cloning and automatic rollback
+remain unsupported. A NoCloud `cidata` ISO
 is an initialization seed, not an OS installer.
 
 ## Validation record

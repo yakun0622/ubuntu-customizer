@@ -14,6 +14,15 @@ class DeviceManagementTests(unittest.TestCase):
     def test_default_registry_is_under_project_outputs(self):
         self.assertEqual(manage.DEFAULT_HOME, Path.cwd() / "outputs" / "device-manager")
 
+    def test_default_discovery_never_scans_external_host_directories(self):
+        with patch.object(manage, "ssh_aliases", side_effect=AssertionError("external SSH read")), \
+             patch.object(manage, "adb_targets", side_effect=AssertionError("external ADB scan")), \
+             patch.object(manage, "serial_ports", side_effect=AssertionError("/dev scan")):
+            result = manage.discover()
+        self.assertEqual(result["ssh"], [])
+        self.assertEqual(result["adb"], [])
+        self.assertEqual(result["ttl"], [])
+
     def test_host_alias_discovery_ignores_patterns(self):
         with tempfile.TemporaryDirectory() as d:
             f = Path(d) / "config"

@@ -179,14 +179,51 @@ class AgentJourneyTests(unittest.TestCase):
         self.assertEqual(journey.next_step(state)["result"], "guest_health_verified")
         self.assertTrue(journey.next_step(state)["boot_confirmed"])
 
-    def test_physical_arm_skips_qemu_and_build_even_with_evidence(self):
+    def test_physical_arm_fetches_official_minimal_base_and_enters_iteration(self):
         state = self.ready("physical-device")
+        question = journey.next_step(state)
+        self.assertEqual(question["field"], "baseline_download")
+        state = answer(state, "baseline_download", True)
+        task = journey.next_step(state)
+        self.assertEqual(task["step"], "arm_baseline")
+        self.assertTrue(task["no_local_source_search"])
+        self.assertEqual(task["approval_required"], "baseline_download")
+        state = finish(state, "arm_baseline")
+        self.assertEqual(journey.next_step(state)["step"], "arm_research")
+        state = finish(state, "arm_research")
+        self.assertEqual(journey.next_step(state)["step"], "arm_candidate")
+        self.assertEqual(journey.next_step(state)["revision"], 1)
+        state = finish(state, "arm_candidate")
         self.assertEqual(journey.next_step(state)["step"], "physical_evidence")
         state = finish(state, "physical_evidence")
-        next_task = journey.next_step(state)
-        self.assertEqual(next_task["result"], "physical_evidence_only")
-        self.assertFalse(next_task["physical_deployment_allowed"])
-        self.assertFalse(next_task["boot_confirmed"])
+        task = journey.next_step(state)
+        self.assertEqual(task["kind"], "pause")
+        self.assertEqual(task["result"], "arm_iteration_required")
+        self.assertFalse(task["physical_deployment_allowed"])
+        self.assertFalse(task["boot_confirmed"])
+        state = journey.transition(state, {"type": "iterate_arm"})
+        self.assertEqual(journey.next_step(state)["step"], "arm_research")
+        state = finish(state, "arm_research")
+        self.assertEqual(journey.next_step(state)["revision"], 2)
+
+    def test_declined_baseline_does_not_search_local_files(self):
+        state = self.ready("physical-device")
+        state = answer(state, "baseline_download", False)
+        task = journey.next_step(state)
+        self.assertEqual(task["result"], "baseline_download_declined")
+        self.assertNotIn("arm_baseline", state["steps"])
+
+    def test_arm_recovery_iteration_after_evidence_block(self):
+        state = answer(self.ready("physical-device"), "baseline_download", True)
+        for step in ("arm_baseline", "arm_research", "arm_candidate"):
+            state = finish(state, step)
+        state = finish(state, "physical_evidence", "blocked")
+        self.assertEqual(journey.next_step(state)["kind"], "halt")
+        recovered = journey.transition(state, {"type": "iterate_arm"})
+        self.assertEqual(recovered["choices"]["arm_revision"], 2)
+        self.assertEqual(journey.next_step(recovered)["step"], "arm_research")
+        with self.assertRaises(ValueError):
+            journey.transition(recovered, {"type": "iterate_arm"})
 
     def test_blocked_stage_must_be_explicitly_retried_or_optional_boot_skipped(self):
         state = self.ready()

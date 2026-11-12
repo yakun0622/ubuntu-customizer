@@ -2,6 +2,25 @@
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
+## New physical ARM path: official baseline before board drivers
+
+For physical ARM hardware, the Agent no longer begins by searching your
+computer for an image. It selects an official pinned minimal ARM64 userspace
+(Ubuntu Base 24.04.5), asks before downloading, verifies the SHA-256 and
+stores the source under `outputs/baselines/`. Then it researches board
+components and stages numbered candidates under `outputs/arm-candidates/`.
+These candidates are **not yet bootable USB disk images**: full board image
+assembly, kernel/DTB driver adaptation and hardware boot validation are
+still to be implemented.
+
+**Local file scope:** the Agent may only read and write files inside the
+current project. All generated files live in `outputs/` (apart from the
+project-local `.venv`). External image search, home-directory SSH config
+discovery, host `/dev` directory enumeration and implicit Lima inspection
+are disabled in the default path. Direct hardware access and OS subprocess
+file operations need their own approvals/sandbox; Python guards cannot
+guarantee whole-process isolation.
+
 ## Project workspace
 
 With host execution access, the Agent prepares or reuses project-local

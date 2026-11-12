@@ -11,6 +11,24 @@ pretend that it connected to the user's Mac or ran an image builder. In that
 case it explains the single missing prerequisite or uses an authorized
 computer/remote connector. It does not dump a long manual command checklist.
 
+## ARM source-first workflow and scope
+
+Physical ARM journeys do **not** request the user to find an existing host
+image. After device evidence and requirements they ask once for permission to
+fetch the pinned official Ubuntu Base ARM64 rootfs, then run:
+`arm_baseline` → `arm_research` (Agent source/driver research) →
+`arm_candidate` (numbered local component staging) →
+`physical_evidence` (serial/static boot evidence). The result remains
+`arm_iteration_required` until a real board build/verification implementation
+exists. The `iterate_arm` event creates another revision without repeating
+the baseline download or initial device session. Never imply that a staged
+RootFS tarball is bootable.
+
+For local file inputs, accept only files inside the present project. No
+implicit `~/Downloads`, `~/.ssh`, `/dev` enumeration, `/tmp` or
+other-directory search. All new artifacts belong in `outputs`. A host
+sandbox is required for an absolute, whole-process access guarantee.
+
 ## Current-directory bootstrap and artifact rule
 
 When an authorized local host execution bridge exists, **before asking for a

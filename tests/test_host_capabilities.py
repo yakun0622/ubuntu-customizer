@@ -55,6 +55,14 @@ class HostCapabilityTests(unittest.TestCase):
         self.assertEqual(next(x for x in result["verification"]
                               if x["id"] == "qemu-guest-health")["status"], "unavailable")
 
+    def test_default_inspection_never_scans_host_path_or_lima(self):
+        with patch.object(host.shutil, "which", side_effect=AssertionError("PATH read")), \
+             patch.object(host, "probe_lima", side_effect=AssertionError("Lima I/O")):
+            result = host.inspect(target="physical-device", target_arch="arm64")
+        self.assertTrue(result["project_only_host_scan"])
+        self.assertFalse(any(result["tools"].values()))
+        self.assertEqual(result["lima"]["reason"], "project_only_no_host_scan")
+
     def test_lima_probe_never_starts_vm(self):
         seen = []
         payload = {"os": "linux", "arch": "aarch64",

@@ -20,15 +20,13 @@ class WorkspaceTests(unittest.TestCase):
         (base / "scripts" / "workflow").mkdir(parents=True)
         return base
 
-    def test_lima_runner_uses_script_repository_when_cwd_is_different(self):
+    def test_never_falls_back_to_script_repository_outside_current_directory(self):
         with tempfile.TemporaryDirectory() as d:
-            with mock.patch.object(workspace.Path, "cwd", return_value=Path(d)), \
-                 mock.patch.object(workspace, "ensure_outputs",
-                                   return_value=ROOT.resolve() / "outputs"):
-                self.assertEqual(workspace.project_root(), ROOT.resolve())
-                self.assertEqual(
-                    workspace.checked_output("outputs/lima-report.json"),
-                    ROOT.resolve() / "outputs" / "lima-report.json")
+            with mock.patch.object(workspace.Path, "cwd", return_value=Path(d)):
+                with self.assertRaisesRegex(ValueError, "current ubuntu-customizer"):
+                    workspace.project_root()
+                with self.assertRaises(ValueError):
+                    workspace.checked_output("outputs/lima-report.json")
 
     def test_outputs_are_private_and_not_symlinked(self):
         with tempfile.TemporaryDirectory() as d:
@@ -70,6 +68,29 @@ class WorkspaceTests(unittest.TestCase):
                 with self.subTest(bad=bad):
                     with self.assertRaises(ValueError):
                         workspace.checked_output(bad, root)
+
+    def test_project_inputs_reject_absolute_external_paths_and_symlinks(self):
+        with tempfile.TemporaryDirectory() as d:
+            project = Path(d) / "project"
+            project.mkdir()
+            root = self.fixture(project)
+            local = root / "components"
+            local.mkdir()
+            binary = local / "board.dtb"
+            binary.write_bytes(b"safe")
+            self.assertEqual(workspace.checked_input("components/board.dtb", root), binary)
+            self.assertEqual(workspace.checked_project_dir("components", root), local)
+            outside = Path(d) / "external.dtb"
+            outside.write_bytes(b"external")
+            (local / "escape.dtb").symlink_to(outside)
+            for unsafe in (str(outside), "../external.dtb", "components/escape.dtb"):
+                with self.subTest(path=unsafe):
+                    with self.assertRaises(ValueError):
+                        workspace.checked_input(unsafe, root)
+            with self.assertRaises(ValueError):
+                workspace.checked_input("components/board.dtb", root, max_bytes=2)
+            with self.assertRaises(ValueError):
+                workspace.checked_project_dir("..", root)
 
     def test_reject_symlinks_inside_outputs(self):
         with tempfile.TemporaryDirectory() as d:

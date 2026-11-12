@@ -111,18 +111,24 @@ def decide(host_os, host_arch, tools, target, target_arch, lima=None):
             "inspections": inspections, "verification": validation}
 
 def inspect(target="virtual-machine", target_arch="amd64", lima_instance="default",
-            output_parent="/", input_file="/", probe=True):
+            output_parent="/", input_file="/", probe=True, strict_workspace=True):
     host = {"os": sys.platform, "arch": ARCHES.get(platform.machine(), "unknown"),
             "cpu_name": platform.machine()}
-    tools = {name: bool(shutil.which(name)) for name in
+    # Host PATH discovery and a Lima probe can access directories outside
+    # the active workspace. They are forbidden under project-only mode.
+    tools = ({name: False for name in
              CORE + tuple(QEMU.values()) + ("limactl", "genisoimage", "mkisofs")}
+             if strict_workspace else
+             {name: bool(shutil.which(name)) for name in
+              CORE + tuple(QEMU.values()) + ("limactl", "genisoimage", "mkisofs")})
     lima = (probe_lima(lima_instance, output_parent, input_file) if
-            sys.platform == "darwin" and probe else {"available": False,
-            "reason": "not_probed_or_not_macos"})
+            not strict_workspace and sys.platform == "darwin" and probe else
+            {"available": False, "reason": "project_only_no_host_scan"})
     plan = decide(host["os"], host["arch"], tools, target, target_arch, lima)
     return {"schema_version": 1, "type": "ubuntu-customizer/local-host-capabilities",
             "host": host, "tools": tools, "lima": lima, "plan": plan,
             "no_automatic_install": True, "no_vm_start": True,
+            "project_only_host_scan": strict_workspace,
             "physical_device_writes": False}
 
 def main(argv=None):

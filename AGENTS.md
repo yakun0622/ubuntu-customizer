@@ -4,6 +4,27 @@ This repository implements an **AI Agent Skill**, not a CLI application.
 Always read `SKILL.md` and `references/interactive-agent-flow.md` for
 device customization, diagnostic, image build, or boot-verification requests.
 
+## Mandatory ARM baseline-first and local filesystem isolation
+
+- **Do not search the host for an image.** For ARM hardware, start from the
+  pinned official Ubuntu Base ARM64 RootFS in `arm_baseline.py`, download
+  only with explicit network consent, validate its SHA-256, then research
+  the device's boot chain and stage versioned components with
+  `arm_candidate.py`. Iterate instead of finishing at `evidence_only`.
+- **All host-side file reads and writes must be inside the current project
+  directory.** Only `outputs/` receives generated artifacts; `.venv/`
+  is the local environment exception. Never inspect `~/Downloads`,
+  `~/.ssh`, `/tmp`, `/dev` directory listings, sibling repos, or a
+  source image in another path. No automatic local image search.
+- Project-only checks cannot sandbox an arbitrary subprocess or prevent
+  OS-managed library/config reads. Never promise strict whole-process
+  confinement without an actual host sandbox. Direct TTL access to a
+  selected `/dev` node needs separately approved hardware access; if the
+  ban also includes all device nodes, do not open it.
+- The new ARM baseline and candidate stage are concrete intermediate
+  artifacts, not a bootable USB IMG. Full board assembly and verified USB
+  boot remain pending real engineering and tests; never fake completion.
+
 ## User-facing behavior
 
 When the user says **“开始” / “开始定制系统” / “开始检查设备”**:
@@ -55,8 +76,10 @@ When the user says **“开始” / “开始定制系统” / “开始检查�
    externally. No standing consent for target connection, arbitrary
    network installs, untrusted code, deleting important files,
    host/system changes, VM boot, firmware/DTB edits or disk writes.
-10. After blockers, pause honestly; report evidence, produced commits/tests,
-    known unknowns and one next action where supported.
+10. For ARM blockers, research and attempt a new board-specific candidate
+    revision before stopping for truly unavailable tools, permissions or
+    hardware intervention. Report actual attempts and never claim boot success
+    from a baseline RootFS or static log.
 
 Use `agent_journey.py` as the pure step/consent policy, not as a process
 launcher. Do not make ordinary users choose Python/QEMU/Lima arguments.

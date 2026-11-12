@@ -1,5 +1,18 @@
 # ARM / Armbian hardware diagnosis
 
+## Minimal userspace first, then board adaptation
+
+The physical ARM path selects an official, checksum-pinned minimal ARM64
+userspace by default (Ubuntu Base 24.04.5 currently). It never searches a
+Mac's disks for an IMG first. `arm_baseline.py` fetches into `outputs`
+when explicitly approved. `arm_candidate.py` starts a revisioned local
+staging directory and accepts only board components already within the
+active project. Research and authorized device extraction should resolve
+missing kernel/DTB/bootloader in subsequent revisions. Merely extracting or
+staging them does not make a bootable disk. Boot-script/partition assembly,
+driver recompilation and physical USB verification still require additional
+implementation and per-action safety approvals.
+
 ## Current scope
 
 Implemented tools collect fixed read-only evidence, parse software bindings

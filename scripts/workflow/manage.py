@@ -142,10 +142,14 @@ def serial_ports():
                   and SERIAL_PORT.fullmatch(str(p)))
 
 def discover(config=None):
-    config = config or Path.home() / ".ssh" / "config"
-    return {"ssh": ssh_aliases(config), "adb": adb_targets(),
-            "ttl": serial_ports(), "local": ["local"],
-            "note": "Candidates only. No connection attempted or trust established."}
+    # Under the project-only rule, NEVER inspect ~/.ssh, /dev, or an
+    # external ADB server implicitly. The user can supply the real interface
+    # during plan review, or provide a project-local SSH config.
+    trusted = (ssh_aliases(adaptive.workspace.checked_input(config))
+               if config is not None else [])
+    return {"ssh": trusted, "adb": [], "ttl": [], "local": ["local"],
+            "note": ("Project-only discovery: external host directories are not "
+                     "enumerated. Provide a known authorized device endpoint.")}
 
 def sessions(root, name):
     if not ID.fullmatch(name):

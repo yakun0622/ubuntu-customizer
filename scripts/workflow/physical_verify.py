@@ -147,7 +147,12 @@ def main(argv=None):
     p.add_argument("--output", required=True, help="NEW private JSON evidence report")
     args = p.parse_args(argv)
     try:
-        result = evaluate(args.log, args.session, args.image, args.sha256)
+        # CLI input paths must be inside this working project; only remote
+        # hardware reads through an explicitly authorized transport are separate.
+        log = workspace.checked_input(args.log, max_bytes=MAX_LOG) if args.log else None
+        session = workspace.checked_project_dir(args.session) if args.session else None
+        image = workspace.checked_input(args.image) if args.image else None
+        result = evaluate(log, session, image, args.sha256)
         output = workspace.checked_output(args.output)
         if output.is_symlink() or output.exists() or not output.parent.is_dir():
             raise ValueError("Output report must be a new file")

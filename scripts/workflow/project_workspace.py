@@ -22,14 +22,9 @@ def project_root(root=None):
         raise ValueError("Project workspace must be an existing real directory")
     base = base.resolve()
     if not (base / "SKILL.md").is_file() or not (base / "scripts" / "workflow").is_dir():
-        # Lima/remote runner may execute an absolute script path from a
-        # different working directory. Anchor outputs to that script's
-        # actual repository, never to the guest's arbitrary home directory.
-        if root is not None:
-            raise ValueError("Explicit project root is not ubuntu-customizer")
-        base = Path(__file__).resolve().parents[2]
-        if not (base / "SKILL.md").is_file() or not (base / "scripts" / "workflow").is_dir():
-            raise ValueError("No ubuntu-customizer project workspace available")
+        # Never silently fall back to the script's repository or the user's
+        # home directory: the active working directory is the only workspace.
+        raise ValueError("Run from the current ubuntu-customizer project directory")
     return base
 
 
@@ -83,6 +78,65 @@ def checked_output(value, root=None):
     if not relative.parts:
         raise ValueError("Choose a new file or session beneath outputs")
     return output_path(*relative.parts, root=root)
+
+
+
+def checked_input(value, root=None, max_bytes=None):
+    """Require a regular local input entirely beneath the active project tree.
+
+    Reject absolute external paths, traversal, symlinks at every segment, and
+    directories. This is an application guard, not an OS sandbox.
+    """
+    base = project_root(root)
+    candidate = Path(value).expanduser()
+    if not candidate.is_absolute():
+        candidate = base / candidate
+    try:
+        relative = candidate.relative_to(base)
+    except ValueError as exc:
+        raise ValueError("All local input files must be under the current project directory") from exc
+    if not relative.parts or ".." in relative.parts:
+        raise ValueError("Unsafe project input path")
+    current = base
+    for part in relative.parts:
+        current = current / part
+        if current.is_symlink():
+            raise ValueError("Project input path must not contain symlinks")
+    try:
+        candidate.resolve(strict=True).relative_to(base)
+    except (OSError, ValueError) as exc:
+        raise ValueError("Missing or external project input") from exc
+    if not candidate.is_file():
+        raise ValueError("Project input must be a regular file")
+    if max_bytes is not None and candidate.stat().st_size > max_bytes:
+        raise ValueError("Project input exceeds size limit")
+    return candidate
+
+
+def checked_project_dir(value, root=None):
+    """Validate an existing directory within the active project."""
+    base = project_root(root)
+    candidate = Path(value).expanduser()
+    if not candidate.is_absolute():
+        candidate = base / candidate
+    try:
+        relative = candidate.relative_to(base)
+    except ValueError as exc:
+        raise ValueError("Project directory must remain in the current workspace") from exc
+    if ".." in relative.parts:
+        raise ValueError("Project directory traversal is forbidden")
+    current = base
+    for part in relative.parts:
+        current = current / part
+        if current.is_symlink():
+            raise ValueError("Project directory symlinks are forbidden")
+    try:
+        candidate.resolve(strict=True).relative_to(base)
+    except (OSError, ValueError) as exc:
+        raise ValueError("Missing or external project directory") from exc
+    if not candidate.is_dir():
+        raise ValueError("Expected an existing project directory")
+    return candidate
 
 
 

@@ -27,6 +27,51 @@ and [Agent workflow](references/agent-workflow.md) first. Then read
 [ARM hardware](references/arm-hardware.md), or
 [Safety](references/safety.md) *only for relevant stages*.
 
+## Physical ARM source-first iteration (highest priority)
+
+For a physical ARM target, **never begin by searching the Mac, its home
+directory, removable media, or other host directories for an existing image**.
+After authorized device evidence collection and requirements, select the
+smallest appropriate official ARM64 userspace baseline. The first implemented
+default is the pinned Ubuntu Base 24.04.5 ARM64 rootfs tarball; inspect its
+documented release URL/hash before downloading. It is not a bootable IMG and
+does not include the W152D kernel, DTB or bootloader.
+
+The active policy is **official baseline → board/SoC/boot-chain research →
+versioned component staging → targeted serial verification → diagnosis and
+next revision**. Missing DTB/kernel/BSP causes focused extraction/research
+and another candidate iteration, NOT a final `physical_evidence_only`
+result. `arm_baseline.py` implements an approved, fixed-hash download into
+`outputs/baselines/`; `arm_candidate.py` stages project-local components
+into new numbered revisions in `outputs/arm-candidates/`. These are the
+first implemented pieces of the pipeline. Physical bootable IMG assembly,
+driver patch compilation, USB boot testing and flashing are NOT yet
+implemented; never claim otherwise.
+
+## Strict project-local file access (highest priority)
+
+**The active project directory is the entire host-file scope for this Skill,
+for both reading and writing.** Do not read local files elsewhere, even for
+discovery or convenience. All runtime writes stay in `./outputs/`; the
+self-contained Python environment stays in `./.venv/`; tracked project
+sources may be edited only within the project. No `~/Downloads`,
+`~/.ssh`, `/tmp`, `/var`, sibling repositories, other disks, external
+input images or automatic local search. Do not recursively browse user
+directories. `project_workspace.project_root` refuses CWD fallback;
+`checked_input` rejects out-of-tree inputs and symlinks. Disable implicit
+external host scans and Lima probing.
+
+Explicitly authorized **remote target-device evidence reads** are logically
+separate from accessing the Mac's local files. Serial TTL hardware access
+necessarily opens a node under `/dev`; it cannot meet a literal ban on
+*all* out-of-tree device-node reads. If the operator also forbids that
+specific device-node access, do not open TTL, and report that limitation
+before connecting. SSH/ADB transports may also use OS-managed external
+credentials/configuration; avoid implicit access and require a host sandbox
+with the requested confinement before claiming comprehensive enforcement.
+Python path guards are not a substitute for an OS-enforced file sandbox.
+Never claim whole-process filesystem confinement based only on these checks.
+
 ## Capability and validation boundary
 
 Use [Roadmap and acceptance](references/roadmap.md) as the maintained
@@ -162,9 +207,10 @@ server actually started. The plan approval covers exactly the described
 read-only connection and local observer; it does NOT authorize image writes,
 system mutations, remote power controls or firmware flashing.
 
-For physical ARM targets the Agent progressively collects requirements and
-boot/BSP/DTB/recovery evidence, but must label unimplemented physical IMG
-construction and deployment as blockers rather than claiming completion.
+For physical ARM targets the Agent obtains a pinned official minimal ARM64
+RootFS as the baseline, researches device-specific boot components, stages
+versioned candidates and iterates on evidence gaps; unimplemented physical IMG
+construction/deployment remains explicitly unverified and cannot be claimed.
 QEMU must never be forced on physical-device flows.
 
 Keep interactions in the conversation: one question at a time, with a
@@ -181,8 +227,10 @@ is available, explain that limitation truthfully and propose the single
 relevant setup action rather than pretending local work ran.
 
 **All decisions are revocable at later stages**, and one approval applies
-only to its described risk boundary. After any failed or blocked stage,
-stop automatic progression and present the blocker and a supported remedy.
+only to its described risk boundary. After any blocked ARM stage, attempt safe source research and the next
+versioned candidate without repeating already-approved collection. Stop for
+hardware intervention, external access authorization, or unsupported writes;
+never bypass safety gates.
 Report verified operations accurately and finish with ONE concrete next-step
 follow-up button where the client supports it.
 

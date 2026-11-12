@@ -50,6 +50,9 @@ ACTIONS = {
     # This is NOT a shell command or an implemented board image builder.
     "requirements": ("agent.conversation", "R0", "逐项确认目标系统、版本、启动介质和所需功能"),
     "physical_evidence": ("physical_verify.evaluate", "R0", "检查 ARM 启动日志及静态证据"),
+    "arm_baseline": ("arm_baseline.acquire", "R1", "在项目 outputs 中下载并校验官方 ARM64 最小系统"),
+    "arm_research": ("agent.research_board_sources", "R0", "从官方或可信上游研究启动组件与驱动，不扫描宿主机文件"),
+    "arm_candidate": ("arm_candidate.stage", "R1", "创建包含基础 RootFS 和已验证板级组件的版本化候选目录"),
     "image_inspect": ("image_inspect.inspect", "R0", "检查基础系统镜像"),
     "image_plan": ("image_plan.plan", "R0", "生成兼容性与安全阻断清单"),
     "recipe_preview": ("rootfs_builder.dry_run", "R0", "预览离线定制方案"),
@@ -82,9 +85,10 @@ def start(goal=None, target=None, transport=None, interface_ready=None,
         "choices": {"transport": transport,
                     "interface_ready": True if transport == "local" else interface_ready,
                     "interface_display": ("本机" if transport == "local" else interface_display),
-                    "preview": True, "source_ready": None, "run_boot": None},
+                    "preview": True, "source_ready": None, "run_boot": None,
+                    "arm_revision": 1},
         "consent": {"plan_confirm": None, "offline_build": None,
-                    "isolated_vm_boot": None},
+                    "isolated_vm_boot": None, "baseline_download": None},
         "steps": {}, "boot_confirmed": False,
     }
 
@@ -105,6 +109,15 @@ def _action(name, state):
         result["output_root"] = "outputs"
         result["python_env"] = ".venv"
         result["start_preview_before_probes"] = result["preview_approved"]
+    if name == "arm_baseline":
+        result["approval_required"] = "baseline_download"
+        result["default_source"] = "ubuntu-base-24.04.5-arm64"
+        result["no_local_source_search"] = True
+        result["output_root"] = "outputs"
+    if name == "arm_candidate":
+        result["revision"] = state["choices"]["arm_revision"]
+        result["output_root"] = "outputs"
+        result["boot_confirmed"] = False
     if name == "rootfs_build":
         result["approval_required"] = "offline_build"
     if name == "qemu_verify":
@@ -180,13 +193,27 @@ def next_step(state):
     if current:
         return current
     if state["target"] == "physical-device":
-        current = _stage(state, "physical_evidence")
-        if current:
-            return current
-        return {"kind": "done", "result": "physical_evidence_only",
+        # A physical ARM build starts from a pinned official minimal userspace,
+        # not from scanning the user's disks for an unknown ready-made image.
+        if state["consent"]["baseline_download"] is None:
+            return _ask("baseline_download",
+                        "允许仅从 Ubuntu 官方地址下载经固定 SHA-256 校验的 ARM64 最小 RootFS 到 ./outputs 吗？",
+                        (True, False), False)
+        if state["consent"]["baseline_download"] is False:
+            return {"kind": "pause", "result": "baseline_download_declined",
+                    "reason": "No automatic local image search or fallback",
+                    "boot_confirmed": False}
+        for name in ("arm_baseline", "arm_research", "arm_candidate", "physical_evidence"):
+            current = _stage(state, name)
+            if current:
+                return current
+        # Never call a rootfs tarball (or staged boot assets) a bootable image.
+        # Allow an explicit next engineering iteration with newly found
+        # components, rather than declaring the whole physical task complete.
+        return {"kind": "pause", "result": "arm_iteration_required",
+                "next_action": "research_or_adapt_missing_boot_components",
+                "revision": state["choices"]["arm_revision"],
                 "physical_deployment_allowed": False,
-                "missing_gates": ("board_BSP", "bootloader", "DTB", "recovery",
-                                  "authenticated_boot_health"),
                 "boot_confirmed": False, "automatic": False}
     if state["choices"]["source_ready"] is None:
         return _ask("source_ready",
@@ -284,6 +311,8 @@ def transition(state, event):
         result = event.get("state")
         if current["kind"] != "run" or current["step"] != step or result not in STATES:
             raise ValueError("Tool result is out of sequence or invalid")
+        if step == "arm_baseline" and updated["consent"]["baseline_download"] is not True:
+            raise ValueError("Missing pinned baseline download consent")
         if step == "rootfs_build" and updated["consent"]["offline_build"] is not True:
             raise ValueError("Missing offline build approval")
         if step == "qemu_verify" and updated["consent"]["isolated_vm_boot"] is not True:
@@ -296,6 +325,18 @@ def transition(state, event):
         if current["kind"] != "halt" or current["step"] != step:
             raise ValueError("Only the current blocked/failed step may be retried")
         updated["steps"].pop(step)
+        updated["boot_confirmed"] = False
+    elif typ == "iterate_arm":
+        if (state.get("target") != "physical-device" or
+                not (current["kind"] == "pause" and current.get("result") == "arm_iteration_required"
+                     or current["kind"] == "halt"
+                     and current.get("step") in ("arm_research", "arm_candidate", "physical_evidence"))):
+            raise ValueError("ARM iteration requires a completed or blocked ARM stage")
+        if updated["choices"]["arm_revision"] >= 9999:
+            raise ValueError("ARM revision limit reached")
+        updated["choices"]["arm_revision"] += 1
+        for stage in ("arm_research", "arm_candidate", "physical_evidence"):
+            updated["steps"].pop(stage, None)
         updated["boot_confirmed"] = False
     elif typ == "skip_boot":
         if current["kind"] != "halt" or current["step"] != "qemu_verify":
