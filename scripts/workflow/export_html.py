@@ -168,12 +168,19 @@ def main(argv=None):
     p.add_argument("--output", required=True, help="new local .html file")
     args = p.parse_args(argv)
     try:
-        path = export(args.session, args.output)
+        path = export(args.session, str(workspace.checked_output(args.output)))
         print("Offline hardware browser: " + str(path))
         return 0
     except (OSError, ValueError, TypeError, KeyError) as exc:
         print("ERROR: " + str(exc), file=sys.stderr)
         return 2
+
+# The CLI enforces the project's outputs-only policy. Internal library functions
+# continue to accept isolated temporary test fixtures without changing their API.
+ws_spec = importlib.util.spec_from_file_location(
+    "uc_workspace_export_html", Path(__file__).with_name("project_workspace.py"))
+workspace = importlib.util.module_from_spec(ws_spec)
+ws_spec.loader.exec_module(workspace)
 
 if __name__ == "__main__":
     raise SystemExit(main())
