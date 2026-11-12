@@ -25,6 +25,9 @@ class AgentJourneyTests(unittest.TestCase):
         state = answer(state, "plan_confirm", True)
         state = finish(state, "collect")
         state = finish(state, "analyze")
+        self.assertEqual(journey.next_step(state)["step"], "requirements")
+        self.assertEqual(journey.next_step(state)["helper"], "agent.conversation")
+        state = finish(state, "requirements")
         return state
 
     def prepared_vm(self):
