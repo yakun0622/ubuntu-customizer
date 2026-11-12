@@ -178,7 +178,7 @@ Run a remote, read-only inventory from a machine with OpenSSH and a configured H
 Create a snapshot of explicitly selected local files:
 
 ```bash
-./.venv/bin/python -B scripts/safety/snapshot.py --output-dir ./outputs/snapshot-001 /etc/hostname
+./.venv/bin/python -B scripts/safety/snapshot.py --output-dir ./outputs/snapshot-001 ./outputs/sample-input.txt
 ```
 
 Snapshots do not provide an automatic restore capability. They should be stored in a secure location.
@@ -436,14 +436,14 @@ source architecture, readiness gaps, and the intended output format.
 # Generate plan for an existing verified base image and a VM target
 ./.venv/bin/python -B scripts/workflow/image_plan.py SESSION_DIRECTORY \
   --target virtual-machine --format qcow2 \
-  --source /srv/images/base.img \
+  --source ./outputs/sources/base.img \
   --sha256 VERIFIED_64_HEX_SHA256 --source-arch amd64 \
   --output ./outputs/image-plan.json
 
 # The same plan can be created from a registered device
 ./.venv/bin/python -B scripts/workflow/manage.py image-plan lab-server SESSION_ID \
   --target virtual-machine --format qcow2 \
-  --source /srv/images/base.img \
+  --source ./outputs/sources/base.img \
   --sha256 VERIFIED_64_HEX_SHA256 --source-arch amd64 \
   --output ./outputs/image-plan.json
 
@@ -566,12 +566,12 @@ establish GPT/MBR partitioning, guest Linux architecture/OS, installed kernel
 and BIOS/UEFI + bootloader. Missing evidence blocks conversion.
 
 ```bash
-./.venv/bin/python -B scripts/workflow/image_inspect.py /srv/images/base.img \
+./.venv/bin/python -B scripts/workflow/image_inspect.py ./outputs/sources/base.img \
   --sha256 TRUSTED_SOURCE_SHA256 \
   --output ./outputs/source-inspection.json
 
 ./.venv/bin/python -B scripts/workflow/image_plan.py SESSION_DIR \
-  --target virtual-machine --format qcow2 --source /srv/images/base.img \
+  --target virtual-machine --format qcow2 --source ./outputs/sources/base.img \
   --sha256 TRUSTED_SOURCE_SHA256 --source-arch amd64 \
   --output ./outputs/image-plan.json
 ```

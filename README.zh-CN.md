@@ -155,7 +155,7 @@ bash scripts/detect/network.sh
 为明确指定的本地文件创建快照：
 
 ```bash
-./.venv/bin/python -B scripts/safety/snapshot.py --output-dir ./outputs/snapshot-001 /etc/hostname
+./.venv/bin/python -B scripts/safety/snapshot.py --output-dir ./outputs/snapshot-001 ./outputs/sample-input.txt
 ```
 
 快照不提供自动恢复能力，应保存在安全位置。
@@ -387,14 +387,14 @@ Explore 的 `image` 计划不会调用下文独立的 VM 镜像流水线。
 # 为已验证基础镜像和 VM 目标生成计划
 ./.venv/bin/python -B scripts/workflow/image_plan.py SESSION_DIRECTORY \
   --target virtual-machine --format qcow2 \
-  --source /srv/images/base.img \
+  --source ./outputs/sources/base.img \
   --sha256 VERIFIED_64_HEX_SHA256 --source-arch amd64 \
   --output ./outputs/image-plan.json
 
 # 也可从已登记设备创建相同计划
 ./.venv/bin/python -B scripts/workflow/manage.py image-plan lab-server SESSION_ID \
   --target virtual-machine --format qcow2 \
-  --source /srv/images/base.img \
+  --source ./outputs/sources/base.img \
   --sha256 VERIFIED_64_HEX_SHA256 --source-arch amd64 \
   --output ./outputs/image-plan.json
 
@@ -487,12 +487,12 @@ Skill 负责控制，浏览器仅观察。阶段映射和隐私规则见[实时�
 已安装内核、BIOS/UEFI 模式及引导加载程序。证据缺失会阻断转换。
 
 ```bash
-./.venv/bin/python -B scripts/workflow/image_inspect.py /srv/images/base.img \
+./.venv/bin/python -B scripts/workflow/image_inspect.py ./outputs/sources/base.img \
   --sha256 TRUSTED_SOURCE_SHA256 \
   --output ./outputs/source-inspection.json
 
 ./.venv/bin/python -B scripts/workflow/image_plan.py SESSION_DIR \
-  --target virtual-machine --format qcow2 --source /srv/images/base.img \
+  --target virtual-machine --format qcow2 --source ./outputs/sources/base.img \
   --sha256 TRUSTED_SOURCE_SHA256 --source-arch amd64 \
   --output ./outputs/image-plan.json
 ```

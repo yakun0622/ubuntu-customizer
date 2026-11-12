@@ -342,13 +342,13 @@ Agent owns the progression, choices and tool invocation.
 ./.venv/bin/python -B scripts/workflow/capabilities.py SESSION_DIR
 
 # Optional standalone source inspection report (no image modification):
-./.venv/bin/python -B scripts/workflow/image_inspect.py /safe/base.img \
+./.venv/bin/python -B scripts/workflow/image_inspect.py ./outputs/sources/base.img \
   --sha256 TRUSTED_SHA256 --output ./outputs/source-inspection.json
 
 # Analyze an existing trusted base image against a collected session:
 ./.venv/bin/python -B scripts/workflow/image_plan.py SESSION_DIR \
   --target virtual-machine --format qcow2 \
-  --source /safe/base.img --sha256 TRUSTED_SHA256 \
+  --source ./outputs/sources/base.img --sha256 TRUSTED_SHA256 \
   --source-arch amd64 --output ./outputs/image-plan.json
 
 # Only when every mandatory guest inspection check passed AND the

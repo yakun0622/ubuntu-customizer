@@ -60,14 +60,14 @@ source architecture, readiness gaps, and the intended output format.
 # Generate plan for an existing verified base image and a VM target
 ./.venv/bin/python -B scripts/workflow/image_plan.py SESSION_DIRECTORY \
   --target virtual-machine --format qcow2 \
-  --source /srv/images/base.img \
+  --source ./outputs/sources/base.img \
   --sha256 VERIFIED_64_HEX_SHA256 --source-arch amd64 \
   --output ./outputs/image-plan.json
 
 # The same plan can be created from a registered device
 ./.venv/bin/python -B scripts/workflow/manage.py image-plan lab-server SESSION_ID \
   --target virtual-machine --format qcow2 \
-  --source /srv/images/base.img \
+  --source ./outputs/sources/base.img \
   --sha256 VERIFIED_64_HEX_SHA256 --source-arch amd64 \
   --output ./outputs/image-plan.json
 
@@ -124,7 +124,7 @@ stage integration; no CI is triggered by the Skill itself.
 The Skill now has a **read-only** source-image inspector:
 
 ```bash
-./.venv/bin/python -B scripts/workflow/image_inspect.py /srv/images/base.img \
+./.venv/bin/python -B scripts/workflow/image_inspect.py ./outputs/sources/base.img \
   --sha256 VERIFIED_64_HEX_SHA256 \
   --output ./outputs/source-inspection.json
 ```
