@@ -23,10 +23,10 @@ Legacy manual standalone debugging example (not the Agent user journey):
 ```bash
 # Terminal 1: launch evidence collection; a new session directory is created
 python3 scripts/workflow/adaptive.py --transport local --target local \
-  --output ./sessions/run-001 --yes
+  --output ./outputs/sessions/run-001 --yes
 
 # Terminal 2, while Terminal 1 is running or after it completes:
-python3 scripts/workflow/preview.py ./sessions/run-001 --port 8765
+python3 scripts/workflow/preview.py ./outputs/sessions/run-001 --port 8765
 ```
 
 Visit `http://127.0.0.1:8765/` **from the same computer**. The server
@@ -44,13 +44,13 @@ SSH aliases, file paths or credentials.
   the Agent explicitly invokes the **optional** checkpoint helper:
 
 ```bash
-python3 scripts/workflow/status.py ./sessions/run-001 \
+python3 scripts/workflow/status.py ./outputs/sessions/run-001 \
   --stage analyze --state running --completed 0 --total 3
 
-python3 scripts/workflow/status.py ./sessions/run-001 \
+python3 scripts/workflow/status.py ./outputs/sessions/run-001 \
   --stage image-plan --state complete --completed 3 --total 3
 
-python3 scripts/workflow/status.py ./sessions/run-001 \
+python3 scripts/workflow/status.py ./outputs/sessions/run-001 \
   --stage image-build --state blocked --completed 0 --total 1
 ```
 
@@ -84,14 +84,14 @@ preserving the approved read-only collection scope.
 # Internal Agent helper: only after reviewing/approving the connection plan:
 python3 scripts/workflow/adaptive.py \
   --transport ssh --target trusted-host-alias \
-  --output ./sessions/run-002 --yes --preview-approved
+  --output ./outputs/sessions/run-002 --yes --preview-approved
 
 # The command prints the actual preview URL and session path.
 # Check status later without starting a second server:
-python3 scripts/workflow/preview_control.py status ./sessions/run-002
+python3 scripts/workflow/preview_control.py status ./outputs/sessions/run-002
 
 # Stop the preview when the user is finished:
-python3 scripts/workflow/preview_control.py stop ./sessions/run-002
+python3 scripts/workflow/preview_control.py stop ./outputs/sessions/run-002
 ```
 
 For interactive SSH/ADB/TTL, use the persistent device-session adapter;
@@ -102,7 +102,7 @@ JSON event BEFORE the first fixed probe:
 # Internal example, never run without plan approval:
 python3 scripts/workflow/adaptive.py \
   --transport adb --target AUTHORIZED_SERIAL \
-  --output ./sessions/managed-001 \
+  --output ./outputs/sessions/managed-001 \
   --interactive-shell-approved --preview-approved --yes
 ```
 
@@ -115,9 +115,9 @@ remote-accessible link.
 For a session that already exists, the Agent can start the observer separately:
 
 ```bash
-python3 scripts/workflow/preview_control.py start ./sessions/run-002 --approved
-python3 scripts/workflow/preview_control.py status ./sessions/run-002
-python3 scripts/workflow/preview_control.py stop ./sessions/run-002
+python3 scripts/workflow/preview_control.py start ./outputs/sessions/run-002 --approved
+python3 scripts/workflow/preview_control.py status ./outputs/sessions/run-002
+python3 scripts/workflow/preview_control.py stop ./outputs/sessions/run-002
 ```
 
 A random available port is selected by default and the actual URL is
@@ -133,7 +133,7 @@ refuses to signal the PID. In that case, after checking no preview is
 running, call:
 
 ```bash
-python3 scripts/workflow/preview_control.py clear-stale ./sessions/run-002
+python3 scripts/workflow/preview_control.py clear-stale ./outputs/sessions/run-002
 ```
 
 The control helper terminates **only the preview observer**; collection,
