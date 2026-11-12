@@ -25,8 +25,8 @@ The Agent must first select the connection method, resolve its exact
 interface, explain a detailed read-only execution/monitoring plan and wait
 for explicit confirmation. That consent covers a single interactive probe
 batch and the loopback-only viewer, never device writes or reboot.
-Use a unique private output directory, normally under the Agent's local
-user-data directory, not a Git working tree. Add
+Use a unique private session under the current project's **./outputs/**
+directory. Do not put evidence in the repository root or a different folder. Add
 `--preview-approved` to the managed `adaptive.py` invocation when the
 reviewed plan includes the viewer: the session starts it **before** probes
 and emits a `preview_ready` URL. Do not invent a URL or expose it to
@@ -34,17 +34,17 @@ other machines. The commands below are illustrative implementation calls:
 
     python3 scripts/workflow/adaptive.py \
       --transport ttl --target /dev/cu.wchusbserial1140 \
-      --baud 921600 --output /private/safe/session-unique \
+      --baud 921600 --output ./outputs/session-unique \
       --interactive-shell-approved --preview-approved --yes
 
     python3 scripts/workflow/adaptive.py \
       --transport adb --target SERIAL \
-      --output /private/safe/adb-session-unique \
+      --output ./outputs/adb-session-unique \
       --interactive-shell-approved --yes
 
     python3 scripts/workflow/adaptive.py \
       --transport ssh --target trusted-ssh-config-alias \
-      --output /private/safe/ssh-session-unique \
+      --output ./outputs/ssh-session-unique \
       --interactive-shell-approved --yes
 
 The device-session helper can also be run directly with --approved-readonly.
