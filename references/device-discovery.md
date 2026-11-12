@@ -66,8 +66,13 @@ Each manifest entry has a relative file path, SHA-256 digest, byte count and pro
 
 Collected files can contain MAC addresses, IPs, hostnames, board identifiers
 or kernel configuration. They are kept locally and never uploaded automatically. Default evidence
-folders such as `devices/`, `captures/` and `sessions/` are ignored by Git;
-arbitrary output directories are not automatically ignored. Review/redact
+folders such as `devices/`, `captures/` and `sessions/` are ignored by Git.
+The repository also ignores root-level `device-session-*` directories (the
+adaptive collector default) and `<label>-YYYYMMDD-HHMMSS` directories used for
+local captures, regardless of device model. Other custom output names are
+not automatically ignored; use an ignored capture directory or check them
+with `git check-ignore` before staging files. Ignore rules do not untrack
+files already committed. Review/redact
 before publishing. No kernel debugfs mounting, privilege escalation, file writes
 on target, firmware flash or remote network change occurs.
 
