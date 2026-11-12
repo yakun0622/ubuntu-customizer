@@ -301,7 +301,7 @@ def main(argv=None):
             output = inspect_session(root, name, session)
         elif action == "image-plan":
             folder = session_path(root, args.id, args.session)
-            output = Path(args.output)
+            output = adaptive.workspace.checked_output(args.output)
             if output.exists() or output.is_symlink():
                 raise ValueError("Image plan output exists")
             result = image_plan.plan(folder, args.target, args.format, args.source,
@@ -319,6 +319,7 @@ def main(argv=None):
             output_file = getattr(args, "output", None)
             if not output_file:
                 output_file = str(folder / "hardware-explorer.html")
+            output_file = str(adaptive.workspace.checked_output(output_file))
             output = {"html": str(export_html.export(folder, output_file)),
                       "note": "Open locally in a browser; no web server or remote connection."}
         elif action == "explore":
