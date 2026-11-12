@@ -117,7 +117,7 @@ class ArmImageBuilderTests(unittest.TestCase):
             vbr = data.read(512)
         self.assertEqual(vbr[82:90], b'FAT32   ')
         self.assertEqual(vbr[71:82], b'UCBOOT     ')
-        self.assertEqual(vbr[510:512], b'\\x55\\xaa')
+        self.assertEqual(vbr[510:512], bytes.fromhex('55aa'))
 
     def test_partial_legacy_fat_tools_rejected(self):
         with self.assertRaisesRegex(ValueError, 'requires mkfs.vfat'):
