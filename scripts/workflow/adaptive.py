@@ -197,7 +197,7 @@ def main(argv=None):
     parser.add_argument("--duration", type=int, default=10)
     parser.add_argument("--yes", action="store_true", help="Explicit permission for unattended read-only collection")
     parser.add_argument("--preview-approved", action="store_true",
-                        help="Start local status preview ONLY after user explicitly opts in")
+                        help="Start local-only status preview after user approves the presented execution plan")
     parser.add_argument("--interactive-shell-approved", action="store_true",
                         help="Use a single persistent picocom/ADB/SSH shell for fixed read-only probes")
     parser.add_argument("--wake-console-approved", action="store_true",
@@ -228,23 +228,26 @@ def main(argv=None):
             parser.error("Persistent read-only device session requires --yes")
         if transport not in ("ttl", "adb", "ssh"):
             parser.error("Interactive device sessions support TTL, ADB and SSH only")
-        if args.preview_approved:
-            parser.error("Live preview is not yet supported for interactive device sessions")
-        spec = importlib.util.spec_from_file_location("uc_device_session", HERE / "device_session.py")
+         spec = importlib.util.spec_from_file_location("uc_device_session", HERE / "device_session.py")
         device_session = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(device_session)
         output = args.output or ("./device-session-" + datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ"))
         try:
             folder, report = device_session.run_collection(
                 transport, target, output, args.baud, args.timeout,
-                wake_console=args.wake_console_approved)
+                wake_console=args.wake_console_approved,
+                preview_approved=args.preview_approved,
+                preview_notify=lambda url: print(json.dumps(
+                    {"event": "preview_ready", "url": url},
+                    ensure_ascii=False), flush=True))
         except (OSError, RuntimeError, ValueError) as exc:
             print(f"ERROR: {exc}", file=sys.stderr)
             return 2
         print(json.dumps({"session": str(folder), "state": report["state"],
                           "collected": len(report["items"]),
                           "os_family": report.get("os_family"),
-                          "console_state": report.get("console_state")},
+                          "console_state": report.get("console_state"),
+                          "preview": report.get("preview", {"state": "disabled"})},
                          ensure_ascii=False))
         return 0 if report["state"] == "complete" else 2
     modules = list(MODULES) if args.modules == "auto" else [v.strip() for v in args.modules.split(",")]
