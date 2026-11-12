@@ -19,7 +19,8 @@ def finish(state, step, status="complete", **kw):
 class AgentJourneyTests(unittest.TestCase):
     def ready(self, target="virtual-machine"):
         transport = "ttl" if target == "physical-device" else "local"
-        state = journey.start("image", target, transport, True)
+        state = journey.start("image", target, transport, True,
+                              "/dev/cu.wchusbserial1140 921600" if transport == "ttl" else None)
         state = finish(state, "host")
         state = finish(state, "workspace")
         self.assertEqual(journey.next_step(state)["field"], "plan_confirm")
@@ -51,7 +52,8 @@ class AgentJourneyTests(unittest.TestCase):
         self.assertEqual(journey.next_step(state)["field"], "goal")
 
     def test_workspace_is_automatic_before_device_choices(self):
-        state = journey.start("inspect", transport="ttl", interface_ready=True)
+        state = journey.start("inspect", transport="ttl", interface_ready=True,
+                              interface_display="/dev/cu.wchusbserial1140 921600")
         state = finish(state, "host")
         step = journey.next_step(state)
         self.assertEqual(step["kind"], "run")
@@ -74,9 +76,12 @@ class AgentJourneyTests(unittest.TestCase):
         state = answer(state, "transport", "ttl")
         self.assertEqual(journey.next_step(state)["field"], "interface_ready")
         state = answer(state, "interface_ready", True)
+        self.assertEqual(journey.next_step(state)["field"], "interface_display")
+        state = answer(state, "interface_display", "/dev/cu.wchusbserial1140 921600")
         self.assertEqual(journey.next_step(state)["field"], "plan_confirm")
         plan = journey.next_step(state)["plan"]
         self.assertEqual(plan["transport"], "ttl")
+        self.assertEqual(plan["connection"], "/dev/cu.wchusbserial1140 921600")
         self.assertIn("127.0.0.1", plan["preview"])
         state = answer(state, "plan_confirm", True)
         task = journey.next_step(state)
@@ -193,6 +198,35 @@ class AgentJourneyTests(unittest.TestCase):
         state = journey.transition(state, {"type": "retry", "step": "image_inspect"})
         self.assertEqual(journey.next_step(state)["step"], "image_inspect")
 
+    def test_device_plan_cannot_be_confirmed_without_actual_endpoint(self):
+        state = journey.start("inspect", transport="ttl", interface_ready=True)
+        state = finish(state, "host")
+        state = finish(state, "workspace")
+        self.assertEqual(journey.next_step(state)["field"], "interface_display")
+        with self.assertRaises(ValueError):
+            answer(state, "plan_confirm", True)
+        with self.assertRaisesRegex(ValueError, "baud"):
+            answer(state, "interface_display", "/dev/cu.wchusbserial1140")
+        state = answer(state, "interface_display", "/dev/cu.wchusbserial1140 921600")
+        self.assertEqual(journey.next_step(state)["plan"]["connection"],
+                         "/dev/cu.wchusbserial1140 921600")
+        state = answer(state, "plan_confirm", True)
+        self.assertEqual(journey.next_step(state)["interface_display"],
+                         "/dev/cu.wchusbserial1140 921600")
+
+    def test_interface_switch_clears_old_endpoint(self):
+        state = journey.start("inspect", transport="ttl", interface_ready=True,
+                              interface_display="/dev/cu.wchusbserial1140 921600")
+        state = finish(state, "host")
+        state = finish(state, "workspace")
+        self.assertEqual(journey.next_step(state)["field"], "plan_confirm")
+        with self.assertRaises(ValueError):
+            journey.start("inspect", transport="ttl", interface_ready=True,
+                          interface_display="tty")
+        with self.assertRaises(ValueError):
+            journey.start("inspect", transport="ssh", interface_ready=False,
+                          interface_display="Host server")
+
     def test_missing_connection_is_not_silently_assumed(self):
         state = journey.start("inspect")
         state = finish(state, "host")
@@ -206,7 +240,8 @@ class AgentJourneyTests(unittest.TestCase):
         self.assertEqual(journey.next_step(state)["kind"], "pause")
 
     def test_known_ttl_target_skips_repeated_connection_questions(self):
-        state = journey.start("image", "physical-device", "ttl", True)
+        state = journey.start("image", "physical-device", "ttl", True,
+                              "/dev/cu.wchusbserial1140 921600")
         state = finish(state, "host")
         state = finish(state, "workspace")
         self.assertEqual(journey.next_step(state)["field"], "plan_confirm")
