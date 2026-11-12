@@ -15,6 +15,9 @@ from pathlib import Path
 import sys
 
 HERE = Path(__file__).resolve().parent
+ws_spec = importlib.util.spec_from_file_location("uc_project_workspace", HERE / "project_workspace.py")
+workspace = importlib.util.module_from_spec(ws_spec)
+ws_spec.loader.exec_module(workspace)
 spec = importlib.util.spec_from_file_location("uc_collect", HERE / "collect.py")
 collect = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(collect)
@@ -228,10 +231,14 @@ def main(argv=None):
             parser.error("Persistent read-only device session requires --yes")
         if transport not in ("ttl", "adb", "ssh"):
             parser.error("Interactive device sessions support TTL, ADB and SSH only")
-         spec = importlib.util.spec_from_file_location("uc_device_session", HERE / "device_session.py")
+        spec = importlib.util.spec_from_file_location("uc_device_session", HERE / "device_session.py")
         device_session = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(device_session)
-        output = args.output or ("./device-session-" + datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ"))
+        try:
+            session_name = "device-session-" + datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+            output = str(workspace.checked_output(args.output or ("outputs/" + session_name)))
+        except ValueError as exc:
+            parser.error(str(exc))
         try:
             folder, report = device_session.run_collection(
                 transport, target, output, args.baud, args.timeout,
@@ -255,7 +262,11 @@ def main(argv=None):
         parser.error("Unknown or repeated collection module")
     if transport == "ttl":
         modules = []  # Passive capture, no Linux shell available.
-    output = args.output or ("./device-session-" + datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ"))
+    try:
+        session_name = "device-session-" + datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        output = str(workspace.checked_output(args.output or ("outputs/" + session_name)))
+    except ValueError as exc:
+        parser.error(str(exc))
     if not args.yes:
         print("Read-only collection; no sudo and no remote changes. Evidence may contain private infrastructure data.")
         if input("Proceed? [y/N]: ").strip().lower() not in ("y", "yes"):
