@@ -156,11 +156,18 @@ def main(argv=None):
             else:
                 plan = wizard(session, manifest, graph)
             if args.output:
-                print("Saved plan:", write_plan(args.output, plan))
+                print("Saved plan:", write_plan(str(workspace.checked_output(args.output)), plan))
         return 0
     except (OSError, ValueError, KeyError, TypeError) as exc:
         print("ERROR: " + str(exc), file=sys.stderr)
         return 2
+
+# The CLI enforces the project's outputs-only policy. Internal library functions
+# continue to accept isolated temporary test fixtures without changing their API.
+ws_spec = importlib.util.spec_from_file_location(
+    "uc_workspace_explore", Path(__file__).with_name("project_workspace.py"))
+workspace = importlib.util.module_from_spec(ws_spec)
+ws_spec.loader.exec_module(workspace)
 
 if __name__ == "__main__":
     raise SystemExit(main())
