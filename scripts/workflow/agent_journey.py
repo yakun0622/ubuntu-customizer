@@ -126,10 +126,13 @@ def next_step(state):
         result["plan"] = {
             "transport": state["choices"]["transport"],
             "connection": "用户已选择并提供接口；具体标识由 Agent 私有持有",
-            "preview": "127.0.0.1 动态端口（启动成功后提供实际 URL）",
+            "preview": ("127.0.0.1 动态端口（启动成功后提供实际 URL）"
+                        if state["choices"]["preview"] else "用户选择关闭监控"),
             "steps": ("建立私有会话", "启动本地实时监控", "只读采集",
                       "校验证据", "评估系统定制需求及阻断"),
-            "consent_scope": "一次只读连接和本机回环监控；写入系统另行确认",
+            "consent_scope": ("一次只读连接"
+                              + ("和本机回环监控" if state["choices"]["preview"] else "")
+                              + "；写入系统另行确认"),
         }
         return result
     if state["consent"]["plan_confirm"] is False:
@@ -234,6 +237,12 @@ def transition(state, event):
             updated["consent"][field] = value
         else:
             raise ValueError("Unexpected decision")
+    elif typ == "preview_preference":
+        if current["kind"] != "ask" or current["field"] != "plan_confirm":
+            raise ValueError("Preview preference can only change at plan review")
+        if type(event.get("enabled")) is not bool:
+            raise ValueError("Preview preference must be a boolean")
+        updated["choices"]["preview"] = event["enabled"]
     elif typ == "result":
         step = event.get("step")
         result = event.get("state")
