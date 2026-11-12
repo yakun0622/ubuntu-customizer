@@ -66,7 +66,9 @@ def decide(host_os, host_arch, tools, target, target_arch, lima=None):
     needed = [name for name in CORE if not tools.get(name)]
     build = {"backend": None, "status": "blocked", "missing": needed}
     if target == "physical-device":
-        build["reason"] = "physical_BSP_bootloader_DTB_recovery_not_verified"
+        build["reason"] = "arm_board_boot_image_not_yet_assembled"
+        build["next_workflow"] = ["official_arm64_baseline", "board_source_research",
+                                  "candidate_component_staging", "usb_boot_iteration"]
     elif host_os == "linux" and not needed:
         build.update({"backend": "native-linux", "status": "available",
                       "missing": [], "reason": "local_offline_builder"})
@@ -92,6 +94,8 @@ def decide(host_os, host_arch, tools, target, target_arch, lima=None):
                        ("qemu-img", "virt-inspector", "virt-filesystems",
                         "virt-drivers", "guestfish"))
     inspections = {"device_evidence": "available",
+                   "arm_official_baseline": ("available" if target == "physical-device"
+                                             else "not_applicable"),
                    "source_image": "available" if can_inspect else "needs_libguestfs_backend",
                    "arm_boot_log": "available"}
     backend_tools = (lima["tools"] if build["backend"] == "lima-local-linux"

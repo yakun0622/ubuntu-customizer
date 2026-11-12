@@ -49,7 +49,9 @@ class HostCapabilityTests(unittest.TestCase):
                              "physical-device", "arm64")
         self.assertEqual(result["build"]["status"], "blocked")
         self.assertEqual(result["build"]["reason"],
-                         "physical_BSP_bootloader_DTB_recovery_not_verified")
+                         "arm_board_boot_image_not_yet_assembled")
+        self.assertIn("official_arm64_baseline", result["build"]["next_workflow"])
+        self.assertEqual(result["inspections"]["arm_official_baseline"], "available")
         self.assertEqual(next(x for x in result["verification"]
                               if x["id"] == "arm-serial-boot-log")["status"], "available")
         self.assertEqual(next(x for x in result["verification"]
