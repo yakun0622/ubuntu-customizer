@@ -147,8 +147,8 @@ Collect a session with the existing interactive wizard, then build its evidence-
 
 ```bash
 ./.venv/bin/python -B scripts/workflow/collect.py
-./.venv/bin/python -B scripts/workflow/dossier.py ./devices/example-device/session-001
-./.venv/bin/python -B scripts/workflow/compare.py ./devices/example-device/session-001/device.json ./devices/example-device/session-002/device.json
+./.venv/bin/python -B scripts/workflow/dossier.py ./outputs/example-device-session-001
+./.venv/bin/python -B scripts/workflow/compare.py ./outputs/example-device-session-001/device.json ./outputs/example-device-session-002/device.json
 ```
 
 Dossier creation verifies each evidence file's SHA-256 digest and distinguishes missing collection from missing hardware. The comparison reports observed identity changes and evidence-file changes; it does not by itself diagnose a fault. Detailed guide: [device discovery](references/device-discovery.md).
@@ -162,8 +162,8 @@ GPIO, platform, I2C, SPI and MDIO devices. Generate the conservative topology:
 
 ```bash
 ./.venv/bin/python -B scripts/workflow/collect.py
-./.venv/bin/python -B scripts/workflow/dossier.py ./devices/example-device/session-001
-./.venv/bin/python -B scripts/workflow/topology.py ./devices/example-device/session-001
+./.venv/bin/python -B scripts/workflow/dossier.py ./outputs/example-device-session-001
+./.venv/bin/python -B scripts/workflow/topology.py ./outputs/example-device-session-001
 ```
 
 The new `topology.json` stores device and driver nodes, observed `bound_to`
@@ -181,9 +181,9 @@ platform-device `of_node` paths. All probes remain read-only.
 
 ```bash
 ./.venv/bin/python -B scripts/workflow/collect.py
-./.venv/bin/python -B scripts/workflow/device_tree.py ./devices/example-device/session-001
-./.venv/bin/python -B scripts/workflow/topology.py ./devices/example-device/session-001
-./.venv/bin/python -B scripts/workflow/link_graph.py ./devices/example-device/session-001
+./.venv/bin/python -B scripts/workflow/device_tree.py ./outputs/example-device-session-001
+./.venv/bin/python -B scripts/workflow/topology.py ./outputs/example-device-session-001
+./.venv/bin/python -B scripts/workflow/link_graph.py ./outputs/example-device-session-001
 ```
 
 Outputs:
@@ -205,7 +205,7 @@ must remain optional extensions.
 After a discovery session, determine which classes of diagnostics were available:
 
 ```bash
-./.venv/bin/python -B scripts/workflow/capabilities.py ./devices/example-device/session-001
+./.venv/bin/python -B scripts/workflow/capabilities.py ./outputs/example-device-session-001
 ```
 
 The output `capabilities.json` describes observation availability (`available`,
@@ -267,8 +267,8 @@ embeds passwords in its catalog.
 ./.venv/bin/python -B scripts/workflow/manage.py inspect lab-server SESSION_ID
 ```
 
-The catalog defaults to `~/.local/share/ubuntu-customizer/registry.json` and
-captures are under `~/.local/share/ubuntu-customizer/devices/<id>/sessions/<session>/`.
+The catalog defaults to `./outputs/device-manager/registry.json` and
+captures are under `./outputs/device-manager/devices/<id>/sessions/<session>/`.
 Directories and the catalog are created with restrictive permissions.
 `--data-dir` selects a different *private* directory.
 
@@ -310,7 +310,7 @@ browse node relationships and prepare an **execution-disabled** plan.
   --goal 'Investigate why the controller is not responding'
 
 # Run standalone wizard on a session directory
-./.venv/bin/python -B scripts/workflow/explore.py ~/.local/share/ubuntu-customizer/devices/lab-server/sessions/SESSION_ID
+./.venv/bin/python -B scripts/workflow/explore.py ./outputs/device-manager/devices/lab-server/sessions/SESSION_ID
 
 # Generate a safe JSON plan file without overwriting existing plans
 ./.venv/bin/python -B scripts/workflow/explore.py SESSION_DIRECTORY --mode plan \
@@ -462,8 +462,8 @@ does **not** stop collection. The page remains available for final review
 until the user requests it be closed.
 
 ```bash
-./.venv/bin/python -B scripts/workflow/preview_control.py status ./sessions/run-003
-./.venv/bin/python -B scripts/workflow/preview_control.py stop ./sessions/run-003
+./.venv/bin/python -B scripts/workflow/preview_control.py status ./outputs/run-003
+./.venv/bin/python -B scripts/workflow/preview_control.py stop ./outputs/run-003
 ```
 
 For a preexisting session, `preview_control.py start SESSION_DIR --approved`
