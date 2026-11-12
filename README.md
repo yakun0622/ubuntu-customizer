@@ -387,11 +387,14 @@ integrity metadata and licensing records. Source architecture is currently
 an operator declaration and is **not** validated from guest filesystems;
 this limitation is explicitly reported.
 
-## Optional real-time Skill status preview
+## Live Skill status preview (included in the approved plan)
 
-**AI Agent first, browser preview optional.** At the start of a device
-discovery or image-build task the Skill asks whether the user wants to
-enable a local status page. Default is off; declining never blocks the task.
+**AI Agent first; browser page is only an observer.** After the connection
+method and actual interface are chosen, the Agent explains and requests
+approval for the read-only plan including a loopback-only status page.
+Once approved, the backend starts the viewer before probes and returns the
+actual URL. The user may explicitly opt out of monitoring without blocking
+collection.
 
 For a session that already exists (or is currently collecting):
 
@@ -415,12 +418,13 @@ is not required for Skill execution. Stop with Ctrl+C. See
 [Optional live preview](references/live-preview.md) for privacy,
 consent and lifecycle rules.
 
-### Skill-managed live preview lifecycle (opt-in)
+### Skill-managed live preview lifecycle (plan-approved)
 
-The Skill asks **是否开启本地实时运行预览？** before collection.
-The default is off. After positive user consent, the Agent can activate
-the preview **during** collection with `--preview-approved` (independent
-from `--yes`, which approves read-only probes):
+After the Agent explains the entire connection and monitoring plan and
+receives confirmation, it starts the observer *before* collection with
+`--preview-approved`. The Agent does not ask a second preview question.
+The host runs only approved read-only probes (`--yes` in the internal
+CLI); viewer consent does not authorize target system modification:
 
 ```bash
 python3 scripts/workflow/adaptive.py \
@@ -453,7 +457,7 @@ than requiring the user to retype a command.
 
 ### Live progress throughout the image pipeline
 
-When a user has explicitly enabled the local preview, the image helpers now
+When a user has approved the plan including local monitoring, the image helpers
 automatically update the same preview via verified session references.
 Stages: `image-plan`, `image-build`, `first-boot` (NoCloud), and
 `verify`. Each reports concrete milestones and distinguishes completion,
