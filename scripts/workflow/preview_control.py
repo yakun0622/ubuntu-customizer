@@ -6,6 +6,7 @@ Never operates on a remote device and never starts without a user-approved
 Agent request. Runtime metadata remains under the private session directory.
 """
 import argparse
+import importlib.util
 from datetime import datetime, timezone
 import json
 import re
@@ -184,7 +185,7 @@ def main(argv=None):
         if args.command == "start":
             if not args.approved:
                 raise ValueError("Preview is opt-in. Start requires --approved after explicit user consent.")
-            result = start(args.session, args.port)
+            result = start(str(workspace.checked_output(args.session)), args.port)
         elif args.command == "status":
             result = status(args.session)
         elif args.command == "stop":
@@ -196,6 +197,11 @@ def main(argv=None):
     except (OSError, ValueError, RuntimeError, subprocess.TimeoutExpired) as exc:
         print("ERROR: " + str(exc), file=sys.stderr)
         return 2
+
+ws_spec = importlib.util.spec_from_file_location(
+    "uc_workspace_preview_control", Path(__file__).with_name("project_workspace.py"))
+workspace = importlib.util.module_from_spec(ws_spec)
+ws_spec.loader.exec_module(workspace)
 
 if __name__ == "__main__":
     raise SystemExit(main())
