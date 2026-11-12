@@ -12,6 +12,14 @@ from copy import deepcopy
 
 GOALS = ("inspect", "diagnose", "image", "maintain")
 TARGETS = ("virtual-machine", "physical-device")
+TRANSPORTS = ("ssh", "adb", "ttl", "local")
+INTERFACE_PROMPTS = {
+    "ssh": "请选择已配置且可信任的 SSH Host 别名（由 Agent 在本机检查）",
+    "adb": "请选择 adb devices 中已授权的设备序列号或已连接地址",
+    "ttl": "请选择检测到的串口设备并确认波特率；串口须由 Agent 独占",
+    "local": "确认在当前授权执行主机上采集本机信息",
+}
+
 STATES = ("complete", "blocked", "failed")
 GUEST_CHECKS = (
     "linux_boot", "system_state", "cloud_init", "instance_id",
@@ -31,16 +39,27 @@ ACTIONS = {
     "qemu_verify": ("verify_first_boot.verify_first_boot", "R1", "隔离启动来宾健康验证"),
 }
 
-def start(goal=None, target=None):
+def start(goal=None, target=None, transport=None, interface_ready=None):
     """Start only a conversational state, not a program/VM/device operation."""
     if goal is not None and goal not in GOALS:
         raise ValueError("Unsupported intent")
     if target is not None and target not in TARGETS:
         raise ValueError("Unsupported target")
+    if transport is not None and transport not in TRANSPORTS:
+        raise ValueError("Unsupported connection method")
+    if interface_ready not in (None, True, False):
+        raise ValueError("Invalid interface readiness")
+    if transport is None and interface_ready is not None:
+        raise ValueError("Connection method required before selecting interface")
     return {
         "schema_version": 1, "goal": goal, "target": target,
-        "choices": {"preview": None, "source_ready": None, "run_boot": None},
-        "consent": {"read_device": None, "offline_build": None, "isolated_vm_boot": None},
+        # A local-only observer is included in the approved execution plan.
+        # The boolean never authorizes connection or starts a server by itself.
+        "choices": {"transport": transport,
+                    "interface_ready": True if transport == "local" else interface_ready,
+                    "preview": True, "source_ready": None, "run_boot": None},
+        "consent": {"plan_confirm": None, "offline_build": None,
+                    "isolated_vm_boot": None},
         "steps": {}, "boot_confirmed": False,
     }
 
@@ -54,7 +73,10 @@ def _action(name, state):
     result = {"kind": "run", "step": name, "helper": helper, "risk": risk,
               "description": description, "automatic": True}
     if name == "collect":
-        result["preview_approved"] = state["choices"]["preview"] is True
+        result["preview_approved"] = (state["choices"]["preview"] is True
+                                      and state["consent"]["plan_confirm"] is True)
+        result["transport"] = state["choices"]["transport"]
+        result["start_preview_before_probes"] = result["preview_approved"]
     if name == "rootfs_build":
         result["approval_required"] = "offline_build"
     if name == "qemu_verify":
@@ -83,13 +105,32 @@ def next_step(state):
         return _ask("goal", "这次要做什么？", GOALS)
     if state["goal"] == "image" and state["target"] is None:
         return _ask("target", "要为虚拟机还是实际硬件制作系统？", TARGETS)
-    if state["choices"]["preview"] is None:
-        return _ask("preview", "要开启可选的本地实时预览页面吗？", (True, False), False)
-    if state["consent"]["read_device"] is None:
-        return _ask("read_device", "允许 Agent 连接所选设备，仅执行只读信息采集吗？",
+    if state["choices"]["transport"] is None:
+        return _ask("transport", "请选择连接设备的方式：", TRANSPORTS)
+    if state["choices"]["interface_ready"] is None:
+        return _ask("interface_ready",
+                    INTERFACE_PROMPTS[state["choices"]["transport"]],
                     (True, False), False)
-    if state["consent"]["read_device"] is False:
-        return {"kind": "pause", "reason": "Read-only device access not approved",
+    if state["choices"]["interface_ready"] is False:
+        return {"kind": "pause", "reason": "Device interface is unavailable",
+                "boot_confirmed": False}
+    if state["consent"]["plan_confirm"] is None:
+        result = _ask("plan_confirm",
+                      "确认执行以下方案吗？确认后启动本地监控页面，"
+                      "再经所选接口建立只读会话、采集硬件/系统/启动证据，"
+                      "分析后逐步规划定制；不会重启、改网、写盘或刷机。",
+                      (True, False), False)
+        result["plan"] = {
+            "transport": state["choices"]["transport"],
+            "connection": "用户已选择并提供接口；具体标识由 Agent 私有持有",
+            "preview": "127.0.0.1 动态端口（启动成功后提供实际 URL）",
+            "steps": ("建立私有会话", "启动本地实时监控", "只读采集",
+                      "校验证据", "评估系统定制需求及阻断"),
+            "consent_scope": "一次只读连接和本机回环监控；写入系统另行确认",
+        }
+        return result
+    if state["consent"]["plan_confirm"] is False:
+        return {"kind": "pause", "reason": "Execution plan not approved",
                 "boot_confirmed": False}
     for name in ("collect", "analyze"):
         current = _stage(state, name)
@@ -178,6 +219,9 @@ def transition(state, event):
             raise ValueError("Invalid choice for current question")
         if field in ("goal", "target"):
             updated[field] = value
+        elif field == "transport":
+            updated["choices"]["transport"] = value
+            updated["choices"]["interface_ready"] = True if value == "local" else None
         elif field in updated["choices"]:
             updated["choices"][field] = value
         elif field in updated["consent"]:
