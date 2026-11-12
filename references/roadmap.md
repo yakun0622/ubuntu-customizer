@@ -28,8 +28,8 @@ labels described planning stages, not verified releases or deployment support.
 
 | Area | Implemented helpers and scope | Remaining boundary |
 | --- | --- | --- |
-| Guided conversation | `agent_journey.py`: pure next-step/consent policy, ordered stages, halt/retry, refusal and optional boot skip | No executor or persistent session store; real Agent tool/permission handoffs unverified; non-image goals finish with evidence analysis |
-| Discovery | `collect.py`, `adaptive.py`, detect scripts, `ssh_probe.py`: fixed read-only SSH / ADB / local probes, passive TTL RX, feature gating, skip reasons and manifest checkpoints | Real Linux/ARM/ADB/TTL integration unverified; no resumable collection or privileged deep-probe authorization workflow |
+| Guided conversation | `agent_journey.py`: pure next-step/consent policy, workspace bootstrap stage, transport/interface selection, plan confirmation, requirements, halt/retry and optional boot skip | No executor or persistent session store; real Agent tool/permission handoffs unverified; non-image goals finish with evidence analysis |
+| Discovery | `collect.py`, `adaptive.py`, `device_session.py`, detect scripts, `ssh_probe.py`: fixed read-only probes, persistent SSH/ADB/picocom sessions, legacy passive TTL RX, OS/prompt guards and manifest checkpoints | Real Linux/ARM/ADB/TTL integration unverified; no resumable collection or privileged deep-probe authorization workflow |
 | Evidence and graph analysis | `dossier.py`, `compare.py`, `capabilities.py`, `topology.py`, `device_tree.py`, `link_graph.py`: hash checks, evidence references, Linux bindings, DTS hierarchy, phandle candidates and runtime links | No authenticated hardware identity, physical pinout or electrical verification; DTS parsing is experimental, not libfdt or binding-specific decoding |
 | Catalog and exploration | `manage.py`, `explore.py`, `export_html.py`: user-defined device IDs, historical sessions, node relationships, execution-disabled task plans and offline HTML viewer | No automatic identity-based grouping, browser device-control dashboard or task execution; real browser review unverified |
 | Installed-system planning | Profile validator, `system/plan.py`, `safety/snapshot.py`: narrow JSON profile subset, local package/hostname/timezone drift plans, explicit-file snapshots and hashes | No profile application, automatic diagnosis, approved maintenance mutation, automatic restore or recovery; YAML examples are illustrative |
@@ -38,8 +38,9 @@ labels described planning stages, not verified releases or deployment support.
 | Verification adapters | `verify_backend.py`, `physical_verify.py`, `verify_vm.py`: static inspection, passive ARM boot-log evidence and legacy inconclusive QEMU smoke attempt | Static checks, UART text and QEMU exit status never establish a healthy guest or physical-device deployment readiness |
 | AMD64 guest-health verification | `verify_first_boot.py`: separately approved QEMU TCG snapshot, restricted guest DHCP, QGA challenge, fixed read-only checks, BIOS or explicit trusted OVMF inputs for UEFI | Needs guest QGA/Python and NoCloud; real BIOS/UEFI boot and network isolation unverified; no non-AMD64 health adapter or physical attestation |
 | Cloud Image end-to-end coordination | `cloud_image_e2e.py`: prepared Linux host preflight, local trusted image or explicit pinned Ubuntu download, inspection/plan, RootFS bundle and guest health report | Synthetic pipeline tests only; pinned URL availability and real execution unverified; pinned SHA-256 checking is not upstream signature verification; no automatic dependency installation |
+| Project workspace | `project_workspace.py`: local .venv creation/reuse without downloads, private outputs, validated output destinations; discovery CLI and legacy manager artifacts use outputs | Existing user captures are not moved; high-risk/device/network actions retain separate permissions; workspace policy does not itself prove containment in every standalone helper |
 | Local host adapters | `host_capabilities.py`, `single_host.py`: native Linux or already-running Mac Lima guest, tool/share checks, fixed invocations, no automatic VM start | Real Lima execution and mount compatibility unverified; an installed or stopped VM is not a usable backend |
-| Optional progress | `preview.py`, `preview_control.py`, `status.py`, `progress.py`: opt-in loopback-only sanitized observer, lifecycle checks and image/rootfs/verification milestones | Local HTTP/lifecycle tests passed; real browser and full Agent journey unverified; no preview control/approval API or implicit restart |
+| Plan-approved progress | `preview.py`, `preview_control.py`, `status.py`, `progress.py`: loopback-only observer included in the confirmed plan with explicit opt-out, lifecycle checks and image/rootfs/verification milestones | Local HTTP/lifecycle tests passed; real browser and full Agent journey unverified; no preview control/approval API or implicit restart |
 
 The generic core has no built-in board or assumed SoC. Physical IMG/BSP
 assembly, firmware flashing, installer ISO generation, installed-system
@@ -47,6 +48,8 @@ cloning and automatic rollback are unsupported. A NoCloud `cidata` ISO
 is an initialization seed, not an OS installer.
 
 ## Validation record
+
+### Pre-merge local baseline
 
 On **2026-11-11**, code revision **`64abef2`** passed the standard command
 on the local macOS host with Python 3.11:
@@ -78,6 +81,41 @@ Future validation records should name the tested revision, environment,
 command, result and actual execution scope; do not overwrite missing
 integration evidence with unit-test results.
 
+### Upstream integration evidence retained
+
+Upstream recorded a focused 20-test device-session run in an isolated Linux
+Python environment. It covered synthetic transport guards and a local PTY;
+it did not validate physical hardware or macOS picocom. The merged suite
+retains these cases, both macOS alias regressions, real-parser verification
+checks and narrow-parser backend-forwarding checks. A fresh combined run is
+required; the older 181-test result above applies only to its named revision.
+
+### Combined merge regression — 2026-11-12
+
+The integrated working tree combining local `6664532` and upstream `013b048`
+passed on macOS / Python 3.11 using the project virtual environment:
+
+```bash
+./.venv/bin/python -B -m unittest discover -s tests -v
+```
+
+Result: **226 tests, OK, zero failures, errors or skips**. Full local log:
+`outputs/merge-tests-final.log` (ignored runtime artifact, not a durable
+committed test report). The focused device-session suite also passed all
+25 tests. These include actual local simulated-shell PTY execution, local
+HTTP/UNIX sockets, mocked device transports and mocked image/QEMU tools;
+no physical device, actual image build, guest boot or Lima run was performed.
+
+The first combined run exposed blocking PTY child reaping on macOS. Cleanup
+now releases the PTY master before bounded nonblocking reap attempts and
+reports an unreaped child instead of waiting forever. Regression tests cover
+kill escalation, deadline failure and descriptor cleanup. Portable shell
+fixtures now set PS1 explicitly and check the actual host kernel name;
+workspace tests compare canonical paths. Both real-parser and narrow-parser
+backend tests, and both macOS alias regressions, remain in the merged suite.
+No GitHub Actions were triggered. Local test socket/PTY permission was granted
+through the host execution gate; this is not target-device access approval.
+
 ## Remaining work in priority order
 
 1. **Real Linux VM pipeline validation.** Prepare a supported build host and
@@ -94,7 +132,7 @@ integration evidence with unit-test results.
    their own evidence-backed decisions beyond the current evidence-only end
    state. Later mutation/restore adapters need separate review, authorization,
    idempotency and tested recovery; planning alone does not authorize writes.
-4. **Real device evidence and parser depth.** Validate SSH/ADB/passive TTL on
+4. **Real device evidence and parser depth.** Validate SSH/ADB/managed picocom and passive TTL on
    representative Linux/ARM devices; improve resumable capture, trusted device
    identity, export redaction, binding-specific DT cells and SoC pinctrl
    interpretation. Keep physical pin/electrical claims separate from software

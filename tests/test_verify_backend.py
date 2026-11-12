@@ -51,9 +51,94 @@ class BackendTests(unittest.TestCase):
         self.assertFalse(result["boot_confirmed"])
         self.assertEqual(result["status"],"inspected")
 
+    def test_narrow_static_adapter_receives_selected_host_backend(self):
+        # Downstream adapters may intentionally omit an optional --backend
+        # parser field. The parent wrapper still owns the explicit choice.
+        seen = []
+        class MinimalDispatcher:
+            @staticmethod
+            def parser():
+                import argparse
+                parser = argparse.ArgumentParser()
+                parser.add_argument("action")
+                parser.add_argument("--source")
+                parser.add_argument("--sha256")
+                parser.add_argument("--output")
+                parser.add_argument("--lima-instance")
+                # Adapter accepts the option, but exposes a different
+                # namespace attribute (no 'backend' field).
+                parser.add_argument("--backend", dest="selected_backend")
+                return parser
+            @staticmethod
+            def execute(action, namespace, backend, instance):
+                seen.append((action, backend, instance))
+                return {"status": "completed"}
+        with patch.object(verify, "module", return_value=MinimalDispatcher):
+            request = args(("backend", "static-image"), ("source", "disk.img"),
+                           ("sha256", "a"*64), ("output", "scan.json"),
+                           ("host_backend", "lima"), ("lima_instance", "test-vm"))
+            result = verify.execute(request)
+        self.assertEqual(seen, [("inspect", "lima", "test-vm")])
+        self.assertEqual(result["status"], "inspected")
+        self.assertFalse(result["boot_confirmed"])
+
     def test_qemu_nonzero_or_false_checks_not_accepted(self):
         class Dispatcher:
             parser = staticmethod(single_host.parser)
+            @staticmethod
+            def execute(*a):
+                return {"status":"completed"}
+        class Reader:
+            @staticmethod
+            def read_json_regular(path):
+                return {"type":"ubuntu-customizer/first-boot-health",
+                        "boot_confirmed":True,"first_boot_confirmed":True,
+                        "status":"passed","checks":{"network":False}}
+        class Required:
+            REQUIRED=("linux_boot", "network")
+        def mocked_module(name):
+            return {"single_host":Dispatcher, "rootfs_builder":Reader,
+                    "verify_first_boot":Required}[name]
+        with patch.object(verify,"module",side_effect=mocked_module):
+            result=verify.execute(args(("backend","qemu-health"),
+                                       ("bundle","bundle"),("report","report.json"),
+                                       ("approved",True)))
+        self.assertFalse(result["boot_confirmed"])
+        self.assertEqual(result["status"],"unverified")
+
+    def test_narrow_static_backend_reports_inspected_never_booted(self):
+        class Dispatcher:
+            @staticmethod
+            def parser():
+                import argparse
+                p=argparse.ArgumentParser()
+                p.add_argument("action")
+                p.add_argument("--source")
+                p.add_argument("--sha256")
+                p.add_argument("--output")
+                p.add_argument("--lima-instance")
+                return p
+            @staticmethod
+            def execute(*a):
+                return {"status":"completed"}
+        with patch.object(verify, "module", return_value=Dispatcher):
+            result=verify.execute(args(("backend","static-image"),
+                                       ("source","disk.img"),("sha256","a"*64),
+                                       ("output","scan.json")))
+        self.assertFalse(result["boot_confirmed"])
+        self.assertEqual(result["status"],"inspected")
+
+    def test_narrow_qemu_nonzero_or_false_checks_not_accepted(self):
+        class Dispatcher:
+            @staticmethod
+            def parser():
+                import argparse
+                p=argparse.ArgumentParser()
+                p.add_argument("action")
+                for name in ("bundle","report","timeout","approved","lima-instance",
+                             "ovmf-code","ovmf-vars"):
+                    p.add_argument("--"+name, nargs="?", const=True)
+                return p
             @staticmethod
             def execute(*a):
                 return {"status":"completed"}

@@ -2,26 +2,46 @@
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
+## 项目工作目录
+
+具备主机执行权限时，Agent 在选择设备连接前创建或复用项目内的 `.venv/` 和私有 `outputs/`。
+不下载软件包，不修改全局 Python。后续辅助工具使用 `./.venv/bin/python -B`，避免在源码树生成字节码缓存。
+
+所有运行产物写入 `./outputs/`；`.venv/` 是本地环境目录的例外。
+受版本控制的源码仍在原位置编辑，不移动或删除已有用户产物。
+项目内常规、可逆操作具有持续授权；主机／工具权限限制、设备访问、联网安装、镜像构建、
+虚拟机启动及目标系统修改仍各自遵守独立授权。
+
+开发者／Agent 初始化与验证示例：
+
+```bash
+python3 -B scripts/workflow/project_workspace.py
+./.venv/bin/python -B -m unittest discover -s tests -v
+```
+
 ## 开始使用：告诉 Agent「开始定制系统」
 
-**这是一个 AI Agent Skill。** 在具备主机执行权限、已加载本仓库
-`SKILL.md` / `AGENTS.md` 的 Agent 中，直接说：
+**这是一个 AI Agent Skill。** 在具备主机执行权限、已加载 `SKILL.md` / `AGENTS.md`
+的 Agent 中，直接说：
 
 > 开始定制系统
 
-Agent 会检查当前 Mac/Linux 主机的可用能力，识别目标类型，采集已获授权的设备证据，
-检查镜像，并选择可用的本机后端。它会根据实际结果继续推进，在需要确定目标、
-批准设备访问／镜像构建／隔离启动或解决阻断时，每次只问一个简短问题。
-本地进度预览可选，默认关闭；QEMU 是可选的验证后端。
+Agent 检查主机能力、准备工作目录，补齐必要的目标信息，再选择 SSH、ADB、受管理的
+TTL/picocom 或本机连接及实际接口。它会说明只读探针、隐私、本地监控和阶段，
+在设备访问或服务启动前等待方案确认。方案默认包含 localhost 监控，用户可明确退出；
+确认后监控先于探针启动，Agent 只报告实际启动并验证过的 URL。
 
-用户不必选择 Lima、QEMU 或 Python 参数，也不必先准备另一台电脑。
-如果 Agent 没有连接到你的电脑执行环境，必须说明限制，不能声称已执行命令。
-实体 ARM 设备的日志和镜像可以只读分析；缺少已验证的 BSP、DTB、引导加载程序、
-恢复条件和适用的板级构建后端时，实体镜像构建仍会被阻断。
+已授权的 SSH/ADB/TTL 采集通过单个持久会话执行固定只读探针；旧版被动 TTL 采集仍保留。
+证据分析后，镜像目标逐项补齐 OS／版本、启动介质和功能需求，再进入支持的规划及
+单独授权的镜像构建或可选 QEMU 验证。
 
-参见[引导式交互流程](references/interactive-agent-flow.md)和
-[Agent 工作约定](AGENTS.md)。
-**以下命令示例仅供开发、调试或 Agent 调用，不是普通用户必须执行的启动步骤。**
+用户不必选择 Python、Lima 或 QEMU 参数，也不必准备第二台电脑。
+Agent 无执行权限时必须说明限制。缺少已验证的板级适配器、BSP、DTB、引导加载程序及
+恢复路径时，实体 ARM 镜像组装和刷写仍不支持。
+
+参见[引导式交互流程](references/interactive-agent-flow.md)、
+[受管理设备会话](references/device-session.md)和 [Agent 工作约定](AGENTS.md)。
+**以下命令是内部开发／Agent 示例，不是用户启动步骤。**
 
 > **项目定位：AI Agent Skill。** Agent 引导连接方式选择、证据采集、兼容性分析、
 > 镜像构建规划和授权。下方 Python 命令都是可选的辅助工具，不是独立的设备管理产品。
@@ -41,11 +61,11 @@ AI Agent Skill。
 
 | 能力 | 已实现范围 | 验证边界 |
 | --- | --- | --- |
-| 设备发现与证据 | 固定的 SSH／ADB／本地只读探针、被动 TTL 采集、SHA-256 档案、对比及软件拓扑 | macOS Python 测试通过；真实设备集成未验证 |
+| 设备发现与证据 | 固定的 SSH／ADB／本地只读探针、持久 SSH/ADB/picocom 会话、旧版被动 TTL 采集、SHA-256 档案、对比及软件拓扑 | macOS Python 测试通过；真实设备集成未验证 |
 | 规划与归档 | JSON 安全子集配置、本地差异计划、指定文件快照、设备／会话目录、不执行操作的任务计划 | 不应用配置，不自动回滚，不认证硬件身份 |
 | 虚拟机镜像 | 只读来宾检查、兼容性门控、RAW/QCOW2 转换、私有副本 hostname/MOTD 定制、身份清理及仅使用公钥的 NoCloud 种子 | 真实 qemu-img/libguestfs 构建未验证；不支持任意软件包或脚本 |
 | 启动验证 | 静态镜像和 ARM 日志证据适配器；独立的 AMD64 QEMU Guest Agent 健康检查后端 | 模拟来宾测试通过；没有真实来宾或实体设备启动验证结果 |
-| Agent 体验 | 纯下一步／授权策略、原生 Linux 或现有 Mac Lima 后端、可选本地预览和离线 HTML 查看器 | 本地 HTTP/socket 测试通过；真实 Lima、浏览器及完整 Agent 交接未验证 |
+| Agent 体验 | 纯下一步／授权策略、项目工作目录初始化、原生 Linux 或现有 Mac Lima 后端、方案授权且可退出的本地监控及离线 HTML 查看器 | 本地 HTTP/socket 测试通过；真实 Lima、浏览器及完整 Agent 交接未验证 |
 
 当前引导策略在证据分析后结束 inspect／diagnose／maintain 目标。
 虽然存在独立任务规划器，但尚未实现自动诊断、维护执行和恢复。
@@ -74,14 +94,29 @@ NoCloud 种子 ISO 不是操作系统安装器 ISO。
 辅助工具可启动连接和证据采集向导：
 
 ```bash
-python3 scripts/workflow/collect.py
+./.venv/bin/python -B scripts/workflow/collect.py
 ```
 
 可选 SSH、ADB、TTL（被动接收）或本地采集。工具将按类别保存原始证据，
 并在新建的本地目录中写入包含路径和 SHA-256 的 `manifest.json`。
-不会修改硬件、刷写设备或自动上传诊断数据。TTL 需要可选依赖 `pyserial`。
+不会修改硬件、刷写设备或自动上传诊断数据。此旧版 TTL 模式需要可选依赖 `pyserial`。
 
 连接前提、引脚复用限制和证据布局见[设备发现](references/device-discovery.md)。
+
+对已批准的 SSH/ADB/TTL 交互会话，Agent 使用持久适配器替代旧版采集器：
+
+```bash
+# 仅在实际连接和监控方案获得批准后执行。
+./.venv/bin/python -B scripts/workflow/adaptive.py \
+  --transport ssh --target trusted-host-alias \
+  --output ./outputs/managed-session-001 \
+  --interactive-shell-approved --preview-approved --yes
+```
+
+受管理 TTL 使用实际观察到的串口和波特率。未知、登录或 U-Boot 提示符会阻断 Shell 探针；
+单次空行唤醒须另行确认输入行为空。明确退出监控时省略 `--preview-approved`。
+工具缺失或预览启动失败必须如实报告。参见[设备会话门控](references/device-session.md)。
+
 
 ## 开发辅助工具示例（不是用户启动步骤）
 
@@ -90,21 +125,21 @@ python3 scripts/workflow/collect.py
 ```bash
 bash scripts/detect/system.sh
 bash scripts/detect/network.sh
-python3 scripts/safety/validate_profile.py profiles/base/ubuntu-server.json
-python3 scripts/system/plan.py profiles/base/ubuntu-server.json
-python3 -m unittest discover -s tests -v
+./.venv/bin/python -B scripts/safety/validate_profile.py profiles/base/ubuntu-server.json
+./.venv/bin/python -B scripts/system/plan.py profiles/base/ubuntu-server.json
+./.venv/bin/python -B -m unittest discover -s tests -v
 ```
 
 在已安装 OpenSSH 并配置好 Host 别名的机器上执行远程只读清单采集：
 
 ```bash
-python3 scripts/remote/ssh_probe.py ubuntu-server
+./.venv/bin/python -B scripts/remote/ssh_probe.py ubuntu-server
 ```
 
 为明确指定的本地文件创建快照：
 
 ```bash
-python3 scripts/safety/snapshot.py --output-dir /tmp/uc-snapshot-001 /etc/hostname
+./.venv/bin/python -B scripts/safety/snapshot.py --output-dir ./outputs/snapshot-001 /etc/hostname
 ```
 
 快照不提供自动恢复能力，应保存在安全位置。
@@ -129,9 +164,9 @@ YAML 示例仅用于说明，目前不能作为可执行配置。
 使用现有交互向导采集会话，然后创建带证据索引的设备档案：
 
 ```bash
-python3 scripts/workflow/collect.py
-python3 scripts/workflow/dossier.py ./devices/example-device/session-001
-python3 scripts/workflow/compare.py ./devices/example-device/session-001/device.json ./devices/example-device/session-002/device.json
+./.venv/bin/python -B scripts/workflow/collect.py
+./.venv/bin/python -B scripts/workflow/dossier.py ./outputs/example-device-session-001
+./.venv/bin/python -B scripts/workflow/compare.py ./outputs/example-device-session-001/device.json ./outputs/example-device-session-002/device.json
 ```
 
 档案生成前会验证各证据文件的 SHA-256。未采集的数据会记为证据缺口，不能据此认定硬件不存在。
@@ -147,9 +182,9 @@ python3 scripts/workflow/compare.py ./devices/example-device/session-001/device.
 可据此生成保守的软件拓扑：
 
 ```bash
-python3 scripts/workflow/collect.py
-python3 scripts/workflow/dossier.py ./devices/example-device/session-001
-python3 scripts/workflow/topology.py ./devices/example-device/session-001
+./.venv/bin/python -B scripts/workflow/collect.py
+./.venv/bin/python -B scripts/workflow/dossier.py ./outputs/example-device-session-001
+./.venv/bin/python -B scripts/workflow/topology.py ./outputs/example-device-session-001
 ```
 
 `topology.json` 保存设备和驱动节点、观察到的 `bound_to` 边、证据路径与行号，
@@ -163,10 +198,10 @@ PHY 信号、电压或完整 SoC 引脚复用关系。旧会话缺少新探针�
 驱动绑定及 platform 设备的 `of_node` 路径。所有探针保持只读。
 
 ```bash
-python3 scripts/workflow/collect.py
-python3 scripts/workflow/device_tree.py ./devices/example-device/session-001
-python3 scripts/workflow/topology.py ./devices/example-device/session-001
-python3 scripts/workflow/link_graph.py ./devices/example-device/session-001
+./.venv/bin/python -B scripts/workflow/collect.py
+./.venv/bin/python -B scripts/workflow/device_tree.py ./outputs/example-device-session-001
+./.venv/bin/python -B scripts/workflow/topology.py ./outputs/example-device-session-001
+./.venv/bin/python -B scripts/workflow/link_graph.py ./outputs/example-device-session-001
 ```
 
 输出文件：
@@ -190,7 +225,7 @@ GPIO、MDIO 等接口。采集由证据驱动；厂商或板卡适配器应保�
 采集后可检查各类诊断观察是否可用：
 
 ```bash
-python3 scripts/workflow/capabilities.py ./devices/example-device/session-001
+./.venv/bin/python -B scripts/workflow/capabilities.py ./outputs/example-device-session-001
 ```
 
 `capabilities.json` 中的 `available`／`partial`／`unknown` 描述观察资料的可用程度，
@@ -204,20 +239,21 @@ python3 scripts/workflow/capabilities.py ./devices/example-device/session-001
 
 ```bash
 # SSH／ADB／TTL／本地交互向导
-python3 scripts/workflow/adaptive.py
+./.venv/bin/python -B scripts/workflow/adaptive.py
 
 # 明确授权后的非交互只读采集（使用预配置 SSH 别名）
-python3 scripts/workflow/adaptive.py --transport ssh --target my-linux-host \
-  --output ./new-session-001 --modules auto --yes
+./.venv/bin/python -B scripts/workflow/adaptive.py --transport ssh --target my-linux-host \\
+  --output ./outputs/new-session-001 --modules auto --yes
 
 # 仅选择指定模块
-python3 scripts/workflow/adaptive.py --transport local --target local \
-  --modules network,drivers --output ./new-session-002 --yes
+./.venv/bin/python -B scripts/workflow/adaptive.py --transport local --target local \\
+  --modules network,drivers --output ./outputs/new-session-002 --yes
 ```
 
 **限制：** `--yes` 只明确授权只读探针，不授权写入。TTL 仍仅被动接收。
 会话目录必须是新目录，父目录必须已存在。采集文件可能包含主机和网络标识，绝不自动上传。
-旧版 `collect.py` 仍可用于运行完整的基础探针集。
+未指定 `--interactive-shell-approved` 时，这些示例使用旧版逐命令 SSH/ADB 或被动 TTL 路径。
+交互式定制应使用上文另行授权的持久适配器。
 
 ## 设备目录与交互管理辅助工具
 
@@ -226,34 +262,35 @@ python3 scripts/workflow/adaptive.py --transport local --target local \
 
 ```bash
 # 交互菜单
-python3 scripts/workflow/manage.py
+./.venv/bin/python -B scripts/workflow/manage.py
 
 # 枚举已配置的 SSH Host 别名、已授权的 ADB 设备、
 # 本地串口名称和本地目标
-python3 scripts/workflow/manage.py discover
+./.venv/bin/python -B scripts/workflow/manage.py discover
 
 # 登记目标，不连接设备
-python3 scripts/workflow/manage.py add lab-server --transport ssh --target server-alias
+./.venv/bin/python -B scripts/workflow/manage.py add lab-server --transport ssh --target server-alias
 
 # 查看目录；使用已有分阶段只读引擎采集
-python3 scripts/workflow/manage.py list
-python3 scripts/workflow/manage.py collect lab-server --modules hardware,drivers,network
+./.venv/bin/python -B scripts/workflow/manage.py list
+./.venv/bin/python -B scripts/workflow/manage.py collect lab-server --modules hardware,drivers,network
 
 # 检查已保存的会话及分类摘要
-python3 scripts/workflow/manage.py sessions lab-server
-python3 scripts/workflow/manage.py inspect lab-server SESSION_ID
+./.venv/bin/python -B scripts/workflow/manage.py sessions lab-server
+./.venv/bin/python -B scripts/workflow/manage.py inspect lab-server SESSION_ID
 ```
 
-设备目录默认保存在 `~/.local/share/ubuntu-customizer/registry.json`，
-采集文件位于 `~/.local/share/ubuntu-customizer/devices/<id>/sessions/<session>/`。
-目录及元数据使用严格权限；`--data-dir` 可指定其他私有目录。
+旧版管理器的设备目录默认保存在 `./outputs/device-manager/registry.json`，
+采集文件位于 `./outputs/device-manager/devices/<id>/sessions/<session>/`。
+目录及元数据使用严格权限；按 Agent 工作目录约定，`--data-dir` 指定的私有目录必须位于 `./outputs/`。
+管理器默认存储位置不再是用户主目录。
 
 连接发现仅枚举候选项。SSH 别名来自主 SSH 配置中的显式 `Host` 条目，
 不展开 `Include` 或通配符。ADB 使用 `adb devices`，可能启动本地 ADB 服务。
 串口发现只列出设备名，不打开串口。这些枚举不证明候选设备可连接或已认证。
 
 `collect` 默认要求确认；指定 `--yes` 只授权固定的只读证据探针。
-TTL 不发送串口字节，但打开适配器可能影响控制信号。
+旧版管理器的 TTL 仅被动接收，不发送串口字节，但打开适配器可能影响控制信号。
 原始文件可能包含设备标识，不得自动发布。
 
 管理器提供终端交互。下文的 localhost 实时状态预览及离线 HTML 查看器已实现，均为查看工具。
@@ -266,25 +303,25 @@ TTL 不发送串口字节，但打开适配器可能影响控制信号。
 
 ```bash
 # 交互模式：在设备管理菜单中选择 7. Explore
-python3 scripts/workflow/manage.py
+./.venv/bin/python -B scripts/workflow/manage.py
 
 # 列出已保存会话中的节点
-python3 scripts/workflow/manage.py explore lab-server SESSION_ID
+./.venv/bin/python -B scripts/workflow/manage.py explore lab-server SESSION_ID
 
 # 检查指定节点及其关系
-python3 scripts/workflow/manage.py explore lab-server SESSION_ID --node 'device:platform:example-controller'
+./.venv/bin/python -B scripts/workflow/manage.py explore lab-server SESSION_ID --node 'device:platform:example-controller'
 
 # 为已验证节点生成诊断计划（不对目标执行操作）
-python3 scripts/workflow/manage.py explore lab-server SESSION_ID \
+./.venv/bin/python -B scripts/workflow/manage.py explore lab-server SESSION_ID \
   --task diagnose --node 'device:platform:example-controller' \
   --goal 'Investigate why the controller is not responding'
 
 # 对会话目录运行独立辅助向导
-python3 scripts/workflow/explore.py ~/.local/share/ubuntu-customizer/devices/lab-server/sessions/SESSION_ID
+./.venv/bin/python -B scripts/workflow/explore.py ./outputs/device-manager/devices/lab-server/sessions/SESSION_ID
 
 # 生成安全的 JSON 计划文件，不覆盖已有计划
-python3 scripts/workflow/explore.py SESSION_DIRECTORY --mode plan \
-  --task maintain --output ./my-plan.json
+./.venv/bin/python -B scripts/workflow/explore.py SESSION_DIRECTORY --mode plan \
+  --task maintain --output ./outputs/my-plan.json
 ```
 
 支持 `diagnose`、`maintain`、`image` 三类计划。计划引用观察节点、软件关系及证据缺口，
@@ -302,13 +339,13 @@ Explore 的 `image` 计划不会调用下文独立的 VM 镜像流水线。
 
 ```bash
 # 通过已登记设备的管理器导出（交互菜单中的第 8 项）
-python3 scripts/workflow/manage.py browse lab-server SESSION_ID
+./.venv/bin/python -B scripts/workflow/manage.py browse lab-server SESSION_ID
 
 # 自定义输出位置（必须不存在，不覆盖文件）
-python3 scripts/workflow/manage.py browse lab-server SESSION_ID --output /tmp/lab-hardware.html
+./.venv/bin/python -B scripts/workflow/manage.py browse lab-server SESSION_ID --output ./outputs/lab-hardware.html
 
 # 直接从已有采集会话导出
-python3 scripts/workflow/export_html.py SESSION_DIRECTORY --output /tmp/hardware.html
+./.venv/bin/python -B scripts/workflow/export_html.py SESSION_DIRECTORY --output ./outputs/hardware.html
 ```
 
 在本地浏览器打开 HTML。左侧支持搜索和按设备／驱动／设备树节点筛选；
@@ -332,23 +369,23 @@ python3 scripts/workflow/export_html.py SESSION_DIRECTORY --output /tmp/hardware
 
 ```bash
 # 为已验证基础镜像和 VM 目标生成计划
-python3 scripts/workflow/image_plan.py SESSION_DIRECTORY \
+./.venv/bin/python -B scripts/workflow/image_plan.py SESSION_DIRECTORY \
   --target virtual-machine --format qcow2 \
   --source /srv/images/base.img \
   --sha256 VERIFIED_64_HEX_SHA256 --source-arch amd64 \
-  --output ./image-plan.json
+  --output ./outputs/image-plan.json
 
 # 也可从已登记设备创建相同计划
-python3 scripts/workflow/manage.py image-plan lab-server SESSION_ID \
+./.venv/bin/python -B scripts/workflow/manage.py image-plan lab-server SESSION_ID \
   --target virtual-machine --format qcow2 \
   --source /srv/images/base.img \
   --sha256 VERIFIED_64_HEX_SHA256 --source-arch amd64 \
-  --output ./image-plan.json
+  --output ./outputs/image-plan.json
 
 # 仅在计划报告 build_allowed=true 后执行离线转换
 # （构建主机需已安装 qemu-img）
-python3 scripts/workflow/build_image.py ./image-plan.json \
-  --output ./output.qcow2
+./.venv/bin/python -B scripts/workflow/build_image.py ./outputs/image-plan.json \
+  --output ./outputs/output.qcow2
 ```
 
 输出镜像及 `output.qcow2.manifest.json` 包含 SHA-256 和虚拟磁盘大小。
@@ -365,15 +402,15 @@ python3 scripts/workflow/build_image.py ./image-plan.json \
 保留镜像完整性元数据和许可记录。源架构必须经过来宾检查，并同时匹配声明与发现的目标架构。
 工具缺失或检查不完整会阻断转换；单独声明 `--source-arch` 不能授权执行。
 
-## 可选的 Skill 实时状态预览
+## 方案授权的 Skill 实时状态预览
 
-**Agent 负责交互，浏览器预览可选。** 设备发现或镜像构建开始时，Skill 会询问是否启用本地状态页。
-默认关闭，拒绝不影响任务。
+**Agent 负责交互，浏览器仅作观察。** 先选定连接方式和实际接口，再说明并确认包含回环状态页的
+只读方案。确认后后端先启动监控再运行探针，返回实际 URL。用户可以明确退出监控，仍继续采集。
 
 已有会话或正在采集的会话可以使用：
 
 ```bash
-python3 scripts/workflow/preview.py SESSION_DIR --port 8765
+./.venv/bin/python -B scripts/workflow/preview.py SESSION_DIR --port 8765
 # 浏览器地址：http://127.0.0.1:8765/
 ```
 
@@ -381,7 +418,7 @@ python3 scripts/workflow/preview.py SESSION_DIR --port 8765
 Agent 可发布安全的阶段和计数信息：
 
 ```bash
-python3 scripts/workflow/status.py SESSION_DIR \
+./.venv/bin/python -B scripts/workflow/status.py SESSION_DIR \
   --stage image-plan --state running --completed 1 --total 3
 ```
 
@@ -389,24 +426,23 @@ python3 scripts/workflow/status.py SESSION_DIR \
 它不是设备管理器，也不是使用 Skill 的前提。前台运行时可用 Ctrl+C 停止。
 隐私、授权和生命周期规则见[可选实时预览](references/live-preview.md)。
 
-### Skill 管理的预览生命周期（需主动选择）
+### Skill 管理的预览生命周期（方案授权）
 
-采集前 Skill 会询问“是否开启可选的本地实时预览？”，默认关闭。
-明确同意后，Agent 可通过 `--preview-approved` 在采集期间启动预览。
-该参数与授权只读探针的 `--yes` 相互独立。
+Agent 说明完整连接和监控方案并获得确认后，使用 `--preview-approved` 在采集前启动观察服务，
+无需第二次询问是否开启预览。内部 CLI 的 `--yes` 只授权只读探针；监控授权不允许修改目标系统。
 
 ```bash
-python3 scripts/workflow/adaptive.py \
+./.venv/bin/python -B scripts/workflow/adaptive.py \
   --transport ssh --target trusted-host-alias \
-  --output ./sessions/run-003 --yes --preview-approved
+  --output ./outputs/run-003 --yes --preview-approved
 ```
 
 创建会话目录后，采集器启动仅限本机的预览，返回经过检查的 URL，然后继续采集。
 预览失败不会阻断采集。页面可保留用于结果复查，直到用户要求关闭。
 
 ```bash
-python3 scripts/workflow/preview_control.py status ./sessions/run-003
-python3 scripts/workflow/preview_control.py stop ./sessions/run-003
+./.venv/bin/python -B scripts/workflow/preview_control.py status ./outputs/run-003
+./.venv/bin/python -B scripts/workflow/preview_control.py stop ./outputs/run-003
 ```
 
 对于已有会话，`preview_control.py start SESSION_DIR --approved` 可启动预览而不重新采集。
@@ -420,7 +456,7 @@ python3 scripts/workflow/preview_control.py stop ./sessions/run-003
 
 ### 镜像流水线的实时进度
 
-用户明确启用预览后，镜像辅助工具会通过已验证的会话引用自动更新同一个预览。
+用户批准含本地监控的方案后，镜像辅助工具会通过已验证的会话引用自动更新同一个预览。
 阶段包括 `image-plan`、`image-build`、`rootfs-build`、`first-boot`（NoCloud）和
 `verify`（包括来宾健康检查）。各阶段报告具体里程碑，并区分完成、兼容性阻断和执行失败。
 QEMU 冒烟尝试不能证明来宾成功启动。
@@ -435,14 +471,14 @@ Skill 负责控制，浏览器仅观察。阶段映射和隐私规则见[实时�
 已安装内核、BIOS/UEFI 模式及引导加载程序。证据缺失会阻断转换。
 
 ```bash
-python3 scripts/workflow/image_inspect.py /srv/images/base.img \
+./.venv/bin/python -B scripts/workflow/image_inspect.py /srv/images/base.img \
   --sha256 TRUSTED_SOURCE_SHA256 \
-  --output ./source-inspection.json
+  --output ./outputs/source-inspection.json
 
-python3 scripts/workflow/image_plan.py SESSION_DIR \
+./.venv/bin/python -B scripts/workflow/image_plan.py SESSION_DIR \
   --target virtual-machine --format qcow2 --source /srv/images/base.img \
   --sha256 TRUSTED_SOURCE_SHA256 --source-arch amd64 \
-  --output ./image-plan.json
+  --output ./outputs/image-plan.json
 ```
 
 `image-plan.json` 包含观察到的源镜像信息及逐项证据矩阵。
@@ -463,16 +499,16 @@ macOS 合成检查测试已通过；真实 libguestfs 检查尚未验证。
 
 ```bash
 # 检查依赖和具体操作计划，不写入镜像。
-python3 scripts/workflow/rootfs_builder.py image-plan.json \
-  --config rootfs-config.json --dry-run
+./.venv/bin/python -B scripts/workflow/rootfs_builder.py ./outputs/image-plan.json \
+  --config ./outputs/rootfs-config.json --dry-run
 
 # 仅在 Agent 获得单独明确授权后执行。
-python3 scripts/workflow/rootfs_builder.py image-plan.json \
-  --config rootfs-config.json --output-dir ./new-rootfs-bundle --approved
+./.venv/bin/python -B scripts/workflow/rootfs_builder.py ./outputs/image-plan.json \
+  --config ./outputs/rootfs-config.json --output-dir ./outputs/new-rootfs-bundle --approved
 
 # 独立校验已发布的镜像、NoCloud 种子及哈希。
-python3 scripts/workflow/rootfs_builder.py \
-  --verify-bundle ./new-rootfs-bundle
+./.venv/bin/python -B scripts/workflow/rootfs_builder.py \
+  --verify-bundle ./outputs/new-rootfs-bundle
 ```
 
 构建主机需要 qemu-img 和 libguestfs。源来宾必须关机，且包含 cloud-init 配置。
@@ -488,10 +524,10 @@ NoCloud 首次初始化、SSH 密钥重新生成、VM 启动及机器专属秘�
 Skill 为完整的 Portable RootFS Builder 产物包提供单独授权的隔离首次启动健康检查：
 
 ```bash
-python3 scripts/workflow/rootfs_builder.py --verify-bundle ./rootfs-bundle
-python3 scripts/workflow/verify_first_boot.py \
-  --bundle ./rootfs-bundle --timeout 300 \
-  --report ./first-boot-health.json --approved
+./.venv/bin/python -B scripts/workflow/rootfs_builder.py --verify-bundle ./outputs/rootfs-bundle
+./.venv/bin/python -B scripts/workflow/verify_first_boot.py \
+  --bundle ./outputs/rootfs-bundle --timeout 300 \
+  --report ./outputs/first-boot-health.json --approved
 
 # UEFI 来宾还需提供：
 # --ovmf-code /trusted/OVMF_CODE.fd --ovmf-vars /trusted/OVMF_VARS.fd
@@ -519,7 +555,7 @@ Python `tempfile.TemporaryDirectory()` 可能返回 `/var/folders` 下的路径�
 仍拒绝用户创建的符号链接、已有输出、目录穿越及块设备／伪文件系统目标。
 在采集器或 QEMU 有意规范化路径的地方，测试使用解析后的路径比较。
 
-标准命令 `python3 -m unittest discover -s tests -v` 已在 macOS 默认临时目录下通过，
+标准命令 `./.venv/bin/python -B -m unittest discover -s tests -v` 已在 macOS 默认临时目录下通过，
 运行时获得了本地测试 socket 权限。套件中的 QEMU 和 libguestfs 执行使用模拟；
 本地预览 HTTP 和模拟 Guest Agent socket 测试确实运行。
 数量和范围见[验证记录](references/roadmap.md#validation-record)。

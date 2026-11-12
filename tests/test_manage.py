@@ -11,6 +11,9 @@ manage = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(manage)
 
 class DeviceManagementTests(unittest.TestCase):
+    def test_default_registry_is_under_project_outputs(self):
+        self.assertEqual(manage.DEFAULT_HOME, Path.cwd() / "outputs" / "device-manager")
+
     def test_host_alias_discovery_ignores_patterns(self):
         with tempfile.TemporaryDirectory() as d:
             f = Path(d) / "config"

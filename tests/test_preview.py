@@ -45,6 +45,24 @@ class LivePreviewTests(unittest.TestCase):
             for secret in ("SECRET_TOKEN", "192.0.2.33", "secret-target-alias", "secret private path"):
                 self.assertNotIn(secret, serialized)
 
+    def test_managed_session_blocked_and_partial_are_not_reported_as_incomplete(self):
+        for expected in ("blocked", "partial"):
+            with self.subTest(expected=expected):
+                with tempfile.TemporaryDirectory() as d:
+                    (Path(d) / "manifest.json").write_text(json.dumps({
+                        "schema_version": 1, "state": expected,
+                        "workflow_version": "device-session-v1",
+                        "expected_probes": 20,
+                        "target": "private-ip", "items": [
+                            {"category": "identity", "name": "kernel", "status": "ok"}
+                        ]
+                    }))
+                    status = preview.load_status(d)
+                    self.assertEqual(status["state"], expected)
+                    self.assertEqual(status["total"], 20)
+                    self.assertEqual(status["completed"], 1)
+                    self.assertNotIn("private-ip", json.dumps(status))
+
     def test_http_read_only_status_and_no_raw_file(self):
         with tempfile.TemporaryDirectory() as d:
             folder = Path(d)

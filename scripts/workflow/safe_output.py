@@ -15,16 +15,22 @@ MACOS_SYSTEM_ALIASES = {
 }
 FORBIDDEN_ROOTS = ("/dev", "/proc", "/sys")
 
-def validate_parent_symlinks(path):
-    """Reject symlink ancestors except verified macOS system aliases."""
-    for ancestor in (path.parent, *path.parent.parents):
+def validate_system_alias_ancestors(path):
+    """Reject user-created parent symlinks; allow verified macOS OS aliases.
+
+    This check is shared by *existing Lima inputs* and *new output paths*.
+    A symlink at the final leaf is checked separately by each caller.
+    """
+    raw = Path(path).expanduser().absolute()
+    for ancestor in (raw.parent, *raw.parent.parents):
         if not ancestor.is_symlink():
             continue
-        target = MACOS_SYSTEM_ALIASES.get(str(ancestor))
-        if not (sys.platform == "darwin" and target
-                and ancestor.resolve() == Path(target)
-                and Path(target).is_dir() and not Path(target).is_symlink()):
-            raise ValueError("Symlink output ancestors are not allowed")
+        trusted = MACOS_SYSTEM_ALIASES.get(str(ancestor))
+        if not (sys.platform == "darwin" and trusted
+                and ancestor.resolve() == Path(trusted)
+                and Path(trusted).is_dir() and not Path(trusted).is_symlink()):
+            raise ValueError("Symlink output ancestor is not allowed (user-controlled symlink)")
+
 
 def canonical_new_directory(path):
     raw = Path(path).expanduser().absolute()
@@ -35,7 +41,7 @@ def canonical_new_directory(path):
     if any(raw == Path(root) or Path(root) in raw.parents
            for root in FORBIDDEN_ROOTS):
         raise ValueError("Cannot create an output in a pseudo-filesystem")
-    validate_parent_symlinks(raw)
+    validate_system_alias_ancestors(raw)
     if not raw.parent.is_dir():
         raise ValueError("Output parent must already exist")
     canonical_parent = raw.parent.resolve(strict=True)

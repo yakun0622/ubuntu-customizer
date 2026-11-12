@@ -2,32 +2,56 @@
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
+## Project workspace
+
+With host execution access, the Agent prepares or reuses project-local
+`.venv/` and private `outputs/` before choosing a device connection. No
+packages are downloaded and global Python is not changed. Subsequent helpers
+use `./.venv/bin/python -B` to avoid source-tree bytecode caches.
+
+All generated runtime artifacts belong under `./outputs/`; `.venv/` is the
+local environment exception. Tracked source edits stay in place. Existing
+user artifacts are not moved or deleted. Routine reversible project work
+has standing authorization; host/tool permission gates, device access,
+network installation, image construction, VM launch and target changes
+retain their independent permissions.
+
+Developer/Agent bootstrap and validation example:
+
+```bash
+python3 -B scripts/workflow/project_workspace.py
+./.venv/bin/python -B -m unittest discover -s tests -v
+```
+
 ## Get started: tell the Agent “Start customizing the system”
 
-**This is an AI Agent Skill.** Load this repository's `SKILL.md` / `AGENTS.md`
-in an Agent with host execution access, then say:
+**This is an AI Agent Skill.** Load `SKILL.md` / `AGENTS.md` in an Agent
+with host execution access, then say:
 
 > Start customizing the system
 
-The Agent checks available capabilities on the current Mac/Linux host,
-identifies the target type, collects authorized device evidence, inspects
-images and selects an available local backend. It continues based on observed
-results, asking one short question when it needs a target decision, permission
-for device access / image construction / isolated boot, or help resolving a
-blocker. The local progress preview is optional and off by default; QEMU is
-an optional verification adapter.
+The Agent checks host capabilities and prepares the workspace, resolves only
+missing intent/target information, then selects SSH, ADB, managed TTL/picocom
+or local access and its actual interface. It explains the read-only probes,
+privacy, local monitor and stages, and waits for plan approval before device
+access or server startup. The confirmed plan includes the localhost monitor
+by default; explicit monitor opt-out is honored. After approval the monitor
+starts before probes and the Agent reports only the actual verified URL.
 
-You do not need to select Lima, QEMU or Python arguments, or prepare another
-computer first. If the Agent lacks an execution connection to your computer,
-it must explain that limitation rather than claim it ran commands. Physical
-ARM logs and images can be analyzed read-only, but physical image assembly
-remains blocked without verified BSP/DTB/bootloader/recovery prerequisites
-and a suitable board-specific builder.
+Authorized SSH/ADB/TTL collection uses one persistent session with fixed
+read-only probes. Legacy passive TTL capture remains available. After evidence
+analysis, image goals gather missing OS/version, boot medium and feature
+requirements one at a time, then continue through supported planning and
+separately approved image construction or optional QEMU verification.
 
-See the [guided interaction flow](references/interactive-agent-flow.md) and
-[Agent working agreement](AGENTS.md).
-**All command examples below are for development, debugging or Agent use;
-they are not required user onboarding steps.**
+You do not need to choose Python, Lima or QEMU arguments or prepare a second
+computer. An Agent without execution access must explain that limitation.
+Physical ARM image assembly and flashing remain unsupported without a
+verified board adapter, BSP/DTB/bootloader and recovery path.
+
+See the [guided interaction flow](references/interactive-agent-flow.md),
+[managed device sessions](references/device-session.md) and [Agent agreement](AGENTS.md).
+**Commands below are internal development/Agent examples, not user onboarding.**
 
 > **Project identity: AI Agent Skill.** The Agent guides transport selection,
 > evidence collection, compatibility reasoning, image-build planning and
@@ -52,11 +76,11 @@ work are in [Roadmap and acceptance](references/roadmap.md).
 
 | Capability | Implemented scope | Validation boundary |
 | --- | --- | --- |
-| Device discovery and evidence | Fixed read-only SSH / ADB / local probes, passive TTL capture, SHA-256 dossiers, comparisons and software topology | Python tests passed on macOS; real-device integration unverified |
+| Device discovery and evidence | Fixed read-only SSH / ADB / local probes, persistent SSH/ADB/picocom sessions, legacy passive TTL capture, SHA-256 dossiers, comparisons and software topology | Python tests passed on macOS; real-device integration unverified |
 | Planning and archives | JSON safe-subset profiles, local drift plans, explicit-file snapshots, device/session catalog, execution-disabled task plans | No profile application, automatic rollback or authenticated hardware identity |
 | VM images | Read-only guest inspection, compatibility gates, RAW/QCOW2 conversion, private-copy hostname/MOTD customization, identity cleanup and public-key-only NoCloud seed | Real qemu-img/libguestfs builds unverified; no arbitrary packages or scripts |
 | Boot verification | Static-image and ARM log evidence adapters; separate AMD64 QEMU Guest Agent health backend | Mocked guest tests passed; no real guest or physical-device boot validated |
-| Agent experience | Pure next-step/consent policy, native Linux or existing Mac Lima adapter, optional localhost preview and offline HTML viewer | Local HTTP/socket tests passed; real Lima, browser and full Agent handoffs unverified |
+| Agent experience | Pure next-step/consent policy, project workspace bootstrap, native Linux or existing Mac Lima adapter, plan-approved localhost monitor with opt-out and offline HTML viewer | Local HTTP/socket tests passed; real Lima, browser and full Agent handoffs unverified |
 
 The guided policy currently ends inspect / diagnose / maintain goals after
 evidence analysis. Separate task planners exist, but automatic diagnosis,
@@ -87,12 +111,30 @@ a static check is not confirmation of guest boot.
 Start a guided connection and evidence collection workflow:
 
 ```bash
-python3 scripts/workflow/collect.py
+./.venv/bin/python -B scripts/workflow/collect.py
 ```
 
-Select SSH, ADB, TTL (passive RX) or local. The workflow saves raw category-specific evidence and a `manifest.json` with paths and SHA-256 hashes under a new local directory. It does **not** perform hardware modification, device flashing or automatically upload diagnostics. TTL requires optional `pyserial`.
+Select SSH, ADB, TTL (passive RX) or local. The workflow saves raw category-specific evidence and a `manifest.json` with paths and SHA-256 hashes under a new local directory. It does **not** perform hardware modification, device flashing or automatically upload diagnostics. This legacy TTL mode requires optional `pyserial`.
 
 See [Device discovery](references/device-discovery.md) for transport prerequisites, pinmux limitations and the evidence layout.
+
+For an approved managed interactive SSH/ADB/TTL session, the Agent uses the
+persistent adapter instead of the legacy collector:
+
+```bash
+# Only after approval of the actual connection and monitoring plan.
+./.venv/bin/python -B scripts/workflow/adaptive.py \
+  --transport ssh --target trusted-host-alias \
+  --output ./outputs/managed-session-001 \
+  --interactive-shell-approved --preview-approved --yes
+```
+
+Use the observed serial port/baud for managed TTL. Unknown, login and U-Boot
+prompts block shell probes; a single blank-line wake requires separate
+confirmation that the input line is empty. Explicit monitor opt-out omits
+`--preview-approved`. Missing tools or failed observer startup must be reported
+accurately. See [device-session guards](references/device-session.md).
+
 
 ## Developer helper examples (not user onboarding)
 
@@ -101,21 +143,21 @@ Run local Linux commands on the target machine (for example Ubuntu Server / Armb
 ```bash
 bash scripts/detect/system.sh
 bash scripts/detect/network.sh
-python3 scripts/safety/validate_profile.py profiles/base/ubuntu-server.json
-python3 scripts/system/plan.py profiles/base/ubuntu-server.json
-python3 -m unittest discover -s tests -v
+./.venv/bin/python -B scripts/safety/validate_profile.py profiles/base/ubuntu-server.json
+./.venv/bin/python -B scripts/system/plan.py profiles/base/ubuntu-server.json
+./.venv/bin/python -B -m unittest discover -s tests -v
 ```
 
 Run a remote, read-only inventory from a machine with OpenSSH and a configured Host alias:
 
 ```bash
-python3 scripts/remote/ssh_probe.py ubuntu-server
+./.venv/bin/python -B scripts/remote/ssh_probe.py ubuntu-server
 ```
 
 Create a snapshot of explicitly selected local files:
 
 ```bash
-python3 scripts/safety/snapshot.py --output-dir /tmp/uc-snapshot-001 /etc/hostname
+./.venv/bin/python -B scripts/safety/snapshot.py --output-dir ./outputs/snapshot-001 /etc/hostname
 ```
 
 Snapshots do not provide an automatic restore capability. They should be stored in a secure location.
@@ -139,9 +181,9 @@ Do not include credentials in profiles or commit any machine-generated diagnosti
 Collect a session with the existing interactive wizard, then build its evidence-indexed dossier:
 
 ```bash
-python3 scripts/workflow/collect.py
-python3 scripts/workflow/dossier.py ./devices/example-device/session-001
-python3 scripts/workflow/compare.py ./devices/example-device/session-001/device.json ./devices/example-device/session-002/device.json
+./.venv/bin/python -B scripts/workflow/collect.py
+./.venv/bin/python -B scripts/workflow/dossier.py ./outputs/example-device-session-001
+./.venv/bin/python -B scripts/workflow/compare.py ./outputs/example-device-session-001/device.json ./outputs/example-device-session-002/device.json
 ```
 
 Dossier creation verifies each evidence file's SHA-256 digest. Missing collection is recorded as an evidence gap, not proof that hardware is absent. The comparison reports observed identity changes and evidence-file changes; it does not by itself diagnose a fault. Detailed guide: [device discovery](references/device-discovery.md).
@@ -154,9 +196,9 @@ New discovery sessions collect limited sysfs binding evidence from network, seri
 GPIO, platform, I2C, SPI and MDIO devices. Generate the conservative topology:
 
 ```bash
-python3 scripts/workflow/collect.py
-python3 scripts/workflow/dossier.py ./devices/example-device/session-001
-python3 scripts/workflow/topology.py ./devices/example-device/session-001
+./.venv/bin/python -B scripts/workflow/collect.py
+./.venv/bin/python -B scripts/workflow/dossier.py ./outputs/example-device-session-001
+./.venv/bin/python -B scripts/workflow/topology.py ./outputs/example-device-session-001
 ```
 
 The new `topology.json` stores device and driver nodes, observed `bound_to`
@@ -173,10 +215,10 @@ the collector captures a decompiled DTS alongside driver bindings and
 platform-device `of_node` paths. All probes remain read-only.
 
 ```bash
-python3 scripts/workflow/collect.py
-python3 scripts/workflow/device_tree.py ./devices/example-device/session-001
-python3 scripts/workflow/topology.py ./devices/example-device/session-001
-python3 scripts/workflow/link_graph.py ./devices/example-device/session-001
+./.venv/bin/python -B scripts/workflow/collect.py
+./.venv/bin/python -B scripts/workflow/device_tree.py ./outputs/example-device-session-001
+./.venv/bin/python -B scripts/workflow/topology.py ./outputs/example-device-session-001
+./.venv/bin/python -B scripts/workflow/link_graph.py ./outputs/example-device-session-001
 ```
 
 Outputs:
@@ -199,7 +241,7 @@ must remain optional extensions.
 After a discovery session, determine which classes of diagnostics were available:
 
 ```bash
-python3 scripts/workflow/capabilities.py ./devices/example-device/session-001
+./.venv/bin/python -B scripts/workflow/capabilities.py ./outputs/example-device-session-001
 ```
 
 The output `capabilities.json` describes observation availability (`available`,
@@ -217,22 +259,24 @@ checkpointed `manifest.json` so interrupted sessions can be inspected.
 
 ```bash
 # Interactive SSH / ADB / TTL / local wizard
-python3 scripts/workflow/adaptive.py
+./.venv/bin/python -B scripts/workflow/adaptive.py
 
 # Explicitly approved unattended read-only collection (preconfigured SSH alias)
-python3 scripts/workflow/adaptive.py --transport ssh --target my-linux-host \
-  --output ./new-session-001 --modules auto --yes
+./.venv/bin/python -B scripts/workflow/adaptive.py --transport ssh --target my-linux-host \\
+  --output ./outputs/new-session-001 --modules auto --yes
 
 # Select only specific modules
-python3 scripts/workflow/adaptive.py --transport local --target local \
-  --modules network,drivers --output ./new-session-002 --yes
+./.venv/bin/python -B scripts/workflow/adaptive.py --transport local --target local \\
+  --modules network,drivers --output ./outputs/new-session-002 --yes
 ```
 
 **Restrictions:** `--yes` explicitly authorizes only read-only probes; it does
 not authorize writes. TTL is still passive serial RX only. Session directories
 must be new, and their parent directory must already exist. Collected files may
 contain sensitive host/network identifiers and are never auto-uploaded.
-The older `collect.py` remains available for fully exhaustive baseline probes.
+Without `--interactive-shell-approved`, these examples use the legacy
+per-command SSH/ADB or passive TTL path. For interactive customization, use
+the separately approved persistent adapter described above.
 
 ## Device catalog and interactive manager
 
@@ -243,28 +287,29 @@ embeds passwords in its catalog.
 
 ```bash
 # Interactive menu
-python3 scripts/workflow/manage.py
+./.venv/bin/python -B scripts/workflow/manage.py
 
 # Enumerate candidate configured SSH Host aliases, authorized ADB devices,
 # local serial-port names, and the local target
-python3 scripts/workflow/manage.py discover
+./.venv/bin/python -B scripts/workflow/manage.py discover
 
 # Register a target without contacting it
-python3 scripts/workflow/manage.py add lab-server --transport ssh --target server-alias
+./.venv/bin/python -B scripts/workflow/manage.py add lab-server --transport ssh --target server-alias
 
 # View catalog; collect using the existing staged read-only engine
-python3 scripts/workflow/manage.py list
-python3 scripts/workflow/manage.py collect lab-server --modules hardware,drivers,network
+./.venv/bin/python -B scripts/workflow/manage.py list
+./.venv/bin/python -B scripts/workflow/manage.py collect lab-server --modules hardware,drivers,network
 
 # Inspect stored sessions and category summaries
-python3 scripts/workflow/manage.py sessions lab-server
-python3 scripts/workflow/manage.py inspect lab-server SESSION_ID
+./.venv/bin/python -B scripts/workflow/manage.py sessions lab-server
+./.venv/bin/python -B scripts/workflow/manage.py inspect lab-server SESSION_ID
 ```
 
-The catalog defaults to `~/.local/share/ubuntu-customizer/registry.json` and
-captures are under `~/.local/share/ubuntu-customizer/devices/<id>/sessions/<session>/`.
+The legacy manager catalog defaults to `./outputs/device-manager/registry.json` and
+captures are under `./outputs/device-manager/devices/<id>/sessions/<session>/`.
 Directories and the catalog are created with restrictive permissions.
-`--data-dir` selects a different *private* directory.
+`--data-dir` must select a private directory under `./outputs/` under the
+Agent workspace contract. The default manager location is no longer in the home directory.
 
 Connection discovery enumerates candidates; SSH aliases are read from explicit
 `Host` entries in the primary SSH config (without expanding `Include` or
@@ -273,7 +318,7 @@ discovery lists device names but does not open serial ports. It does not
 establish connectivity or authenticate to discovered candidates.
 
 The `collect` command asks for confirmation unless given `--yes`;
-`--yes` authorizes only fixed read-only evidence probes. TTL uses passive
+`--yes` authorizes only fixed read-only evidence probes. The legacy manager uses passive TTL
 RX capture, without transmitting serial bytes, though opening adapters may
 affect control signals. Raw files may contain identifiers and must not be
 automatically published.
@@ -291,25 +336,25 @@ browse node relationships and prepare an **execution-disabled** plan.
 
 ```bash
 # Interactive: choose 7. Explore from device manager
-python3 scripts/workflow/manage.py
+./.venv/bin/python -B scripts/workflow/manage.py
 
 # List nodes from a saved session
-python3 scripts/workflow/manage.py explore lab-server SESSION_ID
+./.venv/bin/python -B scripts/workflow/manage.py explore lab-server SESSION_ID
 
 # Inspect a specific node and its relationships
-python3 scripts/workflow/manage.py explore lab-server SESSION_ID --node 'device:platform:example-controller'
+./.venv/bin/python -B scripts/workflow/manage.py explore lab-server SESSION_ID --node 'device:platform:example-controller'
 
 # Generate a diagnosis plan scoped to a verified node (no target actions)
-python3 scripts/workflow/manage.py explore lab-server SESSION_ID \
+./.venv/bin/python -B scripts/workflow/manage.py explore lab-server SESSION_ID \
   --task diagnose --node 'device:platform:example-controller' \
   --goal 'Investigate why the controller is not responding'
 
 # Run standalone wizard on a session directory
-python3 scripts/workflow/explore.py ~/.local/share/ubuntu-customizer/devices/lab-server/sessions/SESSION_ID
+./.venv/bin/python -B scripts/workflow/explore.py ./outputs/device-manager/devices/lab-server/sessions/SESSION_ID
 
 # Generate a safe JSON plan file without overwriting existing plans
-python3 scripts/workflow/explore.py SESSION_DIRECTORY --mode plan \
-  --task maintain --output ./my-plan.json
+./.venv/bin/python -B scripts/workflow/explore.py SESSION_DIRECTORY --mode plan \
+  --task maintain --output ./outputs/my-plan.json
 ```
 
 Supported plan kinds: `diagnose`, `maintain`, `image`. A plan references
@@ -331,13 +376,13 @@ required to browse it.
 
 ```bash
 # From the registered device manager (command 8 in the interactive menu)
-python3 scripts/workflow/manage.py browse lab-server SESSION_ID
+./.venv/bin/python -B scripts/workflow/manage.py browse lab-server SESSION_ID
 
 # Custom destination (must not exist; never overwrites)
-python3 scripts/workflow/manage.py browse lab-server SESSION_ID --output /tmp/lab-hardware.html
+./.venv/bin/python -B scripts/workflow/manage.py browse lab-server SESSION_ID --output ./outputs/lab-hardware.html
 
 # Directly from an existing collection session
-python3 scripts/workflow/export_html.py SESSION_DIRECTORY --output /tmp/hardware.html
+./.venv/bin/python -B scripts/workflow/export_html.py SESSION_DIRECTORY --output ./outputs/hardware.html
 ```
 
 Open the resulting HTML file locally in a browser. The left panel supports
@@ -368,23 +413,23 @@ source architecture, readiness gaps, and the intended output format.
 
 ```bash
 # Generate plan for an existing verified base image and a VM target
-python3 scripts/workflow/image_plan.py SESSION_DIRECTORY \
+./.venv/bin/python -B scripts/workflow/image_plan.py SESSION_DIRECTORY \
   --target virtual-machine --format qcow2 \
   --source /srv/images/base.img \
   --sha256 VERIFIED_64_HEX_SHA256 --source-arch amd64 \
-  --output ./image-plan.json
+  --output ./outputs/image-plan.json
 
 # The same plan can be created from a registered device
-python3 scripts/workflow/manage.py image-plan lab-server SESSION_ID \
+./.venv/bin/python -B scripts/workflow/manage.py image-plan lab-server SESSION_ID \
   --target virtual-machine --format qcow2 \
   --source /srv/images/base.img \
   --sha256 VERIFIED_64_HEX_SHA256 --source-arch amd64 \
-  --output ./image-plan.json
+  --output ./outputs/image-plan.json
 
 # Once the plan reports build_allowed=true, perform OFFLINE conversion
 # (requires qemu-img installed on the build host)
-python3 scripts/workflow/build_image.py ./image-plan.json \
-  --output ./output.qcow2
+./.venv/bin/python -B scripts/workflow/build_image.py ./outputs/image-plan.json \
+  --output ./outputs/output.qcow2
 ```
 
 This generates an image and `output.qcow2.manifest.json`, including the
@@ -408,16 +453,19 @@ measured by guest inspection and match both the declaration and discovered
 target. Missing tools or incomplete inspection block conversion; declaring
 `--source-arch` alone cannot authorize it.
 
-## Optional real-time Skill status preview
+## Live Skill status preview (included in the approved plan)
 
-**AI Agent first, browser preview optional.** At the start of a device
-discovery or image-build task the Skill asks whether the user wants to
-enable a local status page. Default is off; declining never blocks the task.
+**AI Agent first; browser page is only an observer.** After the connection
+method and actual interface are chosen, the Agent explains and requests
+approval for the read-only plan including a loopback-only status page.
+Once approved, the backend starts the viewer before probes and returns the
+actual URL. The user may explicitly opt out of monitoring without blocking
+collection.
 
 For a session that already exists (or is currently collecting):
 
 ```bash
-python3 scripts/workflow/preview.py SESSION_DIR --port 8765
+./.venv/bin/python -B scripts/workflow/preview.py SESSION_DIR --port 8765
 # Browser: http://127.0.0.1:8765/
 ```
 
@@ -426,7 +474,7 @@ Agent-led stages (analysis / image planning / conversion / verification),
 the Agent may publish safe stage/count updates:
 
 ```bash
-python3 scripts/workflow/status.py SESSION_DIR \
+./.venv/bin/python -B scripts/workflow/status.py SESSION_DIR \
   --stage image-plan --state running --completed 1 --total 3
 ```
 
@@ -436,18 +484,18 @@ is not required for Skill execution. Stop with Ctrl+C. See
 [Optional live preview](references/live-preview.md) for privacy,
 consent and lifecycle rules.
 
-### Skill-managed live preview lifecycle (opt-in)
+### Skill-managed live preview lifecycle (plan-approved)
 
-The Skill asks **“Would you like to enable the optional local live preview?”**
-before collection.
-The default is off. After positive user consent, the Agent can activate
-the preview **during** collection with `--preview-approved` (independent
-from `--yes`, which approves read-only probes):
+After the Agent explains the entire connection and monitoring plan and
+receives confirmation, it starts the observer *before* collection with
+`--preview-approved`. The Agent does not ask a second preview question.
+The host runs only approved read-only probes (`--yes` in the internal
+CLI); viewer consent does not authorize target system modification:
 
 ```bash
-python3 scripts/workflow/adaptive.py \
+./.venv/bin/python -B scripts/workflow/adaptive.py \
   --transport ssh --target trusted-host-alias \
-  --output ./sessions/run-003 --yes --preview-approved
+  --output ./outputs/run-003 --yes --preview-approved
 ```
 
 After creating the session directory, the collector starts a localhost-only
@@ -456,8 +504,8 @@ does **not** stop collection. The page remains available for final review
 until the user requests it be closed.
 
 ```bash
-python3 scripts/workflow/preview_control.py status ./sessions/run-003
-python3 scripts/workflow/preview_control.py stop ./sessions/run-003
+./.venv/bin/python -B scripts/workflow/preview_control.py status ./outputs/run-003
+./.venv/bin/python -B scripts/workflow/preview_control.py stop ./outputs/run-003
 ```
 
 For a preexisting session, `preview_control.py start SESSION_DIR --approved`
@@ -475,7 +523,7 @@ than requiring the user to retype a command.
 
 ### Live progress throughout the image pipeline
 
-When a user has explicitly enabled the local preview, the image helpers now
+When a user has approved the plan including local monitoring, the image helpers
 automatically update the same preview via verified session references.
 Stages: `image-plan`, `image-build`, `rootfs-build`, `first-boot` (NoCloud),
 and `verify` (including guest-health verification). Each reports concrete
@@ -497,14 +545,14 @@ establish GPT/MBR partitioning, guest Linux architecture/OS, installed kernel
 and BIOS/UEFI + bootloader. Missing evidence blocks conversion.
 
 ```bash
-python3 scripts/workflow/image_inspect.py /srv/images/base.img \
+./.venv/bin/python -B scripts/workflow/image_inspect.py /srv/images/base.img \
   --sha256 TRUSTED_SOURCE_SHA256 \
-  --output ./source-inspection.json
+  --output ./outputs/source-inspection.json
 
-python3 scripts/workflow/image_plan.py SESSION_DIR \
+./.venv/bin/python -B scripts/workflow/image_plan.py SESSION_DIR \
   --target virtual-machine --format qcow2 --source /srv/images/base.img \
   --sha256 TRUSTED_SOURCE_SHA256 --source-arch amd64 \
-  --output ./image-plan.json
+  --output ./outputs/image-plan.json
 ```
 
 `image-plan.json` now includes observed source details and a per-check
@@ -531,16 +579,16 @@ run arbitrary commands or prove bootability.
 
 ```bash
 # Check requirements and exact planned operations without writing an image.
-python3 scripts/workflow/rootfs_builder.py image-plan.json \
-  --config rootfs-config.json --dry-run
+./.venv/bin/python -B scripts/workflow/rootfs_builder.py ./outputs/image-plan.json \
+  --config ./outputs/rootfs-config.json --dry-run
 
 # Only after Agent obtains explicit separate approval.
-python3 scripts/workflow/rootfs_builder.py image-plan.json \
-  --config rootfs-config.json --output-dir ./new-rootfs-bundle --approved
+./.venv/bin/python -B scripts/workflow/rootfs_builder.py ./outputs/image-plan.json \
+  --config ./outputs/rootfs-config.json --output-dir ./outputs/new-rootfs-bundle --approved
 
 # Independently verify the published image, NoCloud seed and hashes.
-python3 scripts/workflow/rootfs_builder.py \
-  --verify-bundle ./new-rootfs-bundle
+./.venv/bin/python -B scripts/workflow/rootfs_builder.py \
+  --verify-bundle ./outputs/new-rootfs-bundle
 ```
 
 Requires qemu-img and libguestfs tools on the **build host**. The source
@@ -561,10 +609,10 @@ The Skill now offers a separately approved, isolated **first-boot health
 check** for a completed Portable RootFS Builder bundle:
 
 ```bash
-python3 scripts/workflow/rootfs_builder.py --verify-bundle ./rootfs-bundle
-python3 scripts/workflow/verify_first_boot.py \
-  --bundle ./rootfs-bundle --timeout 300 \
-  --report ./first-boot-health.json --approved
+./.venv/bin/python -B scripts/workflow/rootfs_builder.py --verify-bundle ./outputs/rootfs-bundle
+./.venv/bin/python -B scripts/workflow/verify_first_boot.py \
+  --bundle ./outputs/rootfs-bundle --timeout 300 \
+  --report ./outputs/first-boot-health.json --approved
 
 # For UEFI guests additionally supply:
 # --ovmf-code /trusted/OVMF_CODE.fd --ovmf-vars /trusted/OVMF_VARS.fd
@@ -600,7 +648,7 @@ destinations, directory traversal and block-device/pseudo-filesystem
 targets remain unchanged. The unit tests compare resolved paths where
 the collector or QEMU intentionally canonicalizes them.
 
-The standard command `python3 -m unittest discover -s tests -v` passed on
+The standard command `./.venv/bin/python -B -m unittest discover -s tests -v` passed on
 macOS with the default temporary directory and local test socket permissions.
 QEMU and libguestfs execution is mocked in this suite; local preview HTTP
 and fake Guest Agent socket tests do run. See the

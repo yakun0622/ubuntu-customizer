@@ -15,6 +15,9 @@ from pathlib import Path
 import sys
 
 HERE = Path(__file__).resolve().parent
+ws_spec = importlib.util.spec_from_file_location("uc_project_workspace", HERE / "project_workspace.py")
+workspace = importlib.util.module_from_spec(ws_spec)
+ws_spec.loader.exec_module(workspace)
 spec = importlib.util.spec_from_file_location("uc_collect", HERE / "collect.py")
 collect = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(collect)
@@ -190,14 +193,18 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--transport", choices=("ssh", "adb", "local", "ttl"))
     parser.add_argument("--target")
-    parser.add_argument("--output", help="New session directory; parent must exist")
+    parser.add_argument("--output", help="New session directory under ./outputs (default: outputs/device-session-TIMESTAMP)")
     parser.add_argument("--modules", default="auto", help="auto or comma-separated: " + ",".join(MODULES))
     parser.add_argument("--timeout", type=int, default=12)
     parser.add_argument("--baud", type=int, default=115200)
     parser.add_argument("--duration", type=int, default=10)
     parser.add_argument("--yes", action="store_true", help="Explicit permission for unattended read-only collection")
     parser.add_argument("--preview-approved", action="store_true",
-                        help="Start local status preview ONLY after user explicitly opts in")
+                        help="Start local-only status preview after user approves the presented execution plan")
+    parser.add_argument("--interactive-shell-approved", action="store_true",
+                        help="Use a single persistent picocom/ADB/SSH shell for fixed read-only probes")
+    parser.add_argument("--wake-console-approved", action="store_true",
+                        help="TTL only: user confirmed a blank input line, allow one CR to reveal prompt")
     args = parser.parse_args(argv)
     transport = args.transport
     if not transport and not args.yes:
@@ -217,12 +224,49 @@ def main(argv=None):
         parser.error("Local target must be 'local'")
     if not 1 <= args.timeout <= 120 or not 1 <= args.duration <= 300 or not 1200 <= args.baud <= 3000000:
         parser.error("Invalid timeout, serial duration or baud")
+    if args.wake_console_approved and not (args.interactive_shell_approved and transport == "ttl"):
+        parser.error("--wake-console-approved requires interactive TTL")
+    if args.interactive_shell_approved:
+        if not args.yes:
+            parser.error("Persistent read-only device session requires --yes")
+        if transport not in ("ttl", "adb", "ssh"):
+            parser.error("Interactive device sessions support TTL, ADB and SSH only")
+        spec = importlib.util.spec_from_file_location("uc_device_session", HERE / "device_session.py")
+        device_session = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(device_session)
+        try:
+            session_name = "device-session-" + datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+            output = str(workspace.checked_output(args.output or ("outputs/" + session_name)))
+        except ValueError as exc:
+            parser.error(str(exc))
+        try:
+            folder, report = device_session.run_collection(
+                transport, target, output, args.baud, args.timeout,
+                wake_console=args.wake_console_approved,
+                preview_approved=args.preview_approved,
+                preview_notify=lambda url: print(json.dumps(
+                    {"event": "preview_ready", "url": url},
+                    ensure_ascii=False), flush=True))
+        except (OSError, RuntimeError, ValueError) as exc:
+            print(f"ERROR: {exc}", file=sys.stderr)
+            return 2
+        print(json.dumps({"session": str(folder), "state": report["state"],
+                          "collected": len(report["items"]),
+                          "os_family": report.get("os_family"),
+                          "console_state": report.get("console_state"),
+                          "preview": report.get("preview", {"state": "disabled"})},
+                         ensure_ascii=False))
+        return 0 if report["state"] == "complete" else 2
     modules = list(MODULES) if args.modules == "auto" else [v.strip() for v in args.modules.split(",")]
     if not modules or len(set(modules)) != len(modules) or any(m not in MODULES for m in modules):
         parser.error("Unknown or repeated collection module")
     if transport == "ttl":
         modules = []  # Passive capture, no Linux shell available.
-    output = args.output or ("./device-session-" + datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ"))
+    try:
+        session_name = "device-session-" + datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        output = str(workspace.checked_output(args.output or ("outputs/" + session_name)))
+    except ValueError as exc:
+        parser.error(str(exc))
     if not args.yes:
         print("Read-only collection; no sudo and no remote changes. Evidence may contain private infrastructure data.")
         if input("Proceed? [y/N]: ").strip().lower() not in ("y", "yes"):

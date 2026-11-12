@@ -11,33 +11,79 @@ pretend that it connected to the user's Mac or ran an image builder. In that
 case it explains the single missing prerequisite or uses an authorized
 computer/remote connector. It does not dump a long manual command checklist.
 
+## Current-directory bootstrap and artifact rule
+
+When an authorized local host execution bridge exists, **before asking for a
+device connection** the Agent invokes
+`python3 -B scripts/workflow/project_workspace.py` from the current repository
+directory. It creates/reuses `.venv/`, creates private `outputs/` and
+returns the interpreter path. All remaining Python helpers run in `.venv`.
+No downloads, global installs or target contact are part of this step.
+
+Every runtime output is a child of `./outputs/` (evidence sessions,
+status/preview files, plans, artifacts, checksums, images, intermediate
+downloads and test reports). Use `project_workspace.output_path` and
+`checked_output` for untrusted path inputs. Source/document edits remain in
+the tracked project; `.venv` is the sole environment directory exception.
+
+**Local standing consent:** The Agent may inspect/edit source, create a
+virtual environment, write new outputs and run safe project-local test
+commands without individually asking the user. A project-relative working
+directory does not make dangerous commands safe: device I/O, power cycling,
+destructive deletes, package downloads/untrusted scripts, host networking,
+privileged changes, VM boot and disk/image writes keep their specific
+permission requirements. Host sandbox or OS prompts still apply; the Skill
+cannot waive them.
+
 ## User experience
 
-1. **Start** — User says “开始” or chooses a “开始设备定制” follow-up.
-   The Agent examines available current-host tools without changing anything.
-2. **Narrow choice** — Only ask for intent/target if not established by the
-   conversation. For example: “要检查设备，还是制作系统镜像？”
-3. **Optional preview** — Ask once whether to show a live local progress page.
-   Default is **off**. No preview is necessary for the Skill to function.
-4. **Read-only consent** — Before SSH/ADB/serial access, show the target and
-   request read-only collection permission. Never silently connect.
-5. **Automatic work** — Collect/verify device evidence, select the best
-   available single-host backend, inspect the source image, and produce
-   compatibility decisions without making the user select CLI commands.
-   Present short factual checkpoints; if a tool is absent, propose the single
-   least disruptive next option and ask whether to proceed.
-6. **Offline build consent** — Present input hash, output location, concrete
-   file changes, compatibility blockers and reversibility; obtain distinct
-   explicit approval for a new image build.
-7. **Optional boot verification** — Ask whether to run an isolated VM test.
-   The default is **no**. QEMU is an adapter, not a mandatory Skill stage.
-8. **Deliver** — Report artifact paths, verified checksums, real test status,
-   known risks, missing BSP/boot details, and one specific follow-up button.
+The four mandatory phases are **connection choice → plan review/confirmation
+→ start verified live monitor and collect → stepwise customization**.
 
-Never ask for all decisions in one form. One question at a time, only when
-a decision is needed. If evidence is already in the conversation, do not
-ask for it again. “开始” is NOT consent to connect, install packages,
-create disk images, boot a VM, change a system or flash a device.
+1. **Start** — The user says “开始定制系统”. Agent observes only local
+   host capabilities it can really access, then automatically prepares
+   `.venv` and `outputs` in the current directory. Reuse the known
+   purpose/target.
+2. **Connection choice** — If no transport was named, ask one concise
+   question offering SSH / ADB / TTL / local. After that choice, discover
+   observed matching endpoints and let the user select the appropriate
+   interface. SSH means a trusted Host alias; ADB an authorized serial or
+   connected address; TTL an exact /dev path plus verified baud (only one
+   owner at a time); local means the Agent's approved execution host.
+   Reuse an already supplied interface instead of asking again.
+3. **Explain and confirm** — Before any device connection, display the
+   intended target and interface, connection details, fixed read-only probe
+   scope, evidence retention, privacy, stage sequence, local live monitor
+   and limitations. Ask once whether to approve this plan. Rejecting it
+   pauses all device activity. This plan approval is read-only R0 scope
+   and includes launching a localhost viewer; it never authorizes
+   reboot/shutdown, network changes, disk writes or flashing.
+4. **Start monitor, then work** — After confirmation, create a private
+   evidence session, start the loopback live viewer BEFORE shell probes,
+   and provide the **actual** confirmed `http://127.0.0.1:<dynamic-port>/`
+   URL. Do not invent URLs. The monitored SSH/ADB/TTL persistent collector
+   emits a `preview_ready` event before probing. Browser reachability
+   requires opening the address on the controlling host. If the server
+   fails to start, explicitly report the blocker and use text progress.
+   If preview was specifically declined, skip only that optional observer.
+5. **Read-only discovery** — Run the permitted probe batch, inspect the
+   session's SHA-256 evidence, and identify OS/kernel, architecture,
+   storage, bootloader/BSP/DTB, drivers and real uncertainties.
+6. **Gather customization requirements** — Ask about missing OS/version,
+   boot media, services/packages, network behavior and validation only
+   as they become relevant. Already provided details are not re-requested.
+   This is the Agent's conversation stage, not a shell script.
+7. **Stepwise implementation** — Present a feasible compatibility plan and
+   carry out safe supported steps. A new image build, VM boot test or
+   system/firmware write each needs separate appropriate consent. Physical
+   ARM image production/flash remains blocked without a verified board
+   adapter, source, backups and a recovery path.
+8. **Deliver** — Report actual evidence/results, session and artifact
+   references, real test outcomes, unknowns and one concrete next task.
+
+Never use an all-at-once form. A plain chat without an execution bridge
+must not pretend to connect to the user's Mac or launch a preview.
+Likewise, a localhost link is NOT a public/remote URL.
 
 ## Supported choices behind the scenes
 
@@ -64,7 +110,7 @@ or assert local execution when the execution tool has not run.
 ## Implementation contract (Agent-side, no application frontend)
 
 The small pure planning module `scripts/workflow/agent_journey.py` offers
-`start(goal=None, target=None)`, `next_step(state)` and
+`start(goal=None, target=None, transport=None, interface_ready=None)`, `next_step(state)` and
 `transition(state, event)`. These return structured descriptions of the
 next **one** action or question. They do not execute operations, create
 files, connect to devices or grant permissions. The host Agent may keep this
@@ -77,11 +123,21 @@ rollback execution remain unsupported. The VM-image path alone continues
 through recipe/build/optional guest-health stages. Physical-device image
 requests end with evidence and blockers, without building or flashing.
 
-- The first step is a read-only `host_capabilities.inspect` observation.
-- The Agent may perform a `kind=run` step when it has an appropriate
-  real execution tool and the needed approved inputs.
-- For `kind=ask`, the Agent asks one conversational question; the user's
-  explicit answer sets only that named choice/consent.
+- The first step is a read-only `host_capabilities.inspect` observation,
+  immediately followed by a project-local `project_workspace.prepare`
+  action (before transport selection), requiring actual host execution access
+  but no additional *user conversation* prompt.
+- Then select `transport` and `interface_ready`, strictly before
+  requesting `plan_confirm`. The Agent stores concrete ports, IPs,
+  addresses and baud separately in its private runtime, not the policy state.
+- `plan_confirm=True` authorizes the displayed read-only session and
+  local observer; a `collect` result is otherwise out of sequence.
+- The `collect` action carries `preview_approved=True` so the
+  backend starts the observer before running fixed probes.
+- The Agent-owned `requirements` action is conversational: gather missing
+  OS/version, boot medium and service needs, then record it complete.
+- The Agent may perform a `kind=run` step only with real host execution
+  tools and approved inputs. A `kind=ask` asks just one question.
 - `kind=halt` preserves the actual failure/blocker and asks the user
   whether to retry or choose a supported alternate path. Never fabricate
   success to advance.
@@ -98,14 +154,20 @@ Example of conceptual transition (not something a user must run):
 
 ~~~text
 “开始定制系统”
-  → Agent: [checks host locally, if execution is permitted]
-  → Agent: “要制作虚拟机镜像，还是给实体设备使用？” [only if unknown]
-  → User: “实体设备”
-  → Agent: “允许只读连接设备采集信息吗？”
-  → User: “允许”
-  → Agent: [collect → verify hashes → diagnose → passive boot log review]
-  → Agent: “已有启动日志证据。板级固件/DTB 未验证，暂不刷写。”
-  → Agent: [summarize + one specific next-step button]
+  → Agent: [checks accessible host capabilities, read-only]
+  → Agent: [creates/reuses .venv and outputs in the current project]
+  → Agent: “设备怎么连接？SSH / ADB / TTL / 本机” [only if unknown]
+  → User: “TTL”
+  → Agent: “检测到 /dev/cu.wchusbserial1140，波特率 921600，使用它吗？”
+  → User: “是”
+  → Agent: [explains planned fixed probes, localhost viewer and safety]
+  → Agent: “确认该只读连接和监控方案吗？”
+  → User: “确认”
+  → Agent: [creates private session → starts loopback observer]
+  → Agent: “监控地址：http://127.0.0.1:<actual-port>/”
+  → Agent: [collects read-only evidence → hashes/analysis]
+  → Agent: [asks only for missing system/version/functions]
+  → Agent: [compatibility plan → separately approved safe build steps]
 ~~~
 
 For a VM workflow, after automatic image inspection/plan and recipe
@@ -139,8 +201,8 @@ blocked regardless of workflow completion.
 ## Agent developer test (not a user prerequisite)
 
 ~~~bash
-python3 -m unittest discover -s tests -p 'test_agent_journey.py' -v
-python3 -m unittest discover -s tests -v
+./.venv/bin/python -B -m unittest discover -s tests -p 'test_agent_journey.py' -v
+./.venv/bin/python -B -m unittest discover -s tests -v
 ~~~
 
 The first command checks the pure conversational policy, not actual

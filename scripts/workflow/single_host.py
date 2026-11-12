@@ -43,8 +43,10 @@ def shared_path(path, *, output=False, directory=False, home=None):
     # Avoid confusing aliases and any user-controlled parent symlinks.
     if raw.is_symlink() or ".." in raw.parts:
         raise ValueError("Symlink/path traversal not allowed for Lima shared files")
+    # Accept only verified macOS system-owned /var and /tmp aliases.
+    # A user-created symlink anywhere in the parent chain is still rejected.
+    safe_output.validate_system_alias_ancestors(raw)
     parent = raw.parent
-    safe_output.validate_parent_symlinks(raw)
     final = parent.resolve(strict=True) / raw.name if output else raw.resolve(strict=True)
     if home != final and home not in final.parents:
         raise ValueError("Lima inputs/outputs must be within the mounted host home")

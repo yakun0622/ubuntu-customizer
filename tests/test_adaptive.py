@@ -89,6 +89,27 @@ class AdaptiveTests(unittest.TestCase):
             self.assertEqual(report["state"], "complete")
             self.assertEqual(report["preview"]["state"], "unavailable")
 
+    def test_cli_defaults_to_workspace_checked_outputs(self):
+        with patch.object(adaptive.workspace, "checked_output",
+                          return_value=Path("/project/outputs/device-session-fixed")) as checked, \
+             patch.object(adaptive, "run", return_value=(
+                 Path("/project/outputs/device-session-fixed"),
+                 {"state": "complete", "items": [], "skipped": []})):
+            rc = adaptive.main(["--transport", "local", "--yes"])
+        self.assertEqual(rc, 0)
+        self.assertTrue(checked.called)
+        self.assertTrue(checked.call_args.args[0].startswith("outputs/"))
+
+    def test_cli_rejects_output_outside_project(self):
+        with patch.object(adaptive.workspace, "checked_output",
+                          side_effect=ValueError("All Skill output files must be under ./outputs")), \
+             patch.object(adaptive, "run") as collect:
+            with self.assertRaises(SystemExit) as failure:
+                adaptive.main(["--transport", "local", "--yes",
+                               "--output", "/tmp/outside"])
+        self.assertEqual(failure.exception.code, 2)
+        collect.assert_not_called()
+
     def test_existing_directory_is_rejected(self):
         with tempfile.TemporaryDirectory() as root:
             with self.assertRaises(ValueError):

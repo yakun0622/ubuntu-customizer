@@ -23,7 +23,7 @@ Collect exact board model and PCB revision, SoC, kernel version, bootloader, DTB
 6. Inspect device tree for PHY mode, RGMII/RMII delays, clock, pinctrl, interrupts, reset lines and regulator configuration.
 7. Propose the **smallest** testable DTB/driver change only after evidence narrows the fault.
 
-The fixed collector does not perform the complete checklist: its ethtool
+The legacy fixed collector does not perform the complete checklist: its ethtool
 probe reads the tool version, not PHY registers or full statistics. Packet
 capture, traffic generation and additional log/MDIO reads need separately
 scoped authorization and appropriate tools; no DTB/driver mutation backend

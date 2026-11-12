@@ -61,7 +61,10 @@ def execute(args):
                      (["--ovmf-vars", args.ovmf_vars] if args.ovmf_vars else [])) +
          (["--backend", args.host_backend] if args.host_backend else []) +
          ["--lima-instance", args.lima_instance]))
-    result = dispatcher.execute(action, subargs, subargs.backend, subargs.lima_instance)
+    # The explicit adapter selection belongs to this wrapper. Do not
+    # require an optional downstream parser to expose --backend when no
+    # host backend was requested (e.g. a narrow read-only adapter).
+    result = dispatcher.execute(action, subargs, args.host_backend, args.lima_instance)
     if result["status"] != "completed":
         return {"backend": args.backend, "status": "unverified", "boot_confirmed": False,
                 "operation_exit_code": result.get("exit_code")}

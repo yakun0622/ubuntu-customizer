@@ -1,4 +1,4 @@
-# Optional live Skill execution preview
+# Execution-plan-approved live Skill progress viewer
 
 Ubuntu Customizer is an **AI Agent Skill**, not a web management product.
 This optional page displays **only execution status**. It must not schedule,
@@ -11,21 +11,26 @@ connected Agent journey remain unverified; see the
 
 ## Consent and lifecycle
 
-Before connecting or collecting, the Agent should ask:
+The Agent MUST first resolve the selected transport and actual interface,
+then show the complete execution plan and ask for approval. The plan
+**includes** the local-only live viewer by default, so no separate viewer
+question is required. User refusal of the plan blocks connection and viewer
+startup. If the user explicitly opts out of the viewer but approves the
+rest of the read-only plan, the collection works without a server.
 
-> 是否开启本地实时运行预览页面？默认关闭，开启后可以查看采集和镜像构建进度。
+On confirmation, the Agent creates a private session and starts the
+viewer **before** fixed device probes. Its startup reports a verified
+localhost URL; a failed startup reports `unavailable`, never a guessed port.
 
-If the user declines, do not start a server. The Skill continues normally.
-If the user agrees and execution access is available, the Agent starts the
-preview after the session directory is created:
+Legacy manual standalone debugging example (not the Agent user journey):
 
 ```bash
 # Terminal 1: launch evidence collection; a new session directory is created
-python3 scripts/workflow/adaptive.py --transport local --target local \
-  --output ./sessions/run-001 --yes
+./.venv/bin/python -B scripts/workflow/adaptive.py --transport local --target local \
+  --output ./outputs/run-001 --yes
 
 # Terminal 2, while Terminal 1 is running or after it completes:
-python3 scripts/workflow/preview.py ./sessions/run-001 --port 8765
+./.venv/bin/python -B scripts/workflow/preview.py ./outputs/run-001 --port 8765
 ```
 
 Visit `http://127.0.0.1:8765/` **from the same computer**. The server
@@ -46,13 +51,13 @@ SSH aliases, file paths or credentials.
   checkpoint helper. These are illustrative counters, not observed results:
 
 ```bash
-python3 scripts/workflow/status.py ./sessions/run-001 \
+./.venv/bin/python -B scripts/workflow/status.py ./outputs/run-001 \
   --stage analyze --state running --completed 0 --total 3
 
-python3 scripts/workflow/status.py ./sessions/run-001 \
+./.venv/bin/python -B scripts/workflow/status.py ./outputs/run-001 \
   --stage image-plan --state complete --completed 3 --total 3
 
-python3 scripts/workflow/status.py ./sessions/run-001 \
+./.venv/bin/python -B scripts/workflow/status.py ./outputs/run-001 \
   --stage image-build --state blocked --completed 0 --total 1
 ```
 
@@ -76,32 +81,50 @@ image writes or boot.
 
 ## Agent-managed lifecycle (recommended)
 
-The Skill asks the user whether to enable preview. The default is **off**.
-Once the user opts in, the Agent may pass `--preview-approved` to the
-read-only staged collector. The collector creates the session directory,
-starts the localhost observer before collection, and continues probing even
-if the observer cannot start.
+After the user approves a plan explicitly including the local viewer,
+the Agent passes `--preview-approved` to the read-only collector.
+Both the staged and managed interactive collectors create the session,
+start the observer before collection, and report any startup failure while
+preserving the approved read-only collection scope.
 
 ```bash
-# Only after user agrees to preview and authorizes read-only probes:
-python3 scripts/workflow/adaptive.py \
+# Internal Agent helper: only after reviewing/approving the connection plan:
+./.venv/bin/python -B scripts/workflow/adaptive.py \
   --transport ssh --target trusted-host-alias \
-  --output ./sessions/run-002 --yes --preview-approved
+  --output ./outputs/run-002 --yes --preview-approved
 
 # The command prints the actual preview URL and session path.
 # Check status later without starting a second server:
-python3 scripts/workflow/preview_control.py status ./sessions/run-002
+./.venv/bin/python -B scripts/workflow/preview_control.py status ./outputs/run-002
 
 # Stop the preview when the user is finished:
-python3 scripts/workflow/preview_control.py stop ./sessions/run-002
+./.venv/bin/python -B scripts/workflow/preview_control.py stop ./outputs/run-002
 ```
+
+For interactive SSH/ADB/TTL, use the persistent device-session adapter;
+it supports the same approved viewer and emits a live `preview_ready`
+JSON event BEFORE the first fixed probe:
+
+```bash
+# Internal example, never run without plan approval:
+./.venv/bin/python -B scripts/workflow/adaptive.py \
+  --transport adb --target AUTHORIZED_SERIAL \
+  --output ./outputs/managed-001 \
+  --interactive-shell-approved --preview-approved --yes
+```
+
+Only the *actual returned* `preview_ready.url` may be presented to the
+user. Tooling that buffers stdout may deliver the event to the Agent only
+when collection ends; do not claim earlier user visibility in that case.
+A failed local observer must be disclosed and is not a reason to invent a
+remote-accessible link.
 
 For a session that already exists, the Agent can start the observer separately:
 
 ```bash
-python3 scripts/workflow/preview_control.py start ./sessions/run-002 --approved
-python3 scripts/workflow/preview_control.py status ./sessions/run-002
-python3 scripts/workflow/preview_control.py stop ./sessions/run-002
+./.venv/bin/python -B scripts/workflow/preview_control.py start ./outputs/run-002 --approved
+./.venv/bin/python -B scripts/workflow/preview_control.py status ./outputs/run-002
+./.venv/bin/python -B scripts/workflow/preview_control.py stop ./outputs/run-002
 ```
 
 A random available port is selected by default and the actual URL is
@@ -117,13 +140,13 @@ refuses to signal the PID. In that case, after checking no preview is
 running, call:
 
 ```bash
-python3 scripts/workflow/preview_control.py clear-stale ./sessions/run-002
+./.venv/bin/python -B scripts/workflow/preview_control.py clear-stale ./outputs/run-002
 ```
 
 The control helper terminates **only the preview observer**; collection,
-image planning or other Skill steps are not stopped. When the user declines
-preview, no browser server is started, and the original Skill workflow
-continues exactly as before.
+image planning or other Skill steps are not stopped. When the user expressly opts out of
+the viewer, no browser server is started, and read-only work continues
+after the rest of the plan is approved.
 
 The status URL is loopback-only. A separate device (including a phone)
 cannot access that address without a deliberately configured, reviewed

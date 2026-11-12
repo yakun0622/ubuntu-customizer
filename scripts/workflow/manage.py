@@ -36,7 +36,7 @@ _image_spec.loader.exec_module(image_plan)
 ID = re.compile(r"^[a-z][a-z0-9-]{1,47}$")
 TRANSPORTS = ("ssh", "adb", "ttl", "local")
 SERIAL_PORT = re.compile(r"^/dev/[A-Za-z0-9_.-]+$")
-DEFAULT_HOME = Path.home() / ".local" / "share" / "ubuntu-customizer"
+DEFAULT_HOME = Path.cwd() / "outputs" / "device-manager"  # old ~/.local data is preserved, never silently migrated
 
 def check_target(transport, target):
     if transport not in TRANSPORTS:
@@ -271,6 +271,10 @@ def main(argv=None):
                      help="Start localhost status page only with explicit opt-in")
     args = p.parse_args(argv)
     try:
+        if Path(args.data_dir) == DEFAULT_HOME:
+            # Keep the default legacy device registry inside the Skill's
+            # current-project output tree and protect raw identifiers.
+            adaptive.workspace.ensure_outputs()
         root = _private_dir(args.data_dir)
         action = args.command
         if action is None:
@@ -297,7 +301,7 @@ def main(argv=None):
             output = inspect_session(root, name, session)
         elif action == "image-plan":
             folder = session_path(root, args.id, args.session)
-            output = Path(args.output)
+            output = adaptive.workspace.checked_output(args.output)
             if output.exists() or output.is_symlink():
                 raise ValueError("Image plan output exists")
             result = image_plan.plan(folder, args.target, args.format, args.source,
@@ -315,6 +319,7 @@ def main(argv=None):
             output_file = getattr(args, "output", None)
             if not output_file:
                 output_file = str(folder / "hardware-explorer.html")
+            output_file = str(adaptive.workspace.checked_output(output_file))
             output = {"html": str(export_html.export(folder, output_file)),
                       "note": "Open locally in a browser; no web server or remote connection."}
         elif action == "explore":

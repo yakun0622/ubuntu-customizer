@@ -58,23 +58,23 @@ source architecture, readiness gaps, and the intended output format.
 
 ```bash
 # Generate plan for an existing verified base image and a VM target
-python3 scripts/workflow/image_plan.py SESSION_DIRECTORY \
+./.venv/bin/python -B scripts/workflow/image_plan.py SESSION_DIRECTORY \
   --target virtual-machine --format qcow2 \
   --source /srv/images/base.img \
   --sha256 VERIFIED_64_HEX_SHA256 --source-arch amd64 \
-  --output ./image-plan.json
+  --output ./outputs/image-plan.json
 
 # The same plan can be created from a registered device
-python3 scripts/workflow/manage.py image-plan lab-server SESSION_ID \
+./.venv/bin/python -B scripts/workflow/manage.py image-plan lab-server SESSION_ID \
   --target virtual-machine --format qcow2 \
   --source /srv/images/base.img \
   --sha256 VERIFIED_64_HEX_SHA256 --source-arch amd64 \
-  --output ./image-plan.json
+  --output ./outputs/image-plan.json
 
 # Once the plan reports build_allowed=true, perform OFFLINE conversion
 # (requires qemu-img installed on the build host)
-python3 scripts/workflow/build_image.py ./image-plan.json \
-  --output ./output.qcow2
+./.venv/bin/python -B scripts/workflow/build_image.py ./outputs/image-plan.json \
+  --output ./outputs/output.qcow2
 ```
 
 This generates an image and `output.qcow2.manifest.json`, including the
@@ -116,7 +116,7 @@ backend in `verify_first_boot.py`. Only the latter can confirm guest boot.
 Physical targets remain blocked; this change adds **observability, not new
 physical-device image-building support**.
 
-Use `python3 -m unittest discover -s tests -v` locally to validate the
+Use `./.venv/bin/python -B -m unittest discover -s tests -v` locally to validate the
 stage integration; no CI is triggered by the Skill itself.
 
 ## Mandatory guest image inspection before conversion
@@ -124,9 +124,9 @@ stage integration; no CI is triggered by the Skill itself.
 The Skill now has a **read-only** source-image inspector:
 
 ```bash
-python3 scripts/workflow/image_inspect.py /srv/images/base.img \
+./.venv/bin/python -B scripts/workflow/image_inspect.py /srv/images/base.img \
   --sha256 VERIFIED_64_HEX_SHA256 \
-  --output ./source-inspection.json
+  --output ./outputs/source-inspection.json
 ```
 
 Source format is checked with `qemu-img info --output=json`; partition

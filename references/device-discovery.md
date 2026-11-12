@@ -15,18 +15,18 @@ macOS; real Linux/ARM/ADB/TTL collection remains unverified. See the
 ## Wizard
 
 ```bash
-python3 scripts/workflow/collect.py
+./.venv/bin/python -B scripts/workflow/collect.py
 ```
 
 Explicit transport selection with a final interactive collection confirmation:
 
 ```bash
-python3 scripts/workflow/collect.py --transport ssh --target ubuntu-server --output ./devices/ubuntu-server/2026-11-09-01
-python3 scripts/workflow/collect.py --transport adb --target SERIAL123 --output ./devices/android/2026-11-09-01
-python3 scripts/workflow/collect.py --transport ttl --target /dev/cu.usbserial-110 --baud 115200 --duration 20 --output ./devices/board/serial-01
+./.venv/bin/python -B scripts/workflow/collect.py --transport ssh --target ubuntu-server --output ./outputs/ubuntu-server-20261109-01
+./.venv/bin/python -B scripts/workflow/collect.py --transport adb --target SERIAL123 --output ./outputs/android-20261109-01
+./.venv/bin/python -B scripts/workflow/collect.py --transport ttl --target /dev/cu.usbserial-110 --baud 115200 --duration 20 --output ./outputs/board-serial-01
 ```
 
-Target for SSH is a configured OpenSSH Host alias with a previously trusted host key. ADB requires a device serial from `adb devices`. TTL requires optional `pyserial`. Serial access is passive receive only; opening a serial port may change handshake lines, so verify adapter wiring before running.
+These `collect.py` examples are the **legacy passive collector**. Target for SSH is a configured OpenSSH Host alias with a previously trusted host key. ADB requires a device serial from `adb devices`. Legacy TTL requires optional `pyserial` and only receives data. For **Agent-controlled interactive TTL**, use the persistent picocom adapter instead; see [device sessions](device-session.md). Opening a serial port may change handshake lines, so verify adapter wiring before running.
 
 ## Collection layers
 
@@ -41,7 +41,7 @@ Target for SSH is a configured OpenSSH Host alias with a previously trusted host
 The collector writes under a **new**, user-selected session directory:
 
 ```text
-devices/<device>/<session>/
+outputs/<session>/
   manifest.json
   identity/
   hardware/
@@ -66,12 +66,12 @@ Each manifest entry has a relative file path, SHA-256 digest, byte count and pro
 
 Collected files can contain MAC addresses, IPs, hostnames, board identifiers
 or kernel configuration. They are kept locally and never uploaded automatically. Default evidence
-folders such as `devices/`, `captures/` and `sessions/` are ignored by Git.
-The repository also ignores root-level `device-session-*` directories (the
-adaptive collector default) and `<label>-YYYYMMDD-HHMMSS` directories used for
-local captures, regardless of device model. Other custom output names are
-not automatically ignored; use an ignored capture directory or check them
-with `git check-ignore` before staging files. Ignore rules do not untrack
+folders such as `outputs/`, `devices/`, `captures/` and `sessions/` are ignored by Git.
+New runtime artifacts belong under `outputs/`; the CLI default is now
+`outputs/device-session-*`. Root-level `device-session-*` and
+`<label>-YYYYMMDD-HHMMSS` rules protect legacy captures without moving them.
+Other custom names are not automatically ignored. Use validated `outputs/`
+paths and check `git check-ignore` before staging; ignore rules do not untrack
 files already committed. Review/redact
 before publishing. No kernel debugfs mounting, privilege escalation, file writes
 on target, firmware flash or remote network change occurs.
@@ -90,8 +90,8 @@ After successful collection, transform the immutable evidence bundle into a
 separate indexed dossier:
 
 ```bash
-python3 scripts/workflow/dossier.py ./devices/example-device/session-001
-# creates ./devices/example-device/session-001/device.json
+./.venv/bin/python -B scripts/workflow/dossier.py ./outputs/example-device-session-001
+# creates ./outputs/example-device-session-001/device.json
 ```
 
 `device.json` contains the observed OS, kernel, CPU identifiers, RAM,
@@ -103,10 +103,10 @@ digests before parsing. Uncollected or inaccessible properties are marked
 For historical comparison (for example before/after a kernel upgrade):
 
 ```bash
-python3 scripts/workflow/compare.py \
-  ./devices/example-device/session-001/device.json \
-  ./devices/example-device/session-002/device.json \
-  --output ./devices/example-device/kernel-diff.json
+./.venv/bin/python -B scripts/workflow/compare.py \
+  ./outputs/example-device-session-001/device.json \
+  ./outputs/example-device-session-002/device.json \
+  --output ./outputs/example-device-kernel-diff.json
 ```
 
 The diff contains field-level identity changes plus changed evidence hashes.
@@ -130,9 +130,9 @@ New discovery sessions collect limited sysfs binding evidence from network, seri
 GPIO, platform, I2C, SPI and MDIO devices. Generate the conservative topology:
 
 ```bash
-python3 scripts/workflow/collect.py
-python3 scripts/workflow/dossier.py ./devices/example-device/session-001
-python3 scripts/workflow/topology.py ./devices/example-device/session-001
+./.venv/bin/python -B scripts/workflow/collect.py
+./.venv/bin/python -B scripts/workflow/dossier.py ./outputs/example-device-session-001
+./.venv/bin/python -B scripts/workflow/topology.py ./outputs/example-device-session-001
 ```
 
 The new `topology.json` stores device and driver nodes, observed `bound_to`
@@ -149,10 +149,10 @@ the collector captures a decompiled DTS alongside driver bindings and
 platform-device `of_node` paths. All probes remain read-only.
 
 ```bash
-python3 scripts/workflow/collect.py
-python3 scripts/workflow/device_tree.py ./devices/example-device/session-001
-python3 scripts/workflow/topology.py ./devices/example-device/session-001
-python3 scripts/workflow/link_graph.py ./devices/example-device/session-001
+./.venv/bin/python -B scripts/workflow/collect.py
+./.venv/bin/python -B scripts/workflow/device_tree.py ./outputs/example-device-session-001
+./.venv/bin/python -B scripts/workflow/topology.py ./outputs/example-device-session-001
+./.venv/bin/python -B scripts/workflow/link_graph.py ./outputs/example-device-session-001
 ```
 
 Outputs:
@@ -172,7 +172,7 @@ Base the next probe stage on prior evidence and recorded permission or tool
 errors. From an existing session:
 
 ```bash
-python3 scripts/workflow/capabilities.py ./devices/example-device/session-001
+./.venv/bin/python -B scripts/workflow/capabilities.py ./outputs/example-device-session-001
 ```
 
 `capabilities.json` records status for system identity, CPU/memory, storage,
@@ -202,13 +202,15 @@ Unobserved prerequisites are never interpreted as hardware absence. Partial
 outputs and unsupported tools remain visible as gaps. The initial capability
 checks assess **access**, not actual electrical functionality. The collector
 uses fixed read-only shell commands, existing SSH known-host trust, and no
-privileged commands. TTL performs only passive capture; it cannot discover
-Linux capabilities until an authorized shell transport is selected.
+privileged commands. Legacy TTL mode performs only passive capture. New **approved interactive
+TTL mode** invokes picocom through `device_session.py`, verifies a Linux/Android
+shell prompt, and runs fixed read-only probes over that one session.
+U-Boot, login and unknown prompts remain blocked from automatic commands.
 
 ```bash
-python3 scripts/workflow/adaptive.py
-python3 scripts/workflow/adaptive.py --transport ssh --target my-linux-host --output ./session-A --yes
-python3 -m unittest discover -s tests -v
+./.venv/bin/python -B scripts/workflow/adaptive.py
+./.venv/bin/python -B scripts/workflow/adaptive.py --transport ssh --target my-linux-host --output ./outputs/session-A --yes
+./.venv/bin/python -B -m unittest discover -s tests -v
 ```
 
 The new adaptive workflow does not yet support session resumption or automatic
@@ -225,26 +227,26 @@ embeds passwords in its catalog.
 
 ```bash
 # Interactive menu
-python3 scripts/workflow/manage.py
+./.venv/bin/python -B scripts/workflow/manage.py
 
 # Enumerate candidate configured SSH Host aliases, authorized ADB devices,
 # local serial-port names, and the local target
-python3 scripts/workflow/manage.py discover
+./.venv/bin/python -B scripts/workflow/manage.py discover
 
 # Register a target without contacting it
-python3 scripts/workflow/manage.py add lab-server --transport ssh --target server-alias
+./.venv/bin/python -B scripts/workflow/manage.py add lab-server --transport ssh --target server-alias
 
 # View catalog; collect using the existing staged read-only engine
-python3 scripts/workflow/manage.py list
-python3 scripts/workflow/manage.py collect lab-server --modules hardware,drivers,network
+./.venv/bin/python -B scripts/workflow/manage.py list
+./.venv/bin/python -B scripts/workflow/manage.py collect lab-server --modules hardware,drivers,network
 
 # Inspect stored sessions and category summaries
-python3 scripts/workflow/manage.py sessions lab-server
-python3 scripts/workflow/manage.py inspect lab-server SESSION_ID
+./.venv/bin/python -B scripts/workflow/manage.py sessions lab-server
+./.venv/bin/python -B scripts/workflow/manage.py inspect lab-server SESSION_ID
 ```
 
-The catalog defaults to `~/.local/share/ubuntu-customizer/registry.json` and
-captures are under `~/.local/share/ubuntu-customizer/devices/<id>/sessions/<session>/`.
+The catalog defaults to `./outputs/device-manager/registry.json` and
+captures are under `./outputs/device-manager/devices/<id>/sessions/<session>/`.
 Directories and the catalog are created with restrictive permissions.
 `--data-dir` selects a different *private* directory.
 
@@ -273,25 +275,25 @@ browse node relationships and prepare an **execution-disabled** plan.
 
 ```bash
 # Interactive: choose 7. Explore from device manager
-python3 scripts/workflow/manage.py
+./.venv/bin/python -B scripts/workflow/manage.py
 
 # List nodes from a saved session
-python3 scripts/workflow/manage.py explore lab-server SESSION_ID
+./.venv/bin/python -B scripts/workflow/manage.py explore lab-server SESSION_ID
 
 # Inspect a specific node and its relationships
-python3 scripts/workflow/manage.py explore lab-server SESSION_ID --node 'device:platform:example-controller'
+./.venv/bin/python -B scripts/workflow/manage.py explore lab-server SESSION_ID --node 'device:platform:example-controller'
 
 # Generate a diagnosis plan scoped to a verified node (no target actions)
-python3 scripts/workflow/manage.py explore lab-server SESSION_ID \
+./.venv/bin/python -B scripts/workflow/manage.py explore lab-server SESSION_ID \
   --task diagnose --node 'device:platform:example-controller' \
   --goal 'Investigate why the controller is not responding'
 
 # Run standalone wizard on a session directory
-python3 scripts/workflow/explore.py ~/.local/share/ubuntu-customizer/devices/lab-server/sessions/SESSION_ID
+./.venv/bin/python -B scripts/workflow/explore.py ./outputs/device-manager/devices/lab-server/sessions/SESSION_ID
 
 # Generate a safe JSON plan file without overwriting existing plans
-python3 scripts/workflow/explore.py SESSION_DIRECTORY --mode plan \
-  --task maintain --output ./my-plan.json
+./.venv/bin/python -B scripts/workflow/explore.py SESSION_DIRECTORY --mode plan \
+  --task maintain --output ./outputs/my-plan.json
 ```
 
 Supported plan kinds: `diagnose`, `maintain`, `image`. A plan references
@@ -313,13 +315,13 @@ required to browse it.
 
 ```bash
 # From the registered device manager (command 8 in the interactive menu)
-python3 scripts/workflow/manage.py browse lab-server SESSION_ID
+./.venv/bin/python -B scripts/workflow/manage.py browse lab-server SESSION_ID
 
 # Custom destination (must not exist; never overwrites)
-python3 scripts/workflow/manage.py browse lab-server SESSION_ID --output /tmp/lab-hardware.html
+./.venv/bin/python -B scripts/workflow/manage.py browse lab-server SESSION_ID --output ./outputs/lab-hardware.html
 
 # Directly from an existing collection session
-python3 scripts/workflow/export_html.py SESSION_DIRECTORY --output /tmp/hardware.html
+./.venv/bin/python -B scripts/workflow/export_html.py SESSION_DIRECTORY --output ./outputs/hardware.html
 ```
 
 Open the resulting HTML file locally in a browser. The left panel supports

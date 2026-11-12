@@ -63,6 +63,33 @@ class SingleHostTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 single.shared_path(allowed, output=True, home=home)
 
+    def test_macos_system_var_alias_allowed_but_user_alias_denied(self):
+        # macOS tempfile paths are exposed as /var/folders/... but resolve
+        # to /private/var/folders/...; both refer to the same mounted home.
+        with tempfile.TemporaryDirectory() as folder:
+            real_home = Path(folder).resolve()
+            real_input = real_home / "source.img"
+            real_input.write_bytes(b"source")
+            self.assertEqual(single.shared_path(real_input, home=real_home),
+                             str(real_input.resolve()))
+            if (single.sys.platform == "darwin"
+                    and Path("/var").is_symlink()
+                    and Path("/var").resolve() == Path("/private/var")
+                    and Path("/private/var") in real_home.parents):
+                alias_home = Path("/var") / real_home.relative_to("/private/var")
+                alias_input = alias_home / "source.img"
+                self.assertEqual(single.shared_path(alias_input, home=alias_home),
+                                 str(real_input))
+                self.assertEqual(
+                    single.shared_path(alias_home / "new.img", output=True, home=alias_home),
+                    str(real_home / "new.img"))
+                (real_home / "not-home").mkdir()
+                (real_home / "malicious-link").symlink_to(
+                    real_home / "not-home", target_is_directory=True)
+                with self.assertRaisesRegex(ValueError, "symlink"):
+                    single.shared_path(alias_home / "malicious-link" / "x",
+                                       output=True, home=alias_home)
+
     def test_guest_share_outside_home_denied(self):
         with tempfile.TemporaryDirectory() as home, tempfile.TemporaryDirectory() as outside:
             source = Path(outside) / "image.img"

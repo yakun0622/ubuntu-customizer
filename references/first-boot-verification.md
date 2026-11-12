@@ -36,22 +36,22 @@ DHCP behavior or physical-device boot is validated by those tests. See the
 
 ~~~bash
 # The prior RootFS bundle must already be verified.
-python3 scripts/workflow/rootfs_builder.py \
-  --verify-bundle ./rootfs-bundle-001
+./.venv/bin/python -B scripts/workflow/rootfs_builder.py \
+  --verify-bundle ./outputs/rootfs-bundle-001
 
 # Explicit approval for a BIOS guest:
-python3 scripts/workflow/verify_first_boot.py \
-  --bundle ./rootfs-bundle-001 \
+./.venv/bin/python -B scripts/workflow/verify_first_boot.py \
+  --bundle ./outputs/rootfs-bundle-001 \
   --timeout 300 \
-  --report ./first-boot-health.json \
+  --report ./outputs/first-boot-health.json \
   --approved
 
 # UEFI guest: supply exact trusted firmware files.
-python3 scripts/workflow/verify_first_boot.py \
-  --bundle ./rootfs-bundle-001 \
+./.venv/bin/python -B scripts/workflow/verify_first_boot.py \
+  --bundle ./outputs/rootfs-bundle-001 \
   --ovmf-code /trusted/OVMF_CODE.fd \
   --ovmf-vars /trusted/OVMF_VARS.fd \
-  --report ./first-boot-health.json \
+  --report ./outputs/first-boot-health.json \
   --approved
 ~~~
 
@@ -128,8 +128,8 @@ is currently live. No preview means no extra status output.
   evidence of an actual VM boot.
 
 ~~~bash
-python3 -m unittest discover -s tests -p 'test_verify_first_boot.py' -v
-python3 -m unittest discover -s tests -v
+./.venv/bin/python -B -m unittest discover -s tests -p 'test_verify_first_boot.py' -v
+./.venv/bin/python -B -m unittest discover -s tests -v
 ~~~
 
 References:

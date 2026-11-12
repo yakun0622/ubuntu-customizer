@@ -106,6 +106,10 @@ def make_dossier(session):
     identity = {}
     for key, cat, name, parser in specs:
         item, value = property_value(entries, cat, name)
+        if key == "board_model" and item is None and manifest.get("os_family") == "android":
+            # Android ro.product.model is evidence of the product label,
+            # NOT proof of a device-tree /model node. Preserve its provenance.
+            item, value = property_value(entries, "hardware", "android-product-model")
         identity[key] = observation(item, value, parser)
     assets = {}
     for item, _ in entries:

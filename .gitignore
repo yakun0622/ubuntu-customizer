@@ -3,13 +3,14 @@ devices/
 captures/
 sessions/
 
-# Default adaptive.py output and root-level <label>-YYYYMMDD-HHMMSS captures.
+# Legacy root-level captures retained in place; new runtime artifacts use outputs/.
 /device-session-*/
 /*-[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]-[0-9][0-9][0-9][0-9][0-9][0-9]/
 
 *.pyc
 __pycache__/
 .venv/
+outputs/
 .DS_Store
 
 # Optional local Skill runtime state must not be published.

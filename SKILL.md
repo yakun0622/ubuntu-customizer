@@ -1,6 +1,6 @@
 ---
 name: ubuntu-customizer
-description: Agent-led read-only discovery and evidence analysis for Ubuntu, Debian, Armbian and compatible Linux systems over SSH, ADB, passive TTL or local access; assess image compatibility, customize existing VM images with a fixed offline recipe, and optionally verify AMD64 guest health. Maintenance and recovery are planning only; physical image assembly and flashing are unsupported.
+description: Agent-led read-only discovery and evidence analysis for Ubuntu, Debian, Armbian and compatible Linux systems over SSH, ADB, managed picocom TTL or local access, with legacy passive TTL capture; assess image compatibility, customize existing VM images with a fixed offline recipe, and optionally verify AMD64 guest health. Maintenance and recovery are planning only; physical image assembly and flashing are unsupported.
 ---
 
 # Ubuntu Customizer — AI Agent Skill
@@ -31,7 +31,8 @@ and [Agent workflow](references/agent-workflow.md) first. Then read
 
 Use [Roadmap and acceptance](references/roadmap.md) as the maintained
 capability matrix and validation record. Implemented helpers cover read-only
-discovery, evidence/software graphs, guest image inspection, VM RAW/QCOW2
+discovery (including guarded persistent device sessions), project workspace
+bootstrap, evidence/software graphs, guest image inspection, VM RAW/QCOW2
 conversion, limited private-copy RootFS customization and optional AMD64
 QEMU Guest Agent health verification. The standard Python suite passed on
 macOS; real device collection, libguestfs builds, guest boots and Lima
@@ -44,6 +45,93 @@ or provide automatic diagnosis, maintenance, recovery or rollback. Physical
 IMG/BSP assembly, flashing, installer ISO creation, installed-system cloning
 and arbitrary package/script customization are unsupported. A NoCloud seed
 ISO does not constitute an OS installer.
+
+## Default project workspace, outputs and local command authorization (highest priority)
+
+When the Agent has real execution access to the user's **current**
+`ubuntu-customizer` project directory, it automatically performs the
+project-local bootstrap **before choosing a device connection**, without
+asking for another confirmation:
+
+```bash
+# Agent invocation from the current repository directory, not user onboarding.
+python3 -B scripts/workflow/project_workspace.py
+```
+
+The helper invokes the current Python interpreter's standard-library
+`venv` module to create **`./.venv/`**, or reuses a valid existing
+virtual environment. It creates **`./outputs/`** with private mode 0700,
+and performs no package download, `pip install`, device connection, reboot,
+or host configuration change. The Agent must then use
+`./.venv/bin/python` (Windows: `./.venv/Scripts/python.exe`) for Python
+helpers and tests with `-B` (disable project-root Python bytecode cache); do not install dependencies globally. A broken or
+unavailable interpreter/venv must be reported as a blocker, not silently
+replaced by global installation.
+
+**All generated/persistent runtime results belong under `./outputs/`**:
+device-session directories, raw/filtered evidence, logs, manifests, preview
+runtime records, hardware reports, graphs, downloaded source inputs,
+intermediate files, plans, built images, checksums and verification reports.
+Use `project_workspace.output_path(...)` (or its validated
+`checked_output(...)` CLI interface) to build new destinations. Never write
+them into the repository root or sibling paths, or follow output symlinks
+outside the project. Only `./.venv/` is an explicit environment exception;
+tracked source code/documentation edits stay in their original paths.
+Do not move or delete preexisting user files without approval. `outputs/`
+and `.venv/` are excluded from Git.
+
+**Standing local authorization:** This user has approved routine, reversible
+project-scoped operations and commands *inside the current project*, such as
+creating the virtual environment, creating private output directories,
+running local tests, inspecting/editing project source and writing new
+files under `outputs/`. Do not ask for fresh user approval for every such
+operation. This does **not** waive permissions imposed by the host/OS/tool
+sandbox; the Skill cannot suppress those prompts. It does not authorize
+connections to target hardware, remote code execution, destructive deletion
+or overwrite, package downloads or execution of untrusted scripts,
+privileged host actions, modifying system configuration, booting a VM,
+rebooting/powering off a device, writing disks or flashing firmware.
+Those actions keep their existing explicit risk and consent boundaries.
+Do not mistake a local `cwd` for containment when a command targets
+absolute paths, remote hosts, devices, mounts or external resources.
+
+## Persistent device access (preferred for interactive hardware)
+
+For TTL/picocom, ADB and SSH, the preferred **authorized** collection path
+is scripts/workflow/adaptive.py with --interactive-shell-approved --yes,
+plus --transport, --target and a fresh private --output chosen by the Agent.
+The adapter is scripts/workflow/device_session.py: one persistent host
+process/PTY for the whole session, fixed read-only shell probes, private
+console.log, SHA-256 manifest and per-probe result files. This uses
+**picocom** for TTL, not the old passive pyserial-only recorder.
+
+- Discover already-present ports, configured SSH aliases and authorized ADB
+  serials before access; choose a unique observed device, never guess a port.
+- After the user grants **one clearly scoped read-only interactive session**
+  authorization, batch all permitted commands into one host tool invocation.
+  Codex/host sandbox approval is separate and **cannot be waived by a Skill**.
+  Do not request a fresh user confirmation for each allowlisted read.
+- The agent recognizes Android/Linux shells and reports U-Boot, login or
+  unknown prompts as **blocked**. TTL must observe a trusted shell prompt
+  before sending anything. Never type a password, interrupt U-Boot or send
+  arbitrary commands to an unknown console. Only after the user separately
+  confirms that the serial input line is blank may the Agent use
+  --wake-console-approved for a single CR to reveal the prompt.
+- For ADB and SSH, a newly opened interactive Shell may be verified by a
+  fixed marker probe. Avoid repeated subprocess connections per file.
+- Capture actual complete / partial / blocked results. Successful
+  session completion does not prove a device is bootable, and probes can
+  return unavailable or error. Keep logs private; they may include
+  unique device identifiers and network configuration.
+- If no executable transport is available or the host blocks PTY/serial
+  access, state the precise missing prerequisite. Never claim the
+  Agent operated a machine it cannot reach.
+
+Existing adaptive.py without --interactive-shell-approved remains a
+backward-compatible passive TTL or one-command-at-a-time SSH/ADB collector.
+The new persistent path is the default for a user's **interactive device
+customization** request, not a bypass for OS-image build approvals.
+See [Interactive device consoles](references/device-session.md).
 
 ## One-start Agent entrypoint (highest priority)
 
@@ -59,14 +147,22 @@ commands or grants approvals. The Agent invokes the appropriate existing
 Python helpers only when its host execution tool is actually connected,
 records observed outcomes and automatically continues to the next safe stage.
 
-A supported VM-image journey is **host detection → choose only missing intent/target →
-optional preview choice → request read-only device access → evidence collection
-→ SHA-256 analysis → source inspection/compatibility plan → recipe preview →
-separate offline-build consent → image build + verification → optional QEMU
-choice and separate consent → final evidence summary**. Physical ARM targets
-instead use read-only static/image/UART evidence and end with BSP, DTB,
-bootloader, storage and recovery blockers clearly stated. QEMU must never
-be forced on physical-device flows.
+A normal journey is **host detection → automatic local .venv/outputs bootstrap → resolve only missing intent/target →
+select SSH/ADB/TTL/local transport → choose its actual available interface →
+explain the complete connection, collection and monitoring plan → obtain one
+explicit approval for that plan → create a private session and start its
+loopback live preview → report the verified preview URL → perform read-only
+evidence collection → SHA-256 analysis → gather missing customization
+requirements one at a time → compatibility planning → separately approved
+build/verification when supported**. Never show a preview URL unless the
+server actually started. The plan approval covers exactly the described
+read-only connection and local observer; it does NOT authorize image writes,
+system mutations, remote power controls or firmware flashing.
+
+For physical ARM targets the Agent progressively collects requirements and
+boot/BSP/DTB/recovery evidence, but must label unimplemented physical IMG
+construction and deployment as blockers rather than claiming completion.
+QEMU must never be forced on physical-device flows.
 
 Keep interactions in the conversation: one question at a time, with a
 recommended/default safe option. Do not ask users to pick between
@@ -89,26 +185,49 @@ follow-up button where the client supports it.
 
 ## Primary workflow
 
+0. **Prepare the local project automatically.** If a real host execution
+   bridge exists, run `project_workspace.py` from the current project
+   directory, use its `.venv` interpreter and route all generated files
+   under `outputs/`. No repeat prompt for safe, project-local commands.
 1. **Establish intent.** Ask whether the user needs discovery, diagnosis,
    maintenance, recovery or a portable system image. Distinguish target,
    control host and build host.
-2. **Choose transport and optional preview.** Offer SSH / ADB / passive TTL /
-   local depending on access. Before starting work, explicitly offer: "是否开启本地实时运行预览页面？"
-   The default is **no**. Never assume a device model or claim access that is unavailable.
-   If the user opts in, use `scripts/workflow/adaptive.py --preview-approved`
-   or `scripts/workflow/preview_control.py start SESSION_DIR --approved` to
-   start the localhost observer. Do not start a web server when declined.
-3. **Discover.** Obtain connection consent and execute only permitted,
-   read-only probes. Prefer `scripts/workflow/adaptive.py` when available,
-   or give the user precise commands to run locally.
-4. **Normalize evidence.** Validate the session's SHA-256 manifest.
+2. **Choose transport AND interface before designing the plan.** If neither
+   was given, ask for SSH / authorized ADB / managed picocom TTL / local.
+   Then discover or request the matching interface: trusted SSH Host alias,
+   authorized ADB serial or connected address, exact /dev serial port with
+   observed baud rate, or the approved local computer. Reuse already-known
+   selections; never guess a port or fabricate access. Close existing
+   picocom before handing TTL ownership to the managed collector.
+3. **Review the entire plan and obtain explicit confirmation.** Explain the
+   target, interface, connection mode, read-only probe scope, evidence
+   handling, planned stages, the local monitoring page, risks and limits.
+   A single confirmed plan authorizes ONE read-only session plus a
+   loopback-only preview. Before that answer do not open the device or start
+   the collector or preview. If the user declines the preview, honor that
+   exception and keep the rest of the plan unchanged.
+4. **Start monitoring, then discover.** After confirmation, create a new
+   private session and start the local preview before any shell probes.
+   Managed SSH/ADB/picocom sessions use
+   `adaptive.py --interactive-shell-approved --preview-approved --yes`
+   (the Agent selects the real transport, target, output). Stream/surface
+   only the URL returned by successful local observer startup, e.g. an
+   actual `http://127.0.0.1:<port>/`. Never invent a URL or claim
+   a remote viewer can reach localhost. If preview startup fails, report
+   its unavailable state and continue safe discovery with text checkpoints.
+   Read-only scope is unchanged by the monitoring feature.
+5. **Normalize evidence.** Validate the session's SHA-256 manifest.
    Summarize OS, architecture, hardware, drivers, boot chain and unknowns.
    Use `dossier.py`, `capabilities.py`, `topology.py`,
    `device_tree.py`, `link_graph.py` selectively.
-5. **Decide next task.** Present evidence and options. For portable images,
+6. **Gather requirements and decide next task.** After evidence collection,
+   ask only for missing customization facts: target OS/version,
+   services/packages, boot medium, storage, network and desired validation.
+   Reuse requirements already expressed in the conversation. These are
+   Agent-owned dialogue steps, not executable target commands. For portable images,
    distinguish VM/cloud, installer ISO and **physical-hardware IMG** before
    choosing a backend.
-6. **Inspect, plan and gate.** First use `scripts/workflow/image_inspect.py`
+7. **Inspect, plan and gate.** First use `scripts/workflow/image_inspect.py`
    to inspect the existing RAW/QCOW2 source **read-only** (qemu-img,
    virt-filesystems, virt-inspector, virt-drivers and guestfish). Then use
    `image_plan.py` for verified device-to-image compatibility decisions.
@@ -119,7 +238,7 @@ follow-up button where the client supports it.
    encrypted/backing-chain images or mismatches become explicit blockers.
    A successful plan is a **candidate for offline format conversion**, not
    proof of bootability. Physical-device IMG assembly remains blocked.
-7. **Execute only supported, authorized work.** For an approved VM image,
+8. **Execute only supported, authorized work.** For an approved VM image,
    `build_image.py` provides offline RAW/QCOW2 conversion.
    `rootfs_builder.py` can **preview** a fixed offline RootFS recipe and,
    after explicit separate `--approved` authorization, make a private clone
@@ -141,7 +260,7 @@ follow-up button where the client supports it.
    creation, installed-system cloning, complete first-boot identity
    personalization, physical IMG/BSP assembly and flashing remain
    **not implemented**.
-8. **Verify and report.** Record actual results, source/evidence hashes,
+9. **Verify and report.** Record actual results, source/evidence hashes,
    image hash, remaining compatibility blockers, tests performed and
    recovery path. Do not claim tests or builds that were not run.
 
@@ -160,44 +279,44 @@ Agent owns the progression, choices and tool invocation.
 
 ```bash
 # First collect evidence, with the user's approval:
-python3 scripts/workflow/adaptive.py
+./.venv/bin/python -B scripts/workflow/adaptive.py
 # Then assess the evidence:
-python3 scripts/workflow/dossier.py SESSION_DIR
-python3 scripts/workflow/capabilities.py SESSION_DIR
+./.venv/bin/python -B scripts/workflow/dossier.py SESSION_DIR
+./.venv/bin/python -B scripts/workflow/capabilities.py SESSION_DIR
 
 # Optional standalone source inspection report (no image modification):
-python3 scripts/workflow/image_inspect.py /safe/base.img \
-  --sha256 TRUSTED_SHA256 --output source-inspection.json
+./.venv/bin/python -B scripts/workflow/image_inspect.py /safe/base.img \
+  --sha256 TRUSTED_SHA256 --output ./outputs/source-inspection.json
 
 # Analyze an existing trusted base image against a collected session:
-python3 scripts/workflow/image_plan.py SESSION_DIR \
+./.venv/bin/python -B scripts/workflow/image_plan.py SESSION_DIR \
   --target virtual-machine --format qcow2 \
   --source /safe/base.img --sha256 TRUSTED_SHA256 \
-  --source-arch amd64 --output image-plan.json
+  --source-arch amd64 --output ./outputs/image-plan.json
 
 # Only when every mandatory guest inspection check passed AND the
 # verified plan says build_allowed=true:
-python3 scripts/workflow/build_image.py image-plan.json \
-  --output portable.qcow2
+./.venv/bin/python -B scripts/workflow/build_image.py image-plan.json \
+  --output ./outputs/portable.qcow2
 
 # Optional fixed offline RootFS customization (requires approved image-plan):
 # Copy profiles/examples/rootfs-config.json and update public key, instance-id.
-python3 scripts/workflow/rootfs_builder.py image-plan.json \
-  --config rootfs-config.json --dry-run
+./.venv/bin/python -B scripts/workflow/rootfs_builder.py ./outputs/image-plan.json \
+  --config ./outputs/rootfs-config.json --dry-run
 
 # Separate explicit approval is required to write an isolated image bundle:
-python3 scripts/workflow/rootfs_builder.py image-plan.json \
-  --config rootfs-config.json --output-dir ./new-rootfs-bundle --approved
+./.venv/bin/python -B scripts/workflow/rootfs_builder.py ./outputs/image-plan.json \
+  --config ./outputs/rootfs-config.json --output-dir ./outputs/new-rootfs-bundle --approved
 
 # Recheck the published image/seed hashes and qemu metadata, read-only:
-python3 scripts/workflow/rootfs_builder.py \
-  --verify-bundle ./new-rootfs-bundle
+./.venv/bin/python -B scripts/workflow/rootfs_builder.py \
+  --verify-bundle ./outputs/new-rootfs-bundle
 
 # Only after separate approval, for a VM with QEMU Guest Agent/Python.
 # Add --ovmf-code and --ovmf-vars for verified UEFI guests.
-python3 scripts/workflow/verify_first_boot.py \
-  --bundle ./new-rootfs-bundle \
-  --timeout 300 --report first-boot-health.json --approved
+./.venv/bin/python -B scripts/workflow/verify_first_boot.py \
+  --bundle ./outputs/new-rootfs-bundle \
+  --timeout 300 --report ./outputs/first-boot-health.json --approved
 ```
 
 ## Safety invariants
@@ -217,18 +336,26 @@ python3 scripts/workflow/verify_first_boot.py \
 
 ## Optional live progress preview (not the Skill UI)
 
-The AI Agent is always the workflow controller. A preview is **opt-in only**:
-ask the user before starting a localhost service and honor "no" without
-reducing any Skill functionality. Do not expose the preview on LAN or
-the public Internet; bind only to `127.0.0.1`. When the session directory exists, the Agent can start it with explicit
-user approval, or add `--preview-approved` to an authorized
-`adaptive.py` collection to launch the observer as soon as the session
-is created:
+The AI Agent is always the workflow controller. The real-time preview is
+**included by default in the execution plan shown before connection**:
+the user's confirmation expressly covers starting a localhost-only
+observer as well as the defined read-only device scope. No separate preview
+question is necessary. If the user declines preview, disable it and continue
+normally. Do not expose the viewer on LAN or the public Internet; bind
+only to `127.0.0.1`.
+
+Use `adaptive.py --preview-approved` for both the staged collector and
+the **managed interactive SSH/ADB/TTL collector**. They create the private
+session, start the observer before device probes, and report its actual URL
+when local readiness succeeds. For managed sessions, the CLI emits a
+`preview_ready` JSON line immediately, then a final result line.
+The Agent should present that verified URL when the host's execution stream
+permits it; a blocking execution tool may only deliver it upon completion.
 
 ```bash
-python3 scripts/workflow/preview_control.py start SESSION_DIR --approved
-python3 scripts/workflow/preview_control.py status SESSION_DIR
-python3 scripts/workflow/preview_control.py stop SESSION_DIR
+./.venv/bin/python -B scripts/workflow/preview_control.py start SESSION_DIR --approved
+./.venv/bin/python -B scripts/workflow/preview_control.py status SESSION_DIR
+./.venv/bin/python -B scripts/workflow/preview_control.py stop SESSION_DIR
 ```
 
 The start command reports the actual `http://127.0.0.1:<port>/` URL on
@@ -259,7 +386,7 @@ For other Agent-led stages not implemented as image scripts, an authorized
 Agent can still explicitly publish factual progress:
 
 ```bash
-python3 scripts/workflow/status.py SESSION_DIR \
+./.venv/bin/python -B scripts/workflow/status.py SESSION_DIR \
   --stage analyze --state running --completed 1 --total 3
 ```
 
@@ -269,8 +396,10 @@ browser status. Recognized image phases are `image-plan`, `image-build`,
 `rootfs-build`, `first-boot`, and `verify`. The preview observes status but
 does not control or approve execution.
 
-If a browser server cannot run on the controlling computer, explain that
-preview is unavailable and continue the Skill normally with text progress.
+If a browser server cannot run on the controlling computer, report the
+preview as unavailable and continue the Skill normally with text progress.
+A `127.0.0.1` URL can only be opened on that controlling host; remote
+access requires a separately reviewed secure tunnel, never automatic exposure.
 Never assert that a preview or background process has started unless the
 runtime has actually started it. See `references/live-preview.md`.
 
@@ -292,7 +421,8 @@ without the user's follow-up or another explicitly authorized workflow.
 See `references/image-building.md`. Prefer a locally stored immutable base
 image and a separately trusted SHA-256. Inspection runs Linux libguestfs
 tools with a fixed image format, read-only guestfish access, no guest
-networking, bounded tool output and timeouts. Treat a missing tool or
+networking and timeouts; oversized tool stdout is rejected after capture,
+which does not bound memory use during capture. Treat a missing tool or
 unrecognized XML as an evidence gap, **not** proof of an absent bootloader,
 kernel, OS or partition. Store the source image SHA-256, tool provenance,
 observed facts and failed checks in `image-plan.json`. The conversion helper

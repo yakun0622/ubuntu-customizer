@@ -15,7 +15,7 @@ import sys
 
 MAX_MANIFEST = 2 * 1024 * 1024
 STAGES = ("bootstrap", "capability", "detail", "image-plan", "image-build", "verify")
-STATES = ("pending", "running", "complete", "incomplete", "failed")
+STATES = ("pending", "running", "complete", "partial", "blocked", "incomplete", "failed")
 STATUSES = ("ok", "error", "unavailable", "truncated", "empty")
 
 HTML = """<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">

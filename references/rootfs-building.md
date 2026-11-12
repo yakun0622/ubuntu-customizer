@@ -62,8 +62,8 @@ user-data and meta-data files are generated for an approved NoCloud source.
    input bytes, user recipe and dependencies. No disk output is created:
 
 ~~~bash
-python3 scripts/workflow/rootfs_builder.py image-plan.json \
-  --config rootfs-config.json --dry-run
+./.venv/bin/python -B scripts/workflow/rootfs_builder.py ./outputs/image-plan.json \
+  --config ./outputs/rootfs-config.json --dry-run
 ~~~
 
 3. Ask for *separate explicit authorization* to create a new local bundle.
@@ -71,16 +71,16 @@ python3 scripts/workflow/rootfs_builder.py image-plan.json \
 4. Only when approved, execute:
 
 ~~~bash
-python3 scripts/workflow/rootfs_builder.py image-plan.json \
-  --config rootfs-config.json \
-  --output-dir ./rootfs-bundle-001 --approved
+./.venv/bin/python -B scripts/workflow/rootfs_builder.py ./outputs/image-plan.json \
+  --config ./outputs/rootfs-config.json \
+  --output-dir ./outputs/rootfs-bundle-001 --approved
 ~~~
 
 5. Read the output summary and verify the bundle again:
 
 ~~~bash
-python3 scripts/workflow/rootfs_builder.py \
-  --verify-bundle ./rootfs-bundle-001
+./.venv/bin/python -B scripts/workflow/rootfs_builder.py \
+  --verify-bundle ./outputs/rootfs-bundle-001
 ~~~
 
 The output directory must be **new** and has this shape:
@@ -151,8 +151,8 @@ The Python tests mock image tools and do not require a real libguestfs build
 host. Some local integration tests require loopback/UNIX socket permissions:
 
 ~~~bash
-python3 -m unittest discover -s tests -p 'test_rootfs_builder.py' -v
-python3 -m unittest discover -s tests -v
+./.venv/bin/python -B -m unittest discover -s tests -p 'test_rootfs_builder.py' -v
+./.venv/bin/python -B -m unittest discover -s tests -v
 ~~~
 
 Real image operations separately require the build-host tools listed above.
