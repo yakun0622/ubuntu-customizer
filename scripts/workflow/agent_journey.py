@@ -18,6 +18,8 @@ def _validate_interface_display(value, transport):
             or len(value) > 180 or any(ord(ch) < 32 for ch in value)
             or "://" in value or "@" in value.split(":")[0]):
         raise ValueError("Provide a short interface label, not credentials or a URL")
+    if transport == "ttl" and "/dev/" not in value:
+        raise ValueError("TTL plan must show an actual serial /dev/ interface")
     if transport == "ttl" and not any(len(t) >= 4 and t.isdecimal()
                                        for t in value.replace("(", " ").replace(")", " ")
                                        .replace("（", " ").replace("）", " ").split()):
