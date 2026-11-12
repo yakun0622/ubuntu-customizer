@@ -79,6 +79,25 @@ class AdaptiveTests(unittest.TestCase):
                 self.assertEqual(report["preview"]["state"], "running")
                 self.assertEqual(report["preview"]["url"], "http://127.0.0.1:18888/")
 
+    def test_verified_preview_url_is_emitted_before_first_probe(self):
+        sequence = []
+        with tempfile.TemporaryDirectory() as root:
+            destination = Path(root) / "capture"
+            def preview(path):
+                self.assertTrue((path / "manifest.json").exists())
+                sequence.append("preview")
+                return {"state": "running", "url": "http://127.0.0.1:19991/"}
+            def probe(*args):
+                sequence.append("probe")
+                return ("ok", b"test\\n", "", 0)
+            with patch.object(adaptive, "start_preview", side_effect=preview), \
+                 patch.object(adaptive, "collect_probe", side_effect=probe):
+                _, report = adaptive.run("local", "local", str(destination), 3, [],
+                                         preview_approved=True,
+                                         preview_notify=lambda url: sequence.append("url"))
+        self.assertEqual(sequence[:3], ["preview", "url", "probe"])
+        self.assertEqual(report["preview"]["url"], "http://127.0.0.1:19991/")
+
     def test_optional_preview_failure_does_not_block_collection(self):
         with tempfile.TemporaryDirectory() as root:
             dest = Path(root) / "preview-fails"
