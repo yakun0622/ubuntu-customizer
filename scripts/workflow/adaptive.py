@@ -193,7 +193,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--transport", choices=("ssh", "adb", "local", "ttl"))
     parser.add_argument("--target")
-    parser.add_argument("--output", help="New session directory; parent must exist")
+    parser.add_argument("--output", help="New session directory under ./outputs (default: outputs/device-session-TIMESTAMP)")
     parser.add_argument("--modules", default="auto", help="auto or comma-separated: " + ",".join(MODULES))
     parser.add_argument("--timeout", type=int, default=12)
     parser.add_argument("--baud", type=int, default=115200)
