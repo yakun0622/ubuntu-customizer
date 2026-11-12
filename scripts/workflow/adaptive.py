@@ -128,7 +128,7 @@ def start_preview(folder):
     return control.start(folder, port=0)
 
 def run(transport, target, output, timeout, modules, baud=115200, duration=10,
-        preview_approved=False):
+        preview_approved=False, preview_notify=None):
     folder = collect.safe_output_dir(output)
     manifest = {
         "schema_version": 1, "workflow_version": "adaptive-v1",
@@ -146,6 +146,9 @@ def run(transport, target, output, timeout, modules, baud=115200, duration=10,
         try:
             preview_info = start_preview(folder)
             manifest["preview"] = {"state": "running", "url": preview_info["url"]}
+            checkpoint(folder, manifest)
+            if preview_notify is not None:
+                preview_notify(preview_info["url"])
         except (OSError, ValueError, RuntimeError) as exc:
             # An optional local UI must never block a read-only collection.
             manifest["preview"] = {"state": "unavailable"}
