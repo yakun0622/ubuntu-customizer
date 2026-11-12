@@ -394,12 +394,19 @@ def main(argv=None):
         else:
             if not args.output_dir:
                 raise ValueError("Build mode requires --output-dir")
-            bundle, _ = assemble(plan, config, args.output_dir, approved=args.approved)
+            bundle, _ = assemble(plan, config, workspace.checked_output(args.output_dir), approved=args.approved)
             print(json.dumps({"bundle": str(bundle), **verify_bundle(bundle)}, ensure_ascii=False))
         return 0
     except (OSError, ValueError, RuntimeError, TypeError, KeyError, json.JSONDecodeError) as exc:
         print("ERROR: " + str(exc), file=sys.stderr)
         return 2
+
+# The CLI enforces the project's outputs-only policy. Internal library functions
+# continue to accept isolated temporary test fixtures without changing their API.
+ws_spec = importlib.util.spec_from_file_location(
+    "uc_workspace_rootfs_builder", Path(__file__).with_name("project_workspace.py"))
+workspace = importlib.util.module_from_spec(ws_spec)
+ws_spec.loader.exec_module(workspace)
 
 if __name__ == "__main__":
     raise SystemExit(main())
