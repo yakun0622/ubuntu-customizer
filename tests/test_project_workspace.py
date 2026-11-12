@@ -22,7 +22,9 @@ class WorkspaceTests(unittest.TestCase):
 
     def test_lima_runner_uses_script_repository_when_cwd_is_different(self):
         with tempfile.TemporaryDirectory() as d:
-            with mock.patch.object(workspace.Path, "cwd", return_value=Path(d)):
+            with mock.patch.object(workspace.Path, "cwd", return_value=Path(d)), \
+                 mock.patch.object(workspace, "ensure_outputs",
+                                   return_value=ROOT.resolve() / "outputs"):
                 self.assertEqual(workspace.project_root(), ROOT.resolve())
                 self.assertEqual(
                     workspace.checked_output("outputs/lima-report.json"),
