@@ -32,7 +32,9 @@ with host execution access, then say:
 
 The Agent checks host capabilities and prepares the workspace, resolves only
 missing intent/target information, then selects SSH, ADB, managed TTL/picocom
-or local access and its actual interface. It explains the read-only probes,
+or local access and its actual interface. The review shows the real SSH/ADB
+endpoint or the TTL port and baud; a missing interface blocks approval.
+It explains the read-only probes,
 privacy, local monitor and stages, and waits for plan approval before device
 access or server startup. The confirmed plan includes the localhost monitor
 by default; explicit monitor opt-out is honored. After approval the monitor
@@ -308,7 +310,7 @@ embeds passwords in its catalog.
 The legacy manager catalog defaults to `./outputs/device-manager/registry.json` and
 captures are under `./outputs/device-manager/devices/<id>/sessions/<session>/`.
 Directories and the catalog are created with restrictive permissions.
-`--data-dir` must select a private directory under `./outputs/` under the
+`--data-dir` is enforced as a private directory under `./outputs/` by the
 Agent workspace contract. The default manager location is no longer in the home directory.
 
 Connection discovery enumerates candidates; SSH aliases are read from explicit
