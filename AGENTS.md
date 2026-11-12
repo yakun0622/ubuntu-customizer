@@ -19,7 +19,9 @@ When the user says **“开始” / “开始定制系统” / “开始检查�
 2. **Transport first.** If unspecified, ask the user to choose SSH, ADB,
    managed TTL/picocom or the local machine. Then offer/resolve an actual
    matching interface: trusted SSH Host alias, authorized ADB device,
-   observed serial port plus baud, or the authorized local host. Ask one
+   observed serial port plus baud, or the authorized local host. The
+   reviewed plan MUST display the actual nonsecret endpoint (TTL path and
+   baud), not a generic placeholder; absent details block confirmation. Ask one
    missing choice at a time and never fabricate an endpoint.
 3. **Explain before operating.** Present the actual target/interface,
    read-only probes, local evidence/privacy model, live dashboard, stages,
