@@ -208,7 +208,7 @@ def main(argv=None):
     args = p.parse_args(argv)
     try:
         result = inspect(args.source, args.sha256)
-        output = Path(args.output)
+        output = workspace.checked_output(args.output)
         if output.exists() or output.is_symlink():
             raise ValueError("Report already exists")
         with output.open("x", encoding="utf-8") as f:
@@ -221,6 +221,13 @@ def main(argv=None):
     except (OSError, ValueError, KeyError, TypeError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2
+
+# The CLI enforces the project's outputs-only policy. Internal library functions
+# continue to accept isolated temporary test fixtures without changing their API.
+ws_spec = importlib.util.spec_from_file_location(
+    "uc_workspace_image_inspect", Path(__file__).with_name("project_workspace.py"))
+workspace = importlib.util.module_from_spec(ws_spec)
+ws_spec.loader.exec_module(workspace)
 
 if __name__ == "__main__":
     raise SystemExit(main())
