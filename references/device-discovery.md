@@ -13,9 +13,9 @@ python3 scripts/workflow/collect.py
 Noninteractive selection with a final explicit local collection confirmation:
 
 ```bash
-python3 scripts/workflow/collect.py --transport ssh --target ubuntu-server --output ./outputs/devices/ubuntu-server/2026-11-09-01
-python3 scripts/workflow/collect.py --transport adb --target SERIAL123 --output ./outputs/devices/android/2026-11-09-01
-python3 scripts/workflow/collect.py --transport ttl --target /dev/cu.usbserial-110 --baud 115200 --duration 20 --output ./outputs/devices/board/serial-01
+python3 scripts/workflow/collect.py --transport ssh --target ubuntu-server --output ./outputs/ubuntu-server-20261109-01
+python3 scripts/workflow/collect.py --transport adb --target SERIAL123 --output ./outputs/android-20261109-01
+python3 scripts/workflow/collect.py --transport ttl --target /dev/cu.usbserial-110 --baud 115200 --duration 20 --output ./outputs/board-serial-01
 ```
 
 These `collect.py` examples are the **legacy passive collector**. Target for SSH is a configured OpenSSH Host alias with a previously trusted host key. ADB requires a device serial from `adb devices`. Legacy TTL requires optional `pyserial` and only receives data. For **Agent-controlled interactive TTL**, use the persistent picocom adapter instead; see [device sessions](device-session.md). Opening a serial port may change handshake lines, so verify adapter wiring before running.
@@ -69,8 +69,8 @@ After successful collection, transform the immutable evidence bundle into a
 separate indexed dossier:
 
 ```bash
-python3 scripts/workflow/dossier.py ./outputs/devices/example-device/session-001
-# creates ./outputs/devices/example-device/session-001/device.json
+python3 scripts/workflow/dossier.py ./outputs/example-device-session-001
+# creates ./outputs/example-device-session-001/device.json
 ```
 
 `device.json` contains the observed OS, kernel, CPU identifiers, RAM,
@@ -83,9 +83,9 @@ For historical comparison (for example before/after a kernel upgrade):
 
 ```bash
 python3 scripts/workflow/compare.py \
-  ./outputs/devices/example-device/session-001/device.json \
-  ./outputs/devices/example-device/session-002/device.json \
-  --output ./outputs/devices/example-device/kernel-diff.json
+  ./outputs/example-device-session-001/device.json \
+  ./outputs/example-device-session-002/device.json \
+  --output ./outputs/example-device-kernel-diff.json
 ```
 
 The diff contains field-level identity changes plus changed evidence hashes.
@@ -109,8 +109,8 @@ GPIO, platform, I2C, SPI and MDIO devices. Generate the conservative topology:
 
 ```bash
 python3 scripts/workflow/collect.py
-python3 scripts/workflow/dossier.py ./outputs/devices/example-device/session-001
-python3 scripts/workflow/topology.py ./outputs/devices/example-device/session-001
+python3 scripts/workflow/dossier.py ./outputs/example-device-session-001
+python3 scripts/workflow/topology.py ./outputs/example-device-session-001
 ```
 
 The new `topology.json` stores device and driver nodes, observed `bound_to`
@@ -128,9 +128,9 @@ platform-device `of_node` paths. All probes remain read-only.
 
 ```bash
 python3 scripts/workflow/collect.py
-python3 scripts/workflow/device_tree.py ./outputs/devices/example-device/session-001
-python3 scripts/workflow/topology.py ./outputs/devices/example-device/session-001
-python3 scripts/workflow/link_graph.py ./outputs/devices/example-device/session-001
+python3 scripts/workflow/device_tree.py ./outputs/example-device-session-001
+python3 scripts/workflow/topology.py ./outputs/example-device-session-001
+python3 scripts/workflow/link_graph.py ./outputs/example-device-session-001
 ```
 
 Outputs:
@@ -149,7 +149,7 @@ Base the next probe stage on prior evidence and recorded permission or tool
 errors. From an existing session:
 
 ```bash
-python3 scripts/workflow/capabilities.py ./outputs/devices/example-device/session-001
+python3 scripts/workflow/capabilities.py ./outputs/example-device-session-001
 ```
 
 `capabilities.json` records status for system identity, CPU/memory, storage,
