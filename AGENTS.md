@@ -12,7 +12,8 @@ When the user says **“开始” / “开始定制系统” / “开始检查�
    reuse `./.venv` and prepare private `./outputs/`** using
    `python3 scripts/workflow/project_workspace.py` from the current
    project directory. Use the resulting `.venv/bin/python` for subsequent
-   Python helpers/tests; no package download, global Python install, device
+   Python helpers/tests with `-B` to avoid bytecode caches outside outputs;
+   no package download, global Python install, device
    access or extra user confirmation. Only when an actual host execution
    bridge is available. Infer goal/target from the chat.
 2. **Transport first.** If unspecified, ask the user to choose SSH, ADB,
@@ -113,6 +114,6 @@ been implemented; do not falsely claim successful device deployment.
 ## Development
 
 After changing the Skill, validate with
-`./.venv/bin/python -m unittest discover -s tests -v` (Unix/macOS) when
+`./.venv/bin/python -B -m unittest discover -s tests -v` (Unix/macOS) when
 the project workspace is initialized and execution is available. Keep any added workflow helpers auditable and noninteractive
 by themselves; the Agent should conduct the conversation.
