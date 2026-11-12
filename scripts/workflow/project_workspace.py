@@ -22,7 +22,14 @@ def project_root(root=None):
         raise ValueError("Project workspace must be an existing real directory")
     base = base.resolve()
     if not (base / "SKILL.md").is_file() or not (base / "scripts" / "workflow").is_dir():
-        raise ValueError("Run this from the ubuntu-customizer project directory")
+        # Lima/remote runner may execute an absolute script path from a
+        # different working directory. Anchor outputs to that script's
+        # actual repository, never to the guest's arbitrary home directory.
+        if root is not None:
+            raise ValueError("Explicit project root is not ubuntu-customizer")
+        base = Path(__file__).resolve().parents[2]
+        if not (base / "SKILL.md").is_file() or not (base / "scripts" / "workflow").is_dir():
+            raise ValueError("No ubuntu-customizer project workspace available")
     return base
 
 
