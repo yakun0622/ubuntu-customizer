@@ -17,6 +17,23 @@ DTB、Bootloader 等组件，在 `outputs/arm-candidates/` 创建逐版候选目
 直接连接实体串口需要单独授权使用对应设备节点；若禁止访问任何 `/dev` 节点，
 TTL 方式本身无法执行。Python 路径检查不能代替系统级进程沙箱。
 
+## 新增：实体 ARM64 USB IMG 构建与失败迭代
+
+已实现 `scripts/workflow/arm_image_builder.py`：在项目内从固定哈希的
+Ubuntu Base ARM64 RootFS 创建 MBR 磁盘镜像（FAT32 启动分区、ext4 根分区）、
+复制 Kernel/DTB/启动脚本及经校验的驱动覆盖包，并输出 SHA-256 清单。
+`arm_dtb_adapter.py` 可使用项目内 `dtc` 对 DTS 编译、检查 DTB 结构。
+`arm_boot_diagnose.py` 将本轮镜像哈希与串口日志关联，针对内核、
+设备树、rootfs、init、USB 和网卡故障提出下一版适配方向。
+
+**边界**：可生成候选 IMG 文件，但没有实机验证 W152D 能通过 USB 启动，
+也不保证原厂 U-Boot 会执行通用 extlinux 配置。构建和 DTB 编译的
+`mkfs.vfat`、`mcopy`、`mmd`、`mke2fs`、`dtc` 需由隔离的环境以
+当前项目内可执行文件方式提供；模拟测试不代表真实工具链已验证。
+绝不写实体 eMMC、自动刷盘或自动重启。所有本地文件输入都必须在
+当前项目中，生成内容只进入 `outputs/`；若要求限制底层动态库等隐式
+访问，也必须使用操作系统级文件沙箱。
+
 ## 项目工作目录
 
 具备主机执行权限时，Agent 在选择设备连接前创建或复用项目内的 `.venv/` 和私有 `outputs/`。
@@ -53,7 +70,7 @@ TTL/picocom 或本机连接及实际接口。它会说明只读探针、隐私�
 
 用户不必选择 Python、Lima 或 QEMU 参数，也不必准备第二台电脑。
 Agent 无执行权限时必须说明限制。缺少已验证的板级适配器、BSP、DTB、引导加载程序及
-恢复路径时，实体 ARM 镜像组装和刷写仍不支持。
+恢复路径时，实体 ARM 候选 IMG 现可离线组装，但实机 USB 引导仍未验证，刷写不支持。
 
 参见[引导式交互流程](references/interactive-agent-flow.md)、
 [受管理设备会话](references/device-session.md)和 [Agent 工作约定](AGENTS.md)。

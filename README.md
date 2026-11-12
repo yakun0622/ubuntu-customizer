@@ -21,6 +21,24 @@ are disabled in the default path. Direct hardware access and OS subprocess
 file operations need their own approvals/sandbox; Python guards cannot
 guarantee whole-process isolation.
 
+## Physical ARM64 USB candidate image and boot diagnosis
+
+The project now has guarded offline builders: `arm_image_builder.py`
+creates a checksum-backed regular RAW IMG with 1 MiB-aligned MBR,
+FAT32 boot and ext4 root partitions from the pinned official ARM64
+Ubuntu Base userspace. It stages checksum-verified Kernel/DTB/initramfs,
+vendor boot files and optional driver overlays. `arm_dtb_adapter.py`
+compiles and structurally inspects project-local DTBs; `arm_boot_diagnose.py`
+binds each revision's serial log and candidate image hashes to guide the
+next board-specific correction.
+
+These are **unverified USB boot candidates**, not a W152D boot guarantee.
+The tools need project-local mkfs/mtools/dtc executables and a real
+OS-enforced sandbox for whole-process filesystem confinement. No attached
+disks, eMMC, host mounts, or automatic flashing are accessed. All input
+paths remain within the current repository, all artifacts within
+`outputs/`; synthetic tests cannot prove W152D boots.
+
 ## Project workspace
 
 With host execution access, the Agent prepares or reuses project-local

@@ -53,6 +53,8 @@ ACTIONS = {
     "arm_baseline": ("arm_baseline.acquire", "R1", "在项目 outputs 中下载并校验官方 ARM64 最小系统"),
     "arm_research": ("agent.research_board_sources", "R0", "从官方或可信上游研究启动组件与驱动，不扫描宿主机文件"),
     "arm_candidate": ("arm_candidate.stage", "R1", "创建包含基础 RootFS 和已验证板级组件的版本化候选目录"),
+    "arm_build": ("arm_image_builder.build", "R1", "离线创建 USB FAT32/ext4 ARM 镜像并校验分区/哈希"),
+    "arm_diagnose": ("arm_boot_diagnose.diagnose", "R0", "将串口启动证据关联到本轮 USB 镜像并提出下一版修复方向"),
     "image_inspect": ("image_inspect.inspect", "R0", "检查基础系统镜像"),
     "image_plan": ("image_plan.plan", "R0", "生成兼容性与安全阻断清单"),
     "recipe_preview": ("rootfs_builder.dry_run", "R0", "预览离线定制方案"),
@@ -86,7 +88,7 @@ def start(goal=None, target=None, transport=None, interface_ready=None,
                     "interface_ready": True if transport == "local" else interface_ready,
                     "interface_display": ("本机" if transport == "local" else interface_display),
                     "preview": True, "source_ready": None, "run_boot": None,
-                    "arm_revision": 1},
+                    "arm_revision": 1, "usb_log_ready": None},
         "consent": {"plan_confirm": None, "offline_build": None,
                     "isolated_vm_boot": None, "baseline_download": None},
         "steps": {}, "boot_confirmed": False,
@@ -114,10 +116,14 @@ def _action(name, state):
         result["default_source"] = "ubuntu-base-24.04.5-arm64"
         result["no_local_source_search"] = True
         result["output_root"] = "outputs"
-    if name == "arm_candidate":
+    if name in ("arm_candidate", "arm_build", "arm_diagnose"):
         result["revision"] = state["choices"]["arm_revision"]
         result["output_root"] = "outputs"
         result["boot_confirmed"] = False
+    if name == "arm_build":
+        result["approval_required"] = "offline_build"
+        result["no_block_devices"] = True
+        result["no_emmc_write"] = True
     if name == "rootfs_build":
         result["approval_required"] = "offline_build"
     if name == "qemu_verify":
@@ -203,15 +209,34 @@ def next_step(state):
             return {"kind": "pause", "result": "baseline_download_declined",
                     "reason": "No automatic local image search or fallback",
                     "boot_confirmed": False}
-        for name in ("arm_baseline", "arm_research", "arm_candidate", "physical_evidence"):
+        for name in ("arm_baseline", "arm_research", "arm_candidate"):
             current = _stage(state, name)
             if current:
                 return current
-        # Never call a rootfs tarball (or staged boot assets) a bootable image.
-        # Allow an explicit next engineering iteration with newly found
-        # components, rather than declaring the whole physical task complete.
+        if state["consent"]["offline_build"] is None:
+            return _ask("offline_build",
+                        "允许在 ./outputs 内离线创建新的 FAT32/ext4 USB 镜像候选版本吗？不触碰实体磁盘。",
+                        (True, False), False)
+        if state["consent"]["offline_build"] is False:
+            return {"kind": "pause", "result": "arm_offline_build_declined",
+                    "boot_confirmed": False}
+        current = _stage(state, "arm_build")
+        if current:
+            return current
+        if state["choices"]["usb_log_ready"] is None:
+            return _ask("usb_log_ready",
+                        "当前版本 USB 启动测试完成、串口日志已保存在项目 outputs 内了吗？",
+                        (True, False), False)
+        if state["choices"]["usb_log_ready"] is False:
+            return {"kind": "pause", "result": "usb_boot_log_required",
+                    "next_action": "capture_usb_boot_log_without_writing_emmc",
+                    "boot_confirmed": False}
+        for name in ("physical_evidence", "arm_diagnose"):
+            current = _stage(state, name)
+            if current:
+                return current
         return {"kind": "pause", "result": "arm_iteration_required",
-                "next_action": "research_or_adapt_missing_boot_components",
+                "next_action": "review_diagnosis_and_adapt_board_components",
                 "revision": state["choices"]["arm_revision"],
                 "physical_deployment_allowed": False,
                 "boot_confirmed": False, "automatic": False}
@@ -313,6 +338,8 @@ def transition(state, event):
             raise ValueError("Tool result is out of sequence or invalid")
         if step == "arm_baseline" and updated["consent"]["baseline_download"] is not True:
             raise ValueError("Missing pinned baseline download consent")
+        if step == "arm_build" and updated["consent"]["offline_build"] is not True:
+            raise ValueError("Missing offline ARM image approval")
         if step == "rootfs_build" and updated["consent"]["offline_build"] is not True:
             raise ValueError("Missing offline build approval")
         if step == "qemu_verify" and updated["consent"]["isolated_vm_boot"] is not True:
@@ -326,17 +353,25 @@ def transition(state, event):
             raise ValueError("Only the current blocked/failed step may be retried")
         updated["steps"].pop(step)
         updated["boot_confirmed"] = False
+    elif typ == "usb_boot_log_available":
+        if (current["kind"] != "pause" or current.get("result") != "usb_boot_log_required"):
+            raise ValueError("USB log update is allowed only after an ARM candidate is built")
+        updated["choices"]["usb_log_ready"] = True
     elif typ == "iterate_arm":
         if (state.get("target") != "physical-device" or
                 not (current["kind"] == "pause" and current.get("result") == "arm_iteration_required"
                      or current["kind"] == "halt"
-                     and current.get("step") in ("arm_research", "arm_candidate", "physical_evidence"))):
+                     and current.get("step") in ("arm_research", "arm_candidate", "arm_build",
+                                                 "physical_evidence", "arm_diagnose"))):
             raise ValueError("ARM iteration requires a completed or blocked ARM stage")
         if updated["choices"]["arm_revision"] >= 9999:
             raise ValueError("ARM revision limit reached")
         updated["choices"]["arm_revision"] += 1
-        for stage in ("arm_research", "arm_candidate", "physical_evidence"):
+        for stage in ("arm_research", "arm_candidate", "arm_build",
+                      "physical_evidence", "arm_diagnose"):
             updated["steps"].pop(stage, None)
+        updated["consent"]["offline_build"] = None
+        updated["choices"]["usb_log_ready"] = None
         updated["boot_confirmed"] = False
     elif typ == "skip_boot":
         if current["kind"] != "halt" or current["step"] != "qemu_verify":

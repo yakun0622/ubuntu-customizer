@@ -25,6 +25,29 @@ device customization, diagnostic, image build, or boot-verification requests.
   artifacts, not a bootable USB IMG. Full board assembly and verified USB
   boot remain pending real engineering and tests; never fake completion.
 
+## ARM offline builder handoff (implemented candidate stage)
+
+The physical-device image path includes real, guarded helpers:
+`arm_baseline.acquire` → evidence/board research → optional
+`arm_dtb_adapter.compile_dts` → `arm_candidate.stage` →
+**separately approved** `arm_image_builder.build` →
+user-provided current-revision USB serial log →
+`physical_verify.evaluate` → `arm_boot_diagnose.diagnose` → revise.
+
+- Create only project-local regular IMG files under `outputs/arm-images/`;
+  never discover/open host block devices, flash eMMC, run disk dd, mount a
+  host disk or silently reboot a target.
+- Never fabricate Kernel/DTB addresses or W152D U-Boot script compatibility.
+  Extlinux and vendor-script are alternatives, not verified board defaults.
+- The official Ubuntu Base archive is ARM64 *userspace*, not a finished
+  system. The builder records missing init and real USB boot gates.
+- The mkfs/mtools/dtc tools must be explicit project-local executables and
+  executed inside a real host filesystem sandbox if absolute isolation is
+  required. Tool arguments are fixed. No arbitrary target commands.
+- Link each USB serial log to its exact candidate SHA-256 and revision.
+  Failed boot automatically means diagnose/new iteration, not a claim of
+  `boot_confirmed` or `deployment_allowed`.
+
 ## User-facing behavior
 
 When the user says **“开始” / “开始定制系统” / “开始检查设备”**:

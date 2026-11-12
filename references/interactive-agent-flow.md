@@ -29,6 +29,25 @@ implicit `~/Downloads`, `~/.ssh`, `/dev` enumeration, `/tmp` or
 other-directory search. All new artifacts belong in `outputs`. A host
 sandbox is required for an absolute, whole-process access guarantee.
 
+## Physical ARM build/diagnose revisions (new executable handoffs)
+
+The physical ARM stage continues after versioned component staging:
+`offline_build` consent → `arm_build` using `arm_image_builder.build`
+→ `usb_log_ready` choice → verified local physical boot evidence →
+`arm_diagnose` linked to the exact candidate manifest/image SHA-256 →
+`arm_iteration_required` (never deployment-ready by default).
+When no current USB log exists, pause at `usb_boot_log_required`, not
+`evidence_only`. On an `iterate_arm` event, increment revision, clear
+prior board component / image / evidence / diagnosis completion, and request
+offline-build authorization again. Reuse the pinned official RootFS.
+There is no code path here that writes to an attached disk or eMMC.
+
+The Agent may optionally compile a revisioned DTS/DTB with
+`arm_dtb_adapter.py` during board research. All local inputs must be in
+the current project; outputs in `outputs`. Distinguish `IMG built` from
+`W152D USB boot successfully verified`. A serial screenshot or UART
+marker alone does not prove authenticated live boot.
+
 ## Current-directory bootstrap and artifact rule
 
 When an authorized local host execution bridge exists, **before asking for a

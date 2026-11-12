@@ -14,6 +14,27 @@ remaining-work list. [README](../README.md) summarizes it;
 Earlier milestone entries are preserved in Git history. Their v0.1–v0.4
 labels described planning stages, not verified releases or deployment support.
 
+## Physical ARM USB builder milestone — 2026-11-12
+
+New executable components: `arm_image_builder.py` (pinned Ubuntu Base
+RootFS extraction, MBR+FAT32+ext4 RAW IMG assembly, board assets, optional
+hash-checked modules/firmware overlay, fixed project-local mkfs/mtools tool
+invocations, full artifact SHA-256); `arm_dtb_adapter.py` (project-local
+DTS to DTB compilation and structural inspection); `arm_boot_diagnose.py`
+(candidate-hash-bound serial error diagnosis); and the consent-gated
+physical ARM iteration in `agent_journey.py`.
+
+**Validation:** 12 focused new tests passed in an isolated local fixture
+with mocked filesystem utilities, no network or target access. GitHub
+commit does not represent successful installation or W152D boot.
+Real Ubuntu Base extraction, real `mkfs.vfat`/`mke2fs`/`mtools`,
+project-only OS sandbox enforcement, real U-Boot load path, Kernel, DTB,
+drivers and USB boot all remain unverified. Direct eMMC flashing is
+unsupported by design. Existing tests need a fresh complete run on the
+user's actual checkout; an old 251-test pass is not proof this revision
+passed all regressions. The IMG manifest retains
+`usb_boot_confirmed=false` and `deployment_allowed=false`.
+
 ## Status terminology
 
 - **Implemented:** a helper or policy exists in source with the stated limits.

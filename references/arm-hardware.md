@@ -13,6 +13,27 @@ staging them does not make a bootable disk. Boot-script/partition assembly,
 driver recompilation and physical USB verification still require additional
 implementation and per-action safety approvals.
 
+## Executable offline USB IMG / DTS iteration
+
+The Agent can now produce an offline MBR/FAT32/ext4 ARM64 candidate from the
+pinned Ubuntu Base userspace via `arm_image_builder.py`. This is a regular
+project-local `.img` file, never a flash to a physical USB or eMMC.
+`arm_dtb_adapter.py` compiles a project-local DTS with an approved
+project-local `dtc`, parses FDT identity/structure and hashes the result;
+it does not invent board pinctrl, clocks, regulators or claim functional
+compatibility. Optional versioned `boot.scr`, `boot.ini`,
+`aml_autoscript`, `u-boot.sd`, Kernel, DTB and initramfs inputs can be
+staged in `arm_candidate.py`. Use the **actual** W152D/gxlx4 U-Boot path;
+normal `extlinux.conf` is a hypothesis, not an established boot path.
+
+After a separately authorized real USB boot test, `arm_boot_diagnose.py`
+links the UART log SHA-256 to the exact generated image SHA-256 and reports
+specific next actions for FDT, kernel, rootfs, userspace init, USB, RX.
+`agent_journey.py` keeps iterating rather than ending at
+`physical_evidence_only`. Real W152D USB boot is not yet verified.
+Required project-only mkfs/mtools tools and an OS sandbox may be missing
+on macOS; do not silently access global filesystem paths.
+
 ## Current scope
 
 Implemented tools collect fixed read-only evidence, parse software bindings

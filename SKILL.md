@@ -72,6 +72,50 @@ with the requested confinement before claiming comprehensive enforcement.
 Python path guards are not a substitute for an OS-enforced file sandbox.
 Never claim whole-process filesystem confinement based only on these checks.
 
+## Physical ARM USB IMG builder, DTB adaptation and diagnostic loop
+
+The physical ARM lane now has **executable offline candidate builders** in
+`scripts/workflow/arm_image_builder.py`, `arm_dtb_adapter.py` and
+`arm_boot_diagnose.py`. Run them only through the approved Agent stages.
+This does **not** prove boot on W152D or enable direct flashing.
+
+After the official pinned Ubuntu Base ARM64 archive is available and board
+evidence is collected, use `arm_dtb_adapter.py` (optional, when a DTS and a
+project-local approved `dtc` executable exist) to compile and inspect a
+new DTB revision. Stage verified project-local ARM64 Kernel, DTB, optional
+initramfs and board-specific boot files in a new `arm_candidate.py` revision.
+In particular, identify whether W152D/gxlx4 requires `boot.scr`,
+`boot.ini`, `aml_autoscript` or another genuine vendor loader path;
+**never infer that extlinux or a FAT32 partition alone will boot**.
+
+With separate offline-build consent, `arm_image_builder.py` extracts the
+checksum-pinned Ubuntu Base in a private output directory, optionally
+applies a hash-pinned kernel modules/firmware overlay, creates a 1 MiB aligned
+MBR with FAT32 (`UCBOOT`) and ext4 (`UCROOT`) partitions, stages board
+boot assets, creates a RAW `.img` **ordinary file**, and publishes its hash
+and an explicit list of unverified gates. Tools `mkfs.vfat`, `mcopy`,
+`mmd`, `mke2fs` must be provided as project-local executables by an
+OS-confined build environment. No direct disk paths, `dd`, mounts, loop
+devices, `/dev` writes or eMMC writes are permitted.
+
+For each physically tested USB candidate, save that **revision's** UART log
+inside `outputs/`. `arm_boot_diagnose.py` hashes the candidate IMG and
+serial log, classifies U-Boot / kernel / FDT / rootfs / init / USB / Ethernet
+faults and recommends a **new versioned revision**, without exposing raw
+log text. In `agent_journey.py`, approved `arm_build` must precede log
+availability, `physical_evidence` and `arm_diagnose`; `iterate_arm`
+requires new offline-build consent and does not re-download the base.
+No unauthenticated UART text may set `boot_confirmed=true`.
+
+The board-specific Kernel/DTB driver fixes, U-Boot memory/load path, vendor
+firmware, ext4 init compatibility and W152D USB power/reset behaviour are
+still **unverified on real hardware**. A candidate IMG is not a validated
+bootable W152D image. Never write eMMC or imply real USB testing from mocked
+unit tests. All local inputs must pass project-only path checks. An
+**OS-enforced filesystem sandbox** is required to guarantee that external
+dynamic libraries/subprocesses do not read host directories outside the
+project; Python checks alone cannot provide that guarantee.
+
 ## Capability and validation boundary
 
 Use [Roadmap and acceptance](references/roadmap.md) as the maintained
