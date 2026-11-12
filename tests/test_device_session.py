@@ -120,6 +120,52 @@ class TestCollection(unittest.TestCase):
                 ds.run_collection("ttl", "/dev/cu.test", Path(d), 921600, 3, console_factory=FakeConsole)
 
 
+    @mock.patch.object(ds, "transport_argv", return_value=["adb", "-s", "serial", "shell"])
+    def test_approved_preview_is_started_before_interactive_probe(self, _):
+        order = []
+        class OrderedConsole(FakeConsole):
+            def __enter__(self):
+                order.append("console")
+                return super().__enter__()
+        def preview(folder):
+            order.append("preview")
+            self.assertTrue((folder / "manifest.json").exists())
+            return {"state": "running", "url": "http://127.0.0.1:18991/"}
+        urls = []
+        with tempfile.TemporaryDirectory() as d:
+            with mock.patch.object(ds, "start_preview", side_effect=preview) as start:
+                _, manifest = ds.run_collection(
+                    "adb", "serial", Path(d) / "new", 115200, 3,
+                    console_factory=OrderedConsole, preview_approved=True,
+                    preview_notify=urls.append)
+            start.assert_called_once()
+            self.assertEqual(order[:2], ["preview", "console"])
+            self.assertEqual(urls, ["http://127.0.0.1:18991/"])
+            self.assertEqual(manifest["preview"]["state"], "running")
+            self.assertEqual(manifest["state"], "complete")
+
+    @mock.patch.object(ds, "transport_argv", return_value=["adb", "-s", "serial", "shell"])
+    def test_preview_start_failure_is_reported_not_falsely_linked(self, _):
+        with tempfile.TemporaryDirectory() as d:
+            with mock.patch.object(ds, "start_preview", side_effect=OSError("bind failed")):
+                _, manifest = ds.run_collection(
+                    "adb", "serial", Path(d) / "new", 115200, 3,
+                    console_factory=FakeConsole, preview_approved=True)
+            self.assertEqual(manifest["preview"]["state"], "unavailable")
+            self.assertNotIn("url", manifest["preview"])
+            self.assertEqual(manifest["state"], "complete")
+
+    @mock.patch.object(ds, "transport_argv", return_value=["adb", "-s", "serial", "shell"])
+    def test_preview_is_not_started_without_plan_approval(self, _):
+        with tempfile.TemporaryDirectory() as d:
+            with mock.patch.object(ds, "start_preview") as start:
+                _, manifest = ds.run_collection(
+                    "adb", "serial", Path(d) / "new", 115200, 3,
+                    console_factory=FakeConsole)
+                start.assert_not_called()
+            self.assertNotIn("preview", manifest)
+
+
 class TestPTY(unittest.TestCase):
     def test_real_local_pty_shell_marker_and_rejected_command(self):
         with tempfile.TemporaryDirectory() as d:
