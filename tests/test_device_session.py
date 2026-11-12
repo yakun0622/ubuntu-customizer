@@ -221,6 +221,32 @@ class TestPTY(unittest.TestCase):
 
 class TestGuardedSessions(unittest.TestCase):
     @mock.patch.object(ds, "transport_argv", return_value=["picocom"])
+    def test_ttl_delayed_shell_prompt_is_retried_without_input(self, _):
+        class DelayedShell(FakeConsole):
+            def __init__(self, argv, transcript):
+                super().__init__(argv, transcript)
+                self.observation_windows = []
+
+            def observe(self, timeout):
+                self.observation_windows.append(timeout)
+                return "unknown" if len(self.observation_windows) == 1 else "shell"
+
+            def wake_blank_line(self):
+                raise AssertionError("Passive prompt detection must not send Enter")
+
+        FakeConsole.instances.clear()
+        with tempfile.TemporaryDirectory() as d:
+            _, manifest = ds.run_collection(
+                "ttl", "/dev/cu.test", Path(d) / "new", 921600, 5,
+                console_factory=DelayedShell)
+        console = FakeConsole.instances[-1]
+        self.assertEqual(console.observation_windows, [2, 3])
+        self.assertEqual(manifest["console_state"], "shell")
+        self.assertEqual(manifest["state"], "complete")
+        self.assertEqual(len(console.sent),
+                         1 + len(ds.PROBES["common"]) + len(ds.PROBES["android"]))
+
+    @mock.patch.object(ds, "transport_argv", return_value=["picocom"])
     def test_uboot_blocks_all_shell_commands(self, _):
         class FakeUBoot(FakeConsole):
             def observe(self, timeout):

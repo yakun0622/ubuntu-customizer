@@ -334,7 +334,13 @@ def run_collection(transport, target, output, baud, timeout, wake_console=False,
             save()
     try:
         with console_factory(argv, directory / "console.log") as console:
-            observed = console.observe(min(2, timeout))
+            # A slow host/TTY may not display its prompt in the first two
+            # seconds. Continue listening passively within the session timeout:
+            # never send a probe (or a blind Enter) to an unknown TTL console.
+            initial_window = min(2, timeout)
+            observed = console.observe(initial_window)
+            if observed == "unknown" and timeout > initial_window:
+                observed = console.observe(timeout - initial_window)
             if transport == "ttl" and observed == "unknown" and wake_console:
                 console.wake_blank_line()
                 observed = console.observe(min(2, timeout))
