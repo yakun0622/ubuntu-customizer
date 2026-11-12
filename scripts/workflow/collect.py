@@ -6,6 +6,7 @@ Reports stay local and are never automatically uploaded.
 """
 import argparse
 import hashlib
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -150,7 +151,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--transport", choices=["ssh", "adb", "ttl", "local"])
     parser.add_argument("--target", help="SSH alias, ADB serial or local serial-port path")
-    parser.add_argument("--output", help="New local evidence directory")
+    parser.add_argument("--output", help="New evidence directory under ./outputs")
     parser.add_argument("--timeout", type=int, default=12)
     parser.add_argument("--baud", type=int, default=115200)
     parser.add_argument("--duration", type=int, default=10)
@@ -167,9 +168,16 @@ def main(argv=None):
         parser.error("Local transport requires target=local")
     if not 1 <= args.timeout <= 120 or not 1 <= args.duration <= 300 or not 1200 <= args.baud <= 3000000:
         parser.error("Invalid timeout, duration or baud")
-    output = args.output or input("New local output directory (e.g. ./devices/w152d/session-001): ").strip()
-    if not output:
-        parser.error("Output directory required")
+    module_spec = importlib.util.spec_from_file_location(
+        "uc_collect_workspace", Path(__file__).with_name("project_workspace.py"))
+    workspace = importlib.util.module_from_spec(module_spec)
+    module_spec.loader.exec_module(workspace)
+    proposed = args.output or ("outputs/evidence-" +
+                               datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ"))
+    try:
+        output = str(workspace.checked_output(proposed))
+    except (OSError, ValueError) as exc:
+        parser.error(str(exc))
     print(f"Transport: {transport}, target: {target}, output: {output}")
     if input("Begin read-only evidence collection? [y/N]: ").strip().lower() not in ("y", "yes"):
         print("Cancelled")
