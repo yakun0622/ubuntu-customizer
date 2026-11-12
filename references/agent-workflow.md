@@ -9,11 +9,14 @@ exists, then follows the optional pure `agent_journey.py` step policy. Do
 not dump a CLI tutorial, display a multi-field form or require the user to
 choose Lima, libguestfs, QEMU or a device transport command.
 
-The Agent does safe work automatically, asks only one missing decision
-at a time, and resumes after the user's answer. Consent boundaries are
-independent: viewing a status page does not authorize device connection;
-read-only device collection does not authorize offline image construction;
-offline construction does not authorize QEMU boot or physical device writes.
+The Agent asks for only one missing decision at a time. A newly requested
+device session follows a fixed order: **connection method → corresponding
+interface → explanation of the read-only/monitoring plan → user approval →
+private session/live URL → evidence collection → requirement gathering →
+supported customization actions**. An approved plan authorizes both a
+localhost-only preview and one scoped read-only device connection. It does
+NOT authorize offline image construction, QEMU boot, target power control,
+network changes or physical device writes; those remain separate consents.
 
 For a single Mac, an already-running local Lima Linux VM may be used as a
 backend when host tools and file shares are available. If no local computer
@@ -34,22 +37,34 @@ their CLI prompts are not the primary user interface.
 
 ## Stages and required handoffs
 
-### 1. Goal and transport
-- Identify the user's goal: inspect, diagnose, maintain, recover, or create a portable image.
-- Distinguish control host, build host, and target machine.
-- Present appropriate access options: existing SSH Host, ADB, TTL serial, local.
-- Ask for missing essential connection details, not an exhaustive form.
-- Obtain authorization before connecting; do not assume tool availability.
+### 1. Goal, connection method and exact interface
+- Infer the user's goal and physical/VM target from the conversation.
+- If no connection mode is known, offer SSH, ADB, TTL (managed picocom) or local.
+- After selecting the mode, discover or ask for its matching actual interface:
+  trusted SSH Host alias; authorized ADB serial/address; observed /dev serial
+  port with baud rate; or the authorized local control machine.
+- Reuse already-known choices; never silently invent a port/address.
+- TTL picocom and the Agent must not own the same serial port concurrently.
 
-### 2. Passive identification
-- Begin with narrowly scoped, read-only identification.
-- Prefer `scripts/workflow/adaptive.py` if execution and access exist.
-- Gather OS, architecture, kernel, firmware/boot mode, storage and hardware capabilities.
-- For TTL, receive logs passively only; do not send commands.
-- Use `manifest.json` as the source of truth, record error and skipped probes.
-- Avoid assuming a board model, a DTB, GPIO or PHY exists.
+### 2. Explain scope and request plan approval
+- Show the exact connection, hardware/OS/boot/storage/network probes,
+  local-only live dashboard, evidence privacy, staged workflow and limits.
+- Wait for explicit confirmation before opening any device connection.
+- Plan approval covers the scoped read-only session and local observer only.
+- No generic permission authorizes reboot/shutdown, writing, or flashing.
 
-### 3. Evidence normalization
+### 3. Launch viewer before interactive discovery
+- After approval, create the private session then start preview on loopback.
+- For managed TTL/ADB/SSH use `adaptive.py --interactive-shell-approved
+  --preview-approved --yes` (Agent supplies confirmed inputs).
+- The backend outputs a `preview_ready` line after readiness check and
+  before probes; report ONLY the actual URL. If unavailable, say so.
+- Use a persistent verified shell for interactive TTL/ADB/SSH; the old
+  passive TTL recorder remains separate and sends no commands.
+- Gather OS, architecture, firmware, boot mode, storage and hardware facts.
+- Use `manifest.json` as the source of truth; retain errors/skips.
+
+### 4. Evidence normalization
 - Verify hashes before interpreting recorded evidence.
 - Use `dossier.py`, `capabilities.py`, `topology.py`,
   `device_tree.py` and `link_graph.py` **only when the input evidence supports them**.
@@ -57,7 +72,10 @@ their CLI prompts are not the primary user interface.
 - Show a short summary and explicit unknowns; ask user what to investigate or build.
 - Offline HTML is optional presentation only, never the workflow coordinator.
 
-### 4. Image portability decision
+### 5. Requirement gathering and image portability decision
+- Based on validated facts, ask only for missing target OS/version, packages,
+  functions, boot medium, storage and network expectations. This is an
+  Agent-owned conversation stage, not executable device code.
 - Select a target class before choosing image format:
   virtual machine/cloud image, installer ISO, or physical board image.
 - See `references/image-building.md` for backend and safety constraints.
@@ -74,7 +92,7 @@ their CLI prompts are not the primary user interface.
   requested isolated x86_64 QEMU smoke attempt. QEMU exit/timeout is not
   a successful guest boot assertion.
 
-### 5. Approval, execution, verification
+### 6. Approval, execution, verification
 - Show planned operations, exact files, impact, recoverability and test criteria.
 - Separate read-only inspection consent from image conversion, system changes,
   disk installation and flashing permissions.
@@ -97,7 +115,8 @@ their CLI prompts are not the primary user interface.
 - Do not assume ARM64 Linux userspace implies firmware/board compatibility.
 - Do not present raw-to-qcow2 conversion as successful image portability.
 - Do not store credentials or automatically upload captured device data.
-- Do not promote the optional terminal/web viewer into a required product layer.
+- The monitor is part of the approved workflow but remains an observational
+  helper, not a required standalone product or remote command console.
 
 
 ### Portable RootFS customization (opt-in)
