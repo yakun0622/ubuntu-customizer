@@ -1,6 +1,30 @@
 # ubuntu-customizer
 
 
+## 项目工作目录（默认自动处理）
+
+当 Agent 具备本机执行权限时，启动 Skill 会先在**当前项目目录**自动运行
+`python3 scripts/workflow/project_workspace.py`，创建或复用 `.venv/`，
+并创建私有的 `outputs/` 目录。后续 Python 命令使用
+`./.venv/bin/python`，不污染全局 Python 环境，也不自动联网安装依赖。
+
+**所有产生的文件**（采集会话、日志、硬件信息、实时监控状态、报表、
+系统镜像、构建中间文件和校验结果）都统一存放在 `./outputs/`。
+`.venv/` 是环境目录的明确例外，源代码仍按仓库目录维护。
+`.venv/` 和 `outputs/` 均已配置 Git 忽略。
+
+当前项目内安全、非破坏性的操作、脚本执行、代码编辑和测试具有本次用户的
+持续授权，Agent 不再逐条询问；**工具/OS 安全弹窗、设备连接、远程操作、
+系统配置、删除重要文件、镜像构建、虚拟机启动、刷机/写盘**等需要的独立
+授权仍然有效，不能以“命令在当前目录执行”为由绕过。
+
+开发或验证可直接在项目目录手动运行：
+
+```bash
+python3 scripts/workflow/project_workspace.py
+./.venv/bin/python -m unittest discover -s tests -v
+```
+
 ## 开始使用：只需要告诉 Agent「开始定制系统」
 
 **这是 AI Agent Skill，不是需要逐条执行命令的工具。**
