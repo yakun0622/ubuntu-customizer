@@ -27,6 +27,54 @@ and [Agent workflow](references/agent-workflow.md) first. Then read
 [ARM hardware](references/arm-hardware.md), or
 [Safety](references/safety.md) *only for relevant stages*.
 
+## Task-start authorization matrix (highest priority)
+
+**Ask before any host inspection, virtualenv creation, device connection,
+Python probe or Shell command.** At the beginning of each new task, confirm
+**two independent permission levels**:
+
+1. **Local host:** `none` / `read` / `read-write`, strictly for the
+   **current ubuntu-customizer project**. Read allows project inspection and
+   non-writing host capability checks. Read-write additionally permits
+   `./.venv/`, creating files and tests under `./outputs/`, editing tracked
+   project files and building **new offline images inside outputs**. Never
+   infer unrestricted Mac filesystem access from this option. If read-only,
+   pause before workspace initialization/output capture requiring writes.
+2. **Target device:** `none` / `read` / `read-write`, for the **single
+   device/interface selected later in this task**. Read allows verified
+   SSH/ADB/TTL status, logs, DTB/network/driver diagnostics. Read-write
+   additionally preauthorizes **supported, reviewed, reversible ordinary
+   configuration changes** at that endpoint, only when pre-change evidence,
+   backup/rollback and verification are actually available. It does **not**
+   make `device_session.py` an arbitrary writable Shell: the implemented
+   adapter is still fixed read-only probes.
+
+Both grants are per-task, least-privilege, revocable, **never inherited**
+silently from an earlier conversation or another device. A `none` blocks
+operations requiring that resource. After the two grants, use any existing
+known task goal/target, select the connection method + actual interface,
+**show and confirm the complete connection/execution plan once**, then
+execute all supported operations within the grants **without per-command
+permission questions**. Do not re-ask just because another Python helper
+or device-internal diagnostic command is required.
+
+For a confirmed local `read-write` grant, NEW offline images created
+only under `outputs/` are already covered: use the initial authorization
+to satisfy `arm_image_builder` / `rootfs_builder` approved-output gates,
+rather than asking `offline_build` again on each iteration. The independent
+approval for network downloads, starting an isolated VM, and especially
+physical device / block-device writes still applies. The permission
+matrix never overrides host sandbox, login, SSH host-key or ADB trust gates.
+
+**Always separately review and confirm:** eMMC/flash/partition writes and
+erases, bootloader/U-Boot/firmware changes, reboot/shutdown, network/SSH
+cutover and possible disconnection, elevation/sudo/su, executing untrusted
+code or destructive deletes. Do not run unsupported hardware mutation
+adapters even if the target grant says read-write. Treat permission
+selection and plan confirmation as conversational events in
+`agent_journey.py` (`schema_version=2`, `access.local`,
+`access.target`), not as permission to bypass executable safety checks.
+
 ## HTTPS CA trust for official ARM baseline downloads
 
 The ARM baseline downloader verifies HTTPS using a trusted PEM CA file
@@ -164,10 +212,9 @@ ISO does not constitute an OS installer.
 
 ## Default project workspace, outputs and local command authorization (highest priority)
 
-When the Agent has real execution access to the user's **current**
-`ubuntu-customizer` project directory, it automatically performs the
-project-local bootstrap **before choosing a device connection**, without
-asking for another confirmation:
+When the user has selected **local read-write** for this task, the Agent
+may perform the project-local bootstrap automatically **after the startup
+permission matrix**, without a second permission prompt:
 
 ```bash
 # Agent invocation from the current repository directory, not user onboarding.
@@ -199,8 +246,9 @@ tracked source code/documentation edits stay in their original paths.
 Do not move or delete preexisting user files without approval. `outputs/`
 and `.venv/` are excluded from Git.
 
-**Standing local authorization:** This user has approved routine, reversible
-project-scoped operations and commands *inside the current project*, such as
+**Standing local authorization when local=read-write was granted at task
+start:** Routine reversible project-scoped operations *inside the current
+project* are approved for this task, such as
 creating the virtual environment, creating private output directories,
 running local tests, inspecting/editing project source and writing new
 files under `outputs/`. Do not ask for fresh user approval for every such
@@ -306,9 +354,10 @@ See [Interactive device consoles](references/device-session.md).
 
 ## One-start Agent entrypoint (highest priority)
 
-**When the user says “开始” or requests customization, START the guided
-conversation and available safe host inspection immediately**. Never first
-respond with a long CLI checklist. Use the existing goal/target information
+**When the user says “开始” or requests customization, START by asking
+local and target read/write permissions, before ANY host inspection**.
+Then proceed to the approved host inspection and workspace bootstrap.
+Never first respond with a long CLI checklist. Use the existing goal/target information
 from the conversation; ask only for the single essential missing decision.
 
 The Agent may use `scripts/workflow/agent_journey.py` as a **pure decision
@@ -318,7 +367,9 @@ commands or grants approvals. The Agent invokes the appropriate existing
 Python helpers only when its host execution tool is actually connected,
 records observed outcomes and automatically continues to the next safe stage.
 
-A normal journey is **host detection → automatic local .venv/outputs bootstrap → resolve only missing intent/target →
+A normal journey is **local read/write grant → target read/write grant →
+approved host detection → .venv/outputs bootstrap (only with local RW) →
+resolve only missing intent/target →
 select SSH/ADB/TTL/local transport → choose its actual available interface →
 explain the complete connection, collection and monitoring plan → obtain one
 explicit approval for that plan → create a private session and start its
@@ -359,10 +410,12 @@ follow-up button where the client supports it.
 
 ## Primary workflow
 
-0. **Prepare the local project automatically.** If a real host execution
-   bridge exists, run `project_workspace.py` from the current project
-   directory, use its `.venv` interpreter and route all generated files
-   under `outputs/`. No repeat prompt for safe, project-local commands.
+0. **Confirm permissions before any work.** Ask for the current-project
+   local `none/read/read-write` scope and the selected device's
+   `none/read/read-write` scope. Only after local read consent inspect
+   host capabilities; only after local read-write consent prepare
+   `.venv`/`outputs`. Keep all generated files under `outputs/`.
+   Do not repeat permission prompts within the granted scope.
 1. **Establish intent.** Ask whether the user needs discovery, diagnosis,
    maintenance, recovery or a portable system image. Distinguish target,
    control host and build host.

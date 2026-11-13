@@ -36,6 +36,22 @@ INTERFACE_PROMPTS = {
 }
 
 STATES = ("complete", "blocked", "failed")
+ACCESS_LEVELS = ("none", "read", "read-write")
+
+
+def _local_write(state):
+    return state["access"]["local"] == "read-write"
+
+
+def _target_read(state):
+    return state["access"]["target"] in ("read", "read-write")
+
+
+def _offline_authorized(state):
+    # New outputs-only artifacts are covered by the initial project RW
+    # grant after the overall plan is confirmed. Never target block devices.
+    return _local_write(state) and state["consent"]["plan_confirm"] is True
+
 GUEST_CHECKS = (
     "linux_boot", "system_state", "cloud_init", "instance_id",
     "hostname", "machine_id", "ssh_host_keys", "ssh_service", "network"
@@ -65,8 +81,12 @@ ACTIONS = {
 }
 
 def start(goal=None, target=None, transport=None, interface_ready=None,
-          interface_display=None):
+          interface_display=None, *, local_access=None, target_access=None):
     """Start only a conversational state, not a program/VM/device operation."""
+    if local_access is not None and local_access not in ACCESS_LEVELS:
+        raise ValueError("Unsupported local access permission")
+    if target_access is not None and target_access not in ACCESS_LEVELS:
+        raise ValueError("Unsupported device access permission")
     if goal is not None and goal not in GOALS:
         raise ValueError("Unsupported intent")
     if target is not None and target not in TARGETS:
@@ -82,7 +102,10 @@ def start(goal=None, target=None, transport=None, interface_ready=None,
             raise ValueError("Interface must be ready before supplying its details")
         _validate_interface_display(interface_display, transport)
     return {
-        "schema_version": 1, "goal": goal, "target": target,
+        "schema_version": 2, "goal": goal, "target": target,
+        # Per-task, explicitly selected permissions, never inferred from
+        # a past session or the host OS login's privileges.
+        "access": {"local": local_access, "target": target_access},
         # A local-only observer is included in the approved execution plan.
         # The boolean never authorizes connection or starts a server by itself.
         "choices": {"transport": transport,
@@ -119,6 +142,16 @@ def _action(name, state):
         result["device_shell_auto_run"] = state["consent"]["plan_confirm"] is True
         result["per_command_user_confirmation"] = False
         result["device_command_scope"] = "verified-shell/read-only-diagnostics"
+        result["local_access"] = state["access"]["local"]
+        result["target_access"] = state["access"]["target"]
+        result["target_read_authorized"] = _target_read(state)
+        result["target_write_preapproved"] = (
+            state["access"]["target"] == "read-write")
+        # No arbitrary shell writes: the existing adapter only executes
+        # fixed read-only probes; future reversible writes need a reviewed
+        # recipe, backup, supported executor, and the same bound endpoint.
+        result["target_write_scope"] = (
+            "reviewed reversible changes through a supported adapter only")
         result["separate_consent_still_required"] = [
             "flash_or_erase", "emmc_or_partition_write", "bootloader_or_firmware_write",
             "reboot_or_poweroff", "network_or_ssh_lockout", "privilege_escalation",
@@ -137,11 +170,13 @@ def _action(name, state):
         result["output_root"] = "outputs"
         result["no_host_path_scan"] = True
     if name == "arm_build":
-        result["approval_required"] = "offline_build"
+        result["approval_required"] = "local_access:read-write + plan_confirm"
+        result["authorization_reused"] = _offline_authorized(state)
         result["no_block_devices"] = True
         result["no_emmc_write"] = True
     if name == "rootfs_build":
-        result["approval_required"] = "offline_build"
+        result["approval_required"] = "local_access:read-write + plan_confirm"
+        result["authorization_reused"] = _offline_authorized(state)
     if name == "qemu_verify":
         result["approval_required"] = "isolated_vm_boot"
     return result
@@ -156,15 +191,40 @@ def _stage(state, name):
 
 def next_step(state):
     """Return exactly ONE actionable next task or ONE short interaction."""
-    if not isinstance(state, dict) or state.get("schema_version") != 1:
+    if not isinstance(state, dict) or state.get("schema_version") != 2:
         raise ValueError("Invalid Agent Skill workflow state")
-    for field in ("choices", "consent", "steps"):
+    for field in ("choices", "consent", "steps", "access"):
         if not isinstance(state.get(field), dict):
             raise ValueError("Missing workflow state: " + field)
-    for initial in ("host", "workspace"):
-        current = _stage(state, initial)
-        if current:
-            return current
+    # First interaction of a new task: separate local and target
+    # read/write grants BEFORE touching the host or device.
+    if state["access"].get("local") is None:
+        return _ask("local_access",
+                    "先确认本机权限（仅当前项目）：不授权 / 只读 / 读写（.venv、outputs、新文件和项目源码）。",
+                    ACCESS_LEVELS, "read")
+    if state["access"].get("target") is None:
+        return _ask("target_access",
+                    "再确认目标设备权限：不授权 / 只读 / 读写（限可恢复的普通变更；刷机、擦盘、重启和断网另行确认）。",
+                    ACCESS_LEVELS, "read")
+    if state["access"]["local"] not in ACCESS_LEVELS or (
+            state["access"]["target"] not in ACCESS_LEVELS):
+        raise ValueError("Invalid access authorization")
+    if state["access"]["local"] == "none":
+        return {"kind": "pause", "reason": "local_read_permission_denied",
+                "boot_confirmed": False}
+    current = _stage(state, "host")
+    if current:
+        return current
+    if not _local_write(state):
+        return {"kind": "pause", "reason": "project_write_required_for_workspace",
+                "next_action": "request_explicit_access_upgrade",
+                "boot_confirmed": False}
+    current = _stage(state, "workspace")
+    if current:
+        return current
+    if not _target_read(state):
+        return {"kind": "pause", "reason": "target_read_permission_denied",
+                "boot_confirmed": False}
     if state["goal"] is None:
         return _ask("goal", "这次要做什么？", GOALS)
     if state["goal"] == "image" and state["target"] is None:
@@ -184,13 +244,20 @@ def next_step(state):
         result = _ask("plan_confirm",
                       "确认执行以下方案吗？确认后"
                       + ("启动本地监控页面，再" if state["choices"]["preview"] else "")
-                      + "经所选接口建立已验证设备会话；确认一次后自动执行"
-                      "设备诊断 Python 脚本和设备内只读 shell 命令，"
-                      "不逐条请求授权。采集硬件/系统/启动证据后规划定制；"
-                      "不会重启、改网、写盘或刷机。",
+                      + "按启动时选择的本机/目标设备权限建立会话；"
+                      "常规 Python 与设备内已验证只读诊断无需逐条确认。"
+                      "仍不允许重启、断网、擦盘、刷机、提权或直接写实体磁盘。",
                       (True, False), False)
         result["plan"] = {
-            "workspace": ".venv / outputs (初始化不连接目标设备)",
+            "workspace": ".venv / outputs（仅当前项目）",
+            "local_access": state["access"]["local"],
+            "target_access": state["access"]["target"],
+            "local_write_scope": "当前项目源码/.venv/outputs；新离线镜像免重复批准",
+            "target_write_scope": (
+                "已审查、有回退措施、且有支持的执行器的非破坏性设备变更"
+                if state["access"]["target"] == "read-write" else "设备只读"),
+            "high_risk_excluded": ("eMMC/分区/固件写入", "刷机",
+                                   "重启/关机", "断网/SSH锁定", "提权", "不可信脚本"),
             "transport": state["choices"]["transport"],
             "connection": state["choices"]["interface_display"],
             "preview": ("127.0.0.1 动态端口（启动成功后提供实际 URL）"
@@ -234,12 +301,8 @@ def next_step(state):
             current = _stage(state, name)
             if current:
                 return current
-        if state["consent"]["offline_build"] is None:
-            return _ask("offline_build",
-                        "允许在 ./outputs 内离线创建新的 FAT32/ext4 USB 镜像候选版本吗？不触碰实体磁盘。",
-                        (True, False), False)
-        if state["consent"]["offline_build"] is False:
-            return {"kind": "pause", "result": "arm_offline_build_declined",
+        if not _offline_authorized(state):
+            return {"kind": "pause", "result": "local_offline_build_not_authorized",
                     "boot_confirmed": False}
         current = _stage(state, "arm_build")
         if current:
@@ -269,11 +332,7 @@ def next_step(state):
         current = _stage(state, name)
         if current:
             return current
-    if state["consent"]["offline_build"] is None:
-        return _ask("offline_build",
-                    "兼容性检查已通过。是否允许生成新的离线镜像副本？",
-                    (True, False), False)
-    if state["consent"]["offline_build"] is False:
+    if not _offline_authorized(state):
         return {"kind": "done", "result": "plan_only",
                 "boot_confirmed": False, "automatic": False}
     for name in ("rootfs_build", "bundle_verify"):
@@ -340,12 +399,40 @@ def transition(state, event):
             updated["choices"]["transport"] = value
             updated["choices"]["interface_ready"] = True if value == "local" else None
             updated["choices"]["interface_display"] = "本机" if value == "local" else None
+        elif field == "local_access":
+            updated["access"]["local"] = value
+        elif field == "target_access":
+            updated["access"]["target"] = value
         elif field in updated["choices"]:
             updated["choices"][field] = value
         elif field in updated["consent"]:
             updated["consent"][field] = value
+            if field == "plan_confirm" and value is True:
+                # An approved project RW grant includes new offline artifacts
+                # under outputs, so no duplicate build permission dialogue.
+                updated["consent"]["offline_build"] = _local_write(updated)
         else:
             raise ValueError("Unexpected decision")
+    elif typ == "access_change":
+        # The user may explicitly revoke or upgrade one task-scoped grant.
+        # Never silently broaden access when the current task is paused.
+        field, value = event.get("field"), event.get("value")
+        if (event.get("user_confirmed") is not True
+                or field not in ("local_access", "target_access")
+                or value not in ACCESS_LEVELS):
+            raise ValueError("Access changes require a new explicit user decision")
+        key = "local" if field == "local_access" else "target"
+        if updated["access"][key] is None:
+            raise ValueError("Answer the initial permission question first")
+        updated["access"][key] = value
+        updated["consent"]["plan_confirm"] = None
+        updated["consent"]["offline_build"] = None
+        updated["boot_confirmed"] = False
+        # Never reuse a previous device session after a grant changed.
+        for stage in ACTIONS:
+            if stage not in ("host", "workspace"):
+                updated["steps"].pop(stage, None)
+        updated["choices"]["usb_log_ready"] = None
     elif typ == "preview_preference":
         if current["kind"] != "ask" or current["field"] != "plan_confirm":
             raise ValueError("Preview preference can only change at plan review")
@@ -359,10 +446,8 @@ def transition(state, event):
             raise ValueError("Tool result is out of sequence or invalid")
         if step == "arm_baseline" and updated["consent"]["baseline_download"] is not True:
             raise ValueError("Missing pinned baseline download consent")
-        if step == "arm_build" and updated["consent"]["offline_build"] is not True:
-            raise ValueError("Missing offline ARM image approval")
-        if step == "rootfs_build" and updated["consent"]["offline_build"] is not True:
-            raise ValueError("Missing offline build approval")
+        if step in ("arm_build", "rootfs_build") and not _offline_authorized(updated):
+            raise ValueError("Missing scoped project RW + approved plan")
         if step == "qemu_verify" and updated["consent"]["isolated_vm_boot"] is not True:
             raise ValueError("Missing virtual machine approval")
         if step == "qemu_verify" and result == "complete":
@@ -391,7 +476,7 @@ def transition(state, event):
         for stage in ("arm_research", "arm_candidate", "arm_preflight",
                       "arm_build", "physical_evidence", "arm_diagnose"):
             updated["steps"].pop(stage, None)
-        updated["consent"]["offline_build"] = None
+        updated["consent"]["offline_build"] = _offline_authorized(updated)
         updated["choices"]["usb_log_ready"] = None
         updated["boot_confirmed"] = False
     elif typ == "skip_boot":

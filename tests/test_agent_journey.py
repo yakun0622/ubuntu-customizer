@@ -16,10 +16,117 @@ def finish(state, step, status="complete", **kw):
     return journey.transition(state, {"type": "result", "step": step,
                                        "state": status, **kw})
 
+
+def start_granted(*args, local="read-write", target="read", **kwargs):
+    """Existing flow tests explicitly preapprove scoped access for THIS task."""
+    return journey.start(*args, local_access=local, target_access=target, **kwargs)
+
 class AgentJourneyTests(unittest.TestCase):
+    def test_first_turn_asks_permissions_before_any_host_or_device_action(self):
+        state = journey.start("image", "physical-device", "ttl", True,
+                              "/dev/cu.wchusbserial1140 921600")
+        request = journey.next_step(state)
+        self.assertEqual(request["field"], "local_access")
+        self.assertEqual(request["options"], ["none", "read", "read-write"])
+        with self.assertRaises(ValueError):
+            finish(state, "host")
+        state = answer(state, "local_access", "read-write")
+        self.assertEqual(journey.next_step(state)["field"], "target_access")
+        state = answer(state, "target_access", "read-write")
+        self.assertEqual(journey.next_step(state)["step"], "host")
+        self.assertEqual(state["access"], {"local": "read-write",
+                                            "target": "read-write"})
+
+    def test_read_only_local_permission_never_creates_workspace(self):
+        state = journey.start("inspect")
+        state = answer(state, "local_access", "read")
+        state = answer(state, "target_access", "read")
+        self.assertEqual(journey.next_step(state)["step"], "host")
+        state = finish(state, "host")
+        task = journey.next_step(state)
+        self.assertEqual(task["kind"], "pause")
+        self.assertEqual(task["reason"], "project_write_required_for_workspace")
+        with self.assertRaises(ValueError):
+            finish(state, "workspace")
+
+    def test_local_denial_does_not_run_host_inspection(self):
+        state = journey.start("inspect")
+        state = answer(state, "local_access", "none")
+        state = answer(state, "target_access", "read")
+        self.assertEqual(journey.next_step(state)["reason"],
+                         "local_read_permission_denied")
+        with self.assertRaises(ValueError):
+            finish(state, "host")
+
+    def test_target_denial_blocks_connection_but_not_project_setup(self):
+        state = journey.start("inspect", transport="ssh", interface_ready=True,
+                              interface_display="trusted-test")
+        state = answer(state, "local_access", "read-write")
+        state = answer(state, "target_access", "none")
+        state = finish(state, "host")
+        state = finish(state, "workspace")
+        self.assertEqual(journey.next_step(state)["reason"],
+                         "target_read_permission_denied")
+        with self.assertRaises(ValueError):
+            finish(state, "collect")
+
+    def test_target_rw_does_not_enable_arbitrary_remote_writes(self):
+        state = start_granted("inspect", transport="ttl", interface_ready=True,
+                              interface_display="/dev/cu.wchusbserial1140 921600",
+                              target="read-write")
+        state = finish(state, "host")
+        state = finish(state, "workspace")
+        plan = journey.next_step(state)["plan"]
+        self.assertEqual(plan["target_access"], "read-write")
+        self.assertIn("eMMC/分区/固件写入", plan["high_risk_excluded"])
+        state = answer(state, "plan_confirm", True)
+        task = journey.next_step(state)
+        self.assertTrue(task["target_write_preapproved"])
+        self.assertEqual(task["device_command_scope"],
+                         "verified-shell/read-only-diagnostics")
+        self.assertIn("flash_or_erase", task["separate_consent_still_required"])
+
+    def test_explicit_access_change_reprompts_plan_and_invalidates_session(self):
+        state = start_granted("inspect", transport="ssh", interface_ready=True,
+                              interface_display="trusted-test")
+        state = finish(state, "host")
+        state = finish(state, "workspace")
+        state = answer(state, "plan_confirm", True)
+        state = finish(state, "collect")
+        self.assertEqual(journey.next_step(state)["step"], "analyze")
+        with self.assertRaises(ValueError):
+            journey.transition(state, {"type": "access_change",
+                                       "field": "target_access",
+                                       "value": "none"})
+        changed = journey.transition(state, {"type": "access_change",
+                                            "field": "target_access",
+                                            "value": "none",
+                                            "user_confirmed": True})
+        self.assertEqual(changed["access"]["target"], "none")
+        self.assertNotIn("collect", changed["steps"])
+        self.assertIsNone(changed["consent"]["plan_confirm"])
+        self.assertEqual(journey.next_step(changed)["reason"],
+                         "target_read_permission_denied")
+        restored = journey.transition(changed, {"type": "access_change",
+                                                "field": "target_access",
+                                                "value": "read-write",
+                                                "user_confirmed": True})
+        self.assertEqual(journey.next_step(restored)["field"], "plan_confirm")
+        self.assertFalse(restored["boot_confirmed"])
+        self.assertIsNone(restored["consent"]["offline_build"])
+
+    def test_invalid_permission_cannot_be_granted_by_unrelated_answer(self):
+        state = journey.start()
+        with self.assertRaises(ValueError):
+            journey.start(local_access="unlimited")
+        with self.assertRaises(ValueError):
+            answer(state, "target_access", "read-write")
+        with self.assertRaises(ValueError):
+            answer(state, "local_access", "system-root")
+
     def ready(self, target="virtual-machine"):
         transport = "ttl" if target == "physical-device" else "local"
-        state = journey.start("image", target, transport, True,
+        state = start_granted("image", target, transport, True,
                               "/dev/cu.wchusbserial1140 921600" if transport == "ttl" else None)
         state = finish(state, "host")
         state = finish(state, "workspace")
@@ -41,7 +148,7 @@ class AgentJourneyTests(unittest.TestCase):
         return state
 
     def test_one_phrase_start_immediately_inspects_host_without_questionnaire(self):
-        state = journey.start()
+        state = start_granted()
         task = journey.next_step(state)
         self.assertEqual(task["kind"], "run")
         self.assertEqual(task["step"], "host")
@@ -52,7 +159,7 @@ class AgentJourneyTests(unittest.TestCase):
         self.assertEqual(journey.next_step(state)["field"], "goal")
 
     def test_workspace_is_automatic_before_device_choices(self):
-        state = journey.start("inspect", transport="ttl", interface_ready=True,
+        state = start_granted("inspect", transport="ttl", interface_ready=True,
                               interface_display="/dev/cu.wchusbserial1140 921600")
         state = finish(state, "host")
         step = journey.next_step(state)
@@ -66,7 +173,7 @@ class AgentJourneyTests(unittest.TestCase):
         self.assertEqual(journey.next_step(state)["field"], "plan_confirm")
 
     def test_only_one_question_at_each_missing_choice(self):
-        state = journey.start()
+        state = start_granted()
         state = finish(state, "host")
         state = finish(state, "workspace")
         state = answer(state, "goal", "image")
@@ -90,7 +197,7 @@ class AgentJourneyTests(unittest.TestCase):
         self.assertTrue(task["start_preview_before_probes"])
 
     def test_one_plan_approval_auto_authorizes_device_python_and_shell_probes(self):
-        state = journey.start("inspect", transport="ttl", interface_ready=True,
+        state = start_granted("inspect", transport="ttl", interface_ready=True,
                               interface_display="/dev/cu.wchusbserial1140 921600")
         state = finish(state, "host")
         state = finish(state, "workspace")
@@ -116,7 +223,7 @@ class AgentJourneyTests(unittest.TestCase):
         self.assertEqual(journey.next_step(state)["step"], "analyze")
 
     def test_explicit_plan_decline_never_grants_device_commands(self):
-        state = journey.start("inspect", transport="ssh", interface_ready=True,
+        state = start_granted("inspect", transport="ssh", interface_ready=True,
                               interface_display="test-host")
         state = finish(state, "host")
         state = finish(state, "workspace")
@@ -126,7 +233,7 @@ class AgentJourneyTests(unittest.TestCase):
             finish(state, "collect")
 
     def test_decline_device_access_halts_without_collection(self):
-        state = journey.start("inspect", transport="local")
+        state = start_granted("inspect", transport="local")
         state = finish(state, "host")
         state = finish(state, "workspace")
         self.assertEqual(journey.next_step(state)["field"], "plan_confirm")
@@ -135,19 +242,19 @@ class AgentJourneyTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             finish(state, "collect")
 
-    def test_vm_build_has_separate_confirmation_and_declining_stops_before_writes(self):
+    def test_local_rw_grant_skips_redundant_offline_build_prompt(self):
         state = self.prepared_vm()
-        self.assertEqual(journey.next_step(state)["field"], "offline_build")
-        state = answer(state, "offline_build", False)
-        self.assertEqual(journey.next_step(state)["result"], "plan_only")
-        self.assertNotIn("rootfs_build", state["steps"])
+        task = journey.next_step(state)
+        self.assertEqual(task["step"], "rootfs_build")
+        self.assertTrue(task["authorization_reused"])
+        self.assertEqual(task["approval_required"], "local_access:read-write + plan_confirm")
         self.assertFalse(state["boot_confirmed"])
 
     def test_approved_build_still_needs_separate_boot_choice(self):
-        state = answer(self.prepared_vm(), "offline_build", True)
+        state = self.prepared_vm()
         task = journey.next_step(state)
         self.assertEqual(task["step"], "rootfs_build")
-        self.assertEqual(task["approval_required"], "offline_build")
+        self.assertEqual(task["approval_required"], "local_access:read-write + plan_confirm")
         state = finish(state, "rootfs_build")
         state = finish(state, "bundle_verify")
         self.assertEqual(journey.next_step(state)["field"], "run_boot")
@@ -158,7 +265,7 @@ class AgentJourneyTests(unittest.TestCase):
         self.assertFalse(task["boot_confirmed"])
 
     def test_vm_boot_needs_independent_explicit_approval(self):
-        state = answer(self.prepared_vm(), "offline_build", True)
+        state = self.prepared_vm()
         state = finish(state, "rootfs_build")
         state = finish(state, "bundle_verify")
         state = answer(state, "run_boot", True)
@@ -169,7 +276,7 @@ class AgentJourneyTests(unittest.TestCase):
             finish(state, "image_inspect")
 
     def test_declined_optional_guest_test_keeps_artifact_only(self):
-        state = answer(self.prepared_vm(), "offline_build", True)
+        state = self.prepared_vm()
         state = finish(state, "rootfs_build")
         state = finish(state, "bundle_verify")
         state = answer(state, "run_boot", True)
@@ -179,7 +286,7 @@ class AgentJourneyTests(unittest.TestCase):
         self.assertEqual(result["result"], "artifact_verified_only")
         self.assertFalse(result["boot_confirmed"])
     def test_skippable_blocked_guest_verification(self):
-        state = answer(self.prepared_vm(), "offline_build", True)
+        state = self.prepared_vm()
         state = finish(state, "rootfs_build")
         state = finish(state, "bundle_verify")
         state = answer(state, "run_boot", True)
@@ -190,7 +297,7 @@ class AgentJourneyTests(unittest.TestCase):
         self.assertEqual(journey.next_step(state)["result"], "artifact_verified_only")
         self.assertFalse(journey.next_step(state)["boot_confirmed"])
     def test_incomplete_guest_health_is_not_boot_confirmation(self):
-        state = answer(self.prepared_vm(), "offline_build", True)
+        state = self.prepared_vm()
         state = finish(state, "rootfs_build")
         state = finish(state, "bundle_verify")
         state = answer(state, "run_boot", True)
@@ -203,7 +310,7 @@ class AgentJourneyTests(unittest.TestCase):
         self.assertEqual(journey.next_step(state)["result"], "boot_unverified")
 
     def test_complete_guest_health_is_only_path_to_boot_confirmed(self):
-        state = answer(self.prepared_vm(), "offline_build", True)
+        state = self.prepared_vm()
         state = finish(state, "rootfs_build")
         state = finish(state, "bundle_verify")
         state = answer(state, "run_boot", True)
@@ -221,13 +328,13 @@ class AgentJourneyTests(unittest.TestCase):
         for step in ("arm_baseline", "arm_research", "arm_candidate", "arm_preflight"):
             self.assertEqual(journey.next_step(state)["step"], step)
             state = finish(state, step)
-        self.assertEqual(journey.next_step(state)["field"], "offline_build")
-        state = answer(state, "offline_build", True)
+        # Project RW consent was granted at startup and reused for a NEW
+        # outputs-only image. Never touches target eMMC or host disks.
         task = journey.next_step(state)
         self.assertEqual(task["step"], "arm_build")
         self.assertTrue(task["no_block_devices"])
         self.assertTrue(task["no_emmc_write"])
-        self.assertEqual(task["approval_required"], "offline_build")
+        self.assertEqual(task["approval_required"], "local_access:read-write + plan_confirm")
         state = finish(state, "arm_build")
         self.assertEqual(journey.next_step(state)["field"], "usb_log_ready")
         state = answer(state, "usb_log_ready", False)
@@ -244,23 +351,22 @@ class AgentJourneyTests(unittest.TestCase):
         state = journey.transition(state, {"type": "iterate_arm"})
         self.assertEqual(journey.next_step(state)["step"], "arm_research")
         self.assertEqual(state["choices"]["arm_revision"], 2)
-        self.assertIsNone(state["consent"]["offline_build"])
+        self.assertTrue(state["consent"]["offline_build"])
         self.assertIsNone(state["choices"]["usb_log_ready"])
         state = finish(state, "arm_research")
         self.assertEqual(journey.next_step(state)["revision"], 2)
 
-    def test_arm_build_needs_separate_approval_and_failed_build_can_iterate(self):
+    def test_arm_build_reuses_initial_rw_approval_and_failed_build_can_iterate(self):
         state = answer(self.ready("physical-device"), "baseline_download", True)
         for step in ("arm_baseline", "arm_research", "arm_candidate", "arm_preflight"):
             state = finish(state, step)
-        with self.assertRaises(ValueError):
-            finish(state, "arm_build")
-        state = answer(state, "offline_build", True)
+        self.assertEqual(journey.next_step(state)["step"], "arm_build")
+        self.assertTrue(journey.next_step(state)["authorization_reused"])
         state = finish(state, "arm_build", "blocked")
         self.assertEqual(journey.next_step(state)["kind"], "halt")
         state = journey.transition(state, {"type": "iterate_arm"})
         self.assertEqual(journey.next_step(state)["step"], "arm_research")
-        self.assertIsNone(state["consent"]["offline_build"])
+        self.assertTrue(state["consent"]["offline_build"])
 
     def test_arm_preflight_blocks_missing_tools_before_build(self):
         state = answer(self.ready("physical-device"), "baseline_download", True)
@@ -286,7 +392,6 @@ class AgentJourneyTests(unittest.TestCase):
         state = answer(self.ready("physical-device"), "baseline_download", True)
         for step in ("arm_baseline", "arm_research", "arm_candidate", "arm_preflight"):
             state = finish(state, step)
-        state = answer(state, "offline_build", True)
         state = finish(state, "arm_build")
         state = answer(state, "usb_log_ready", True)
         state = finish(state, "physical_evidence", "blocked")
@@ -308,7 +413,7 @@ class AgentJourneyTests(unittest.TestCase):
         self.assertEqual(journey.next_step(state)["step"], "image_inspect")
 
     def test_device_plan_cannot_be_confirmed_without_actual_endpoint(self):
-        state = journey.start("inspect", transport="ttl", interface_ready=True)
+        state = start_granted("inspect", transport="ttl", interface_ready=True)
         state = finish(state, "host")
         state = finish(state, "workspace")
         self.assertEqual(journey.next_step(state)["field"], "interface_display")
@@ -324,20 +429,20 @@ class AgentJourneyTests(unittest.TestCase):
                          "/dev/cu.wchusbserial1140 921600")
 
     def test_interface_switch_clears_old_endpoint(self):
-        state = journey.start("inspect", transport="ttl", interface_ready=True,
+        state = start_granted("inspect", transport="ttl", interface_ready=True,
                               interface_display="/dev/cu.wchusbserial1140 921600")
         state = finish(state, "host")
         state = finish(state, "workspace")
         self.assertEqual(journey.next_step(state)["field"], "plan_confirm")
         with self.assertRaises(ValueError):
-            journey.start("inspect", transport="ttl", interface_ready=True,
+            start_granted("inspect", transport="ttl", interface_ready=True,
                           interface_display="tty")
         with self.assertRaises(ValueError):
-            journey.start("inspect", transport="ssh", interface_ready=False,
+            start_granted("inspect", transport="ssh", interface_ready=False,
                           interface_display="Host server")
 
     def test_missing_connection_is_not_silently_assumed(self):
-        state = journey.start("inspect")
+        state = start_granted("inspect")
         state = finish(state, "host")
         state = finish(state, "workspace")
         self.assertEqual(journey.next_step(state)["field"], "transport")
@@ -349,7 +454,7 @@ class AgentJourneyTests(unittest.TestCase):
         self.assertEqual(journey.next_step(state)["kind"], "pause")
 
     def test_known_ttl_target_skips_repeated_connection_questions(self):
-        state = journey.start("image", "physical-device", "ttl", True,
+        state = start_granted("image", "physical-device", "ttl", True,
                               "/dev/cu.wchusbserial1140 921600")
         state = finish(state, "host")
         state = finish(state, "workspace")
@@ -361,7 +466,7 @@ class AgentJourneyTests(unittest.TestCase):
         self.assertTrue(journey.next_step(state)["preview_approved"])
 
     def test_local_interface_is_implicit_and_monitor_uses_plan_consent(self):
-        state = journey.start("inspect", transport="local")
+        state = start_granted("inspect", transport="local")
         state = finish(state, "host")
         state = finish(state, "workspace")
         self.assertEqual(journey.next_step(state)["field"], "plan_confirm")
@@ -369,7 +474,7 @@ class AgentJourneyTests(unittest.TestCase):
         self.assertTrue(journey.next_step(state)["preview_approved"])
 
     def test_explicit_monitor_opt_out_keeps_readonly_collection(self):
-        state = journey.start("inspect", transport="local")
+        state = start_granted("inspect", transport="local")
         state = finish(state, "host")
         state = finish(state, "workspace")
         state = journey.transition(state, {"type": "preview_preference", "enabled": False})
@@ -380,7 +485,7 @@ class AgentJourneyTests(unittest.TestCase):
         self.assertFalse(task["preview_approved"])
 
     def test_preview_preference_cannot_change_after_plan_approved(self):
-        state = journey.start("inspect", transport="local")
+        state = start_granted("inspect", transport="local")
         state = finish(state, "host")
         state = finish(state, "workspace")
         state = answer(state, "plan_confirm", True)
@@ -388,7 +493,7 @@ class AgentJourneyTests(unittest.TestCase):
             journey.transition(state, {"type": "preview_preference", "enabled": False})
 
     def test_answer_must_match_current_question(self):
-        state = journey.start()
+        state = start_granted()
         with self.assertRaises(ValueError):
             answer(state, "read_device", True)
         with self.assertRaises(ValueError):
@@ -400,7 +505,7 @@ class AgentJourneyTests(unittest.TestCase):
             answer(state, "goal", "unsupported")
 
     def test_state_transition_has_no_in_place_mutation(self):
-        original = journey.start("image", "virtual-machine")
+        original = start_granted("image", "virtual-machine")
         changed = finish(original, "host")
         self.assertEqual(original["steps"], {})
         self.assertEqual(changed["steps"], {"host": "complete"})

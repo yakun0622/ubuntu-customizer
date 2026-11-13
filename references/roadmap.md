@@ -14,6 +14,29 @@ remaining-work list. [README](../README.md) summarizes it;
 Earlier milestone entries are preserved in Git history. Their v0.1–v0.4
 labels described planning stages, not verified releases or deployment support.
 
+## Task-start permission matrix — 2026-11-13
+
+- `agent_journey.py` schema version 2 explicitly asks **local** and
+  **target** `none/read/read-write` permissions before any host inspection
+  or target command. A local read-only choice blocks workspace writes;
+  denied device read access blocks target collection.
+- Once the exact endpoint and overall plan are confirmed, project-local
+  Python helpers and supported read-only device shell probes run without
+  repeated per-command prompts. A local RW grant also satisfies the
+  non-destructive outputs-only offline image-build dialogue and is reused
+  across ARM revisions; existing image-builder `--approved` enforcement
+  remains in place.
+- Target RW records a limited, preapproved **reversible configuration**
+  scope; the current device session executor remains read-only and cannot
+  run arbitrary remote writes. Destructive/disruptive actions such as
+  eMMC/flash/firmware writes, network cutover, reboot, privilege
+  escalation and untrusted script execution are outside the blanket
+  permission and still require a separate, supported high-risk workflow.
+- Explicit `access_change` revokes/changes task permissions and clears
+  earlier device-stage completion and plan approval. No permissions are
+  silently inherited from a previous task. This is conversational policy;
+  real host/OS/SSH sandbox and authorization gates still apply.
+
 ## Portable Mac ARM milestone — 2026-11-12
 
 - `arm_fat32.py` is a pure-Python FAT32/VFAT writer for the USB boot

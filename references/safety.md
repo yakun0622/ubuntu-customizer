@@ -11,17 +11,48 @@ rollback are unsupported. See the [capability matrix](roadmap.md).
 | Risk | Examples | Requirement |
 | --- | --- | --- |
 | R0 | Read-only inspection, project-local Python device diagnostics, supported device shell probes | After one approved device plan, proceed automatically without per-command user prompts |
-| R1 | Offline image construction, isolated VM launch | Safe paths, validated inputs, distinct explicit approval for construction and launch |
-| R2 | Packages, ordinary service config | Exact diff and user approval |
+| R1 | New outputs-only offline image, isolated VM launch | Project RW grant + confirmed plan covers offline outputs without duplicate prompts; isolated VM boot still separate |
+| R2 | Packages, ordinary service config | A target RW grant preapproves ONLY supported reversible changes with reviewed diff, backup, verification and same endpoint; otherwise seek separate permission or stop |
 | R3 | SSH, route, firewall, kernel, DTB | Explicit scoped approval, backup and proven recovery |
 | R4 | Partition writes, U-Boot/firmware flashing | Exact-device confirmation and external rescue plan |
 
+## Permission matrix at the start of every task
+
+Before running **any** host inspection, Python script, workspace writer,
+device connection or remote command, ask two independent per-task grants:
+
+| Scope | none | read | read-write |
+| --- | --- | --- | --- |
+| Local Mac / build host | No host file inspection | Read current project and safe host capability facts | Also create .venv/outputs, edit tracked project sources, run tests and create NEW outputs-only offline IMG files |
+| Selected target device | No target contact | Read-only verified SSH/ADB/TTL diagnostics | Also only supported, reviewed, reversible ordinary configuration changes with backup and verification |
+
+Do not silently infer either permission from prior tasks. A scope is
+bounded to the current repository or to the *specific device endpoint*
+confirmed in the plan; `read-write` does not mean unrestricted filesystem
+access or permission to run arbitrary Shell text. The existing target
+adapter is fixed read-only regardless of the target RW flag.
+
+The user confirms the complete connection/monitoring/execution plan once
+after permission selection; then **reuse granted scope without repeating
+per-command permission dialogue**. Local RW plus approved plan covers
+repeated new outputs-only image construction, including a new ARM revision;
+it does not cover host disks or physical target writes. The Ubuntu
+baseline network download, VM boot and other independent high-risk actions
+still need their respective consent.
+
+**Always separately review** erasure, partition/eMMC/flash writes, U-Boot
+or firmware changes, reboot/shutdown, network/SSH disruption, privilege
+escalation, arbitrary/untrusted scripts and destructive deletes; the
+permission matrix cannot implement unsupported mutations or override
+host/OS sandbox and target transport authentication.
+
 ## Standing authorization for the current project directory
 
-The user permits ordinary **project-local, non-destructive** operations
-without repeated conversational approval: creating/reusing `.venv`,
-creating private `outputs/`, reading/editing repository source, running
-project tests and writing new persistent artifacts beneath `outputs/`.
+When the user grants local **read-write at task start**, ordinary
+**project-local, non-destructive** operations need no repeated approval:
+creating/reusing `.venv`, creating private `outputs/`, editing source,
+running tests and writing new outputs-only artifacts. Local read alone
+does not permit these filesystem writes.
 The Agent should not interrupt each safe local command for a second consent.
 It must still comply with host, OS and tool-level sandbox approvals that
 cannot be waived by Skill instructions.
@@ -35,9 +66,10 @@ user-controlled symlinks outside the output tree.
 the project root may still delete valuable project files, install untrusted
 packages, contact a remote device, reconfigure a host, mount disks, start
 a VM or write firmware. These side effects require their normal explicit
-approvals and supported recovery steps. The local standing consent
-cannot bypass the separate hardware R0 connection-plan approval or
-any higher-risk R2/R3/R4 gate.
+approvals and supported recovery steps. The local grant cannot bypass a denied target read permission,
+the exact hardware connection plan, or any higher-risk R3/R4 gate.
+Target RW affects only approved reversible R2 changes and does not
+create an executor where none is implemented.
 
 ## Standing authorization for diagnostic commands on a connected device
 

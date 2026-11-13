@@ -4,20 +4,26 @@
 ## Single-sentence startup and conversational orchestration
 
 **Primary entrypoint: the user's phrase “开始定制系统” / “开始检查设备”.**
-The Agent begins with safe host inspection when actual execution access
-exists, then automatically creates/reuses `./.venv` and private
-`./outputs/` inside the current project via `project_workspace.py`.
-Subsequent Python commands use the virtualenv interpreter. This safe
-project-local bootstrap is a `workspace` step in `agent_journey.py`
-immediately after host inspection; it does not require a repeat
-conversational confirmation. Host/tool sandbox prompts cannot be waived.
+The Agent first asks the user to grant **local host** and **target device**
+permissions independently (`none`, `read`, `read-write`) for this
+specific task. **Nothing is inspected, downloaded or executed before
+these decisions.** Local read permits project-local host inspection; only
+local read-write permits creating/reusing `./.venv`, `./outputs`, editing
+project files and constructing NEW outputs-only offline images. Target
+read permits verified diagnostics; target read-write additionally covers
+only supported reviewed reversible ordinary changes, never arbitrary
+Shell commands or hazardous device writes. After these two grants,
+the Agent selects/validates the target connection, confirms the overall
+plan once and continues inside that scope without per-command prompts.
+Host/tool sandbox prompts cannot be waived.
 The Agent then follows the pure next-step policy. Do
 not dump a CLI tutorial, display a multi-field form or require the user to
 choose Lima, libguestfs, QEMU or a device transport command.
 
 The Agent asks for only one missing decision at a time. A newly requested
-device session follows a fixed order: **connection method → corresponding
-interface → explanation of the read-only/monitoring plan → user approval →
+device session follows a fixed order: **local read/write grant → target
+read/write grant → approved host/workspace setup → connection method →
+corresponding interface → complete reviewed plan and confirmation →
 private session/live URL → evidence collection → requirement gathering →
 supported customization actions**. An approved plan authorizes both a
 localhost-only preview and one scoped read-only device connection. It does
@@ -69,10 +75,17 @@ boots, Lima execution and full Agent handoffs remain unverified. See the
 
 ## Stages and required handoffs
 
-### 0. Automatic local workspace preparation
-- Work from the current repository directory; run
-  `python3 -B scripts/workflow/project_workspace.py` without extra user prompts
-  for this routine project-local operation.
+### 0. First ask permissions, then prepare the workspace
+- Before running any host or target command, ask for this task's
+  **local `none/read/read-write`** and **target `none/read/read-write`**
+  scopes. Neither is inferred from OS login privileges or a previous task.
+- If local read is denied, do not even inspect host capabilities. Local
+  read allows host inspection; local read-write permits creating `.venv`,
+  `outputs`, editing project code and NEW offline image outputs. With
+  read-only, pause before the writer/collector rather than escalating.
+- With local RW granted, work from the current repository and run
+  `python3 -B scripts/workflow/project_workspace.py` without another
+  user prompt.
 - Use `./.venv/bin/python -B` for Python helpers without project-root bytecode cache (on Windows,
   `./.venv/Scripts/python.exe`). The helper does not install packages.
 - Keep all persistent runtime artifacts under `./outputs/`, with private
@@ -100,9 +113,12 @@ boots, Lima execution and full Agent handoffs remain unverified. See the
 - Show the exact connection, hardware/OS/boot/storage/network probes,
   local-only live dashboard, evidence privacy, staged workflow and limits.
 - Wait for explicit confirmation before opening any device connection.
-- Plan approval covers the scoped read-only device session, local observer,
-  automated device-targeted Python helpers, and successive device-internal
-  diagnostic shell commands. No per-command user approval after this plan.
+- The startup grants cover local and device access for this task. The
+  later plan confirmation binds the target grant to the exact endpoint,
+  enabling the scoped diagnostic session/monitor and safe Python/remote
+  shell commands without per-command approval. Existing host RW plus
+  confirmed plan permits new outputs-only offline builds, without a
+  duplicate `offline_build` question.
 - No generic permission authorizes reboot/shutdown, target writes or
   flashing. Running a command *from* the project directory does not
   authorize its external or destructive side effects.

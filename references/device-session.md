@@ -19,6 +19,25 @@ to a separate 0600 file, and checkpoints a SHA-256 manifest. Unknown or
 unavailable probes are reported; a completed session is **not** evidence of
 booting an Ubuntu image.
 
+## Task-start permission matrix and endpoint binding
+
+Before any real Python/device command, obtain the task-local
+`local_access` and target `target_access` grants separately
+(`none/read/read-write`). Host permission is limited to the current
+project; target permission is bound to the selected endpoint **only after**
+the reviewed connection plan is confirmed. No session is started when
+target read permission is absent or when the local project cannot store
+the required private outputs.
+
+Once the permission matrix and plan are confirmed, Python helpers and
+the existing fixed read-only SSH/ADB/TTL probe batch run automatically.
+Target `read-write` permits only supported reversible ordinary changes
+with review/backup/recovery, NOT arbitrary Shell writes: the current
+adapter still only runs fixed read-only diagnostics. Revoking/changing
+target access invalidates the prior session. eMMC writes, flash,
+reboot, network cutover, privilege escalation and untrusted scripts
+are not covered by a blanket task grant.
+
 ## Direct device commands after one confirmed plan
 
 Once the user confirms the device connection and read-only diagnostic

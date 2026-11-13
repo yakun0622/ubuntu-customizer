@@ -2,6 +2,30 @@
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
+## Grant local and target read/write scopes before starting
+
+The first two steps of each new Skill task explicitly ask for **local
+host** and **target machine** access (`none`, `read`, or `read-write`),
+before any host inspection, workspace creation, Python command or device
+connection. Local access is restricted to this repository: read-write
+permits `.venv`, `outputs/`, source edits and new offline image
+artifacts, but never unrestricted Mac file access. Target access is
+restricted to the endpoint subsequently chosen and reviewed in the
+connection plan: read permits diagnostics, while read-write covers only
+supported, reviewed, reversible ordinary configuration changes with
+verified recovery. The current interactive backend still executes its
+fixed read-only probe allowlist, not arbitrary writable shell commands.
+
+After the two grants, the user selects a connection and confirms the
+overall plan once. Reuse the approved scope for Python device helpers,
+supported target diagnostics and new outputs-only offline image revisions
+**without repetitive per-command consent**. Physical eMMC/partition or
+firmware writes, reboots, disruptive network changes, privilege
+escalation, untrusted code, network downloads and isolated VM boot retain
+their distinct safety and consent rules. Task grants can be explicitly
+revised or revoked; this invalidates the old connection plan.
+Host OS/terminal sandbox prompts cannot be overridden.
+
 ## Device command approval: one plan, no per-command prompts
 
 After the user approves the exact transport/endpoint and overall device

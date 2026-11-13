@@ -73,6 +73,34 @@ privileged changes, VM boot and disk/image writes keep their specific
 permission requirements. Host sandbox or OS prompts still apply; the Skill
 cannot waive them.
 
+## Task-start access declaration (before host or target commands)
+
+At the start of every new Skill task, ask TWO separate permission levels,
+in this order: **local host access** `none/read/read-write` (restricted
+to the current repository) and **target device access**
+`none/read/read-write` (restricted to the device/interface selected
+for this task). These are not inferred from earlier user interactions.
+No capability probe, Python script or device connection is executed before
+the questions are answered.
+
+A local `read` permits project inspection but not workspace creation,
+`.venv` changes, evidence output or images; the workflow pauses before
+`workspace` until local `read-write` is explicitly granted. A target
+`read` permits diagnostics; target `read-write` preauthorizes only
+supported reviewed reversible changes (with backup and verification).
+The current device adapter remains fixed read-only. If either scope is
+`none`, operations requiring that resource are blocked. A local RW
+grant plus confirmed overall plan covers NEW outputs-only image builds;
+do not ask for an additional `offline_build` dialogue every revision.
+
+After collecting these two grants, resolve the connection method and
+actual endpoint, show the planned operations and monitoring viewer, and
+confirm the plan once. Continue within that scope without per-command
+questions. Network downloads, VM boots and high-risk physical operations
+keep their separate approvals. OS sandbox and device login/trust controls
+remain independently enforced. The pure policy state is schema version 2
+with `access.local` and `access.target`.
+
 ## Approved device session: automatic device Python and shell commands
 
 Once the user confirms the exact connection and overall diagnostic plan
@@ -92,13 +120,15 @@ privilege escalation, eMMC/partition/firmware writes or untrusted code.
 
 ## User experience
 
-The four mandatory phases are **connection choice → plan review/confirmation
-→ start verified live monitor and collect → stepwise customization**.
+The mandatory phases are **local/target permission questions → approved
+host/workspace setup → connection choice → reviewed plan confirmation →
+verified live monitor and collection → stepwise customization**.
 
-1. **Start** — The user says “开始定制系统”. Agent observes only local
-   host capabilities it can really access, then automatically prepares
-   `.venv` and `outputs` in the current directory. Reuse the known
-   purpose/target.
+1. **Start with permission questions** — The user says “开始定制系统”.
+   Ask local and target read/write levels *before inspecting the host*.
+   With local read, host inspection may run; with local RW, prepare
+   `.venv` and `outputs` in the current project. No actual device
+   command before the target read grant and confirmed connection plan.
 2. **Connection choice** — If no transport was named, ask one concise
    question offering SSH / ADB / TTL / local. After that choice, discover
    observed matching endpoints and let the user select the appropriate
@@ -182,10 +212,11 @@ rollback execution remain unsupported. The VM-image path alone continues
 through recipe/build/optional guest-health stages. Physical-device image
 requests end with evidence and blockers, without building or flashing.
 
-- The first step is a read-only `host_capabilities.inspect` observation,
-  immediately followed by a project-local `project_workspace.prepare`
-  action (before transport selection), requiring actual host execution access
-  but no additional *user conversation* prompt.
+- The first two steps are `local_access` then `target_access`
+  (`none/read/read-write`) conversational grants with NO host/device I/O.
+  After local read, `host_capabilities.inspect` may run; after local RW,
+  `project_workspace.prepare` may create/reuse the project-local
+  environment. No per-command repeats once granted.
 - Then select `transport` and `interface_ready`, strictly before
   requesting `plan_confirm`. The Agent stores concrete ports, IPs,
   addresses and baud separately in its private runtime, not the policy state.

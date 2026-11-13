@@ -49,6 +49,39 @@ user-provided current-revision USB serial log →
   Failed boot automatically means diagnose/new iteration, not a claim of
   `boot_confirmed` or `deployment_allowed`.
 
+## First step: ask local and target read/write permissions
+
+Before running host capability inspection, preparing the venv, creating
+outputs, opening SSH/ADB/TTL or invoking Python, ask two concise permission
+questions for this **new task**:
+
+- Local host: `none`, `read`, `read-write` for the current project only.
+  Read permits inspection; read-write additionally covers tracked source
+  edits, `.venv`, new files in `outputs/`, tests and NEW offline IMG builds
+  within `outputs/`. If only read is granted, do not initialize or write
+  workspace files. No blanket permission for other Mac directories.
+- Target machine: `none`, `read`, `read-write` for the specific device
+  selected later. Read allows ordinary diagnostic commands; read-write
+  additionally preapproves supported, reviewed, reversible device
+  configuration changes only when backup/rollback and verification exist.
+  The implemented SSH/ADB/TTL collection adapter is still read-only; do
+  not invent an unrestricted remote-write executor.
+
+The two grants are per task, are not inferred from older conversations,
+and must be applied **before any real operation**. Next show the exact
+connection/endpoint/monitoring plan and confirm it once; subsequent
+authorized project Python and verified device Shell commands proceed
+without per-command prompts. Reuse local RW permission plus confirmed plan
+for new offline outputs-only image builds, instead of another
+`offline_build` permission dialogue on each candidate revision. Network
+download and isolated-VM start remain separate authorizations.
+
+Never treat general target RW as approval for eMMC/partition/firmware or
+bootloader flashing, reboot/shutdown, network/SSH cutover, sudo/su, untrusted
+code or destructive operations. Those require an action-specific review;
+the implemented backend may not support them at all. Real host tool/OS
+sandbox and target authentication cannot be overridden by Skill consent.
+
 ## Standing authorization after confirming the device plan
 
 Once the user confirms the connection method, exact endpoint and overall
@@ -72,14 +105,13 @@ Host sandbox permissions and SSH/ADB authentication cannot be bypassed.
 
 When the user says **“开始” / “开始定制系统” / “开始检查设备”**:
 
-1. Begin with safe host capability inspection, then **automatically create or
-   reuse `./.venv` and prepare private `./outputs/`** using
-   `python3 scripts/workflow/project_workspace.py` from the current
-   project directory. Use the resulting `.venv/bin/python` for subsequent
-   Python helpers/tests with `-B` to avoid bytecode caches outside outputs;
-   no package download, global Python install, device
-   access or extra user confirmation. Only when an actual host execution
-   bridge is available. Infer goal/target from the chat.
+1. **Before any inspection or command, obtain the two task-start grants**
+   (`local_access`, `target_access`: none/read/read-write). If local
+   read is denied, do not inspect the host. If local RW is not granted, do
+   not create `.venv` or `outputs`. After local RW is approved, inspect
+   host capabilities and **automatically initialize/reuse .venv and outputs**
+   with the project-local Python helper. Keep Python `-B` and never
+   access files outside the current project. Infer goal/target from chat.
 2. **Transport first.** If unspecified, ask the user to choose SSH, ADB,
    managed TTL/picocom or the local machine. Then offer/resolve an actual
    matching interface: trusted SSH Host alias, authorized ADB device,
@@ -105,18 +137,21 @@ When the user says **“开始” / “开始定制系统” / “开始检查�
    drivers and storage preferences one at a time, then proceed through the
    actually supported customization stages. Physical ARM image assembly
    and flashing are **not** implemented just because a shell is reachable.
-7. Each write, image build, QEMU launch or target change still requires its
-   own risk-specific approval, backup/recovery checks and actual tool support.
-   The initial plan only authorizes one described read-only collection and
-   local preview; it never permits `reboot`, `shutdown`, disk writes or flashing.
+7. The task-start local RW grant plus confirmed connection plan authorizes
+   repeat project-local non-destructive writes and new offline images under
+   outputs without redundant prompts. The target RW grant covers ONLY
+   supported reviewed reversible device changes, not raw Shell writes.
+   Download, isolated VM boot, host/tool sandbox gates, and dangerous target
+   changes retain the relevant independent checks. Never allow reboot,
+   shutdown, disk writes or flashing on an access-level grant alone.
 8. Every runtime artifact (device evidence, monitoring state, plans, reports,
    logs, images, downloads, intermediate files, verifications) is written
    under **`./outputs/`** using validated workspace paths, never at the
    repository root. Tracked source edits stay in place; `.venv` is the sole
    local environment exception. Old artifacts are not silently moved.
 9. Routine non-destructive actions strictly inside the current project
-   (source inspection/edits, Python venv bootstrap, local tests, new outputs)
-   have standing approval: **do not repeatedly prompt for each command**.
+   have standing approval **only after local RW is granted at task start**.
+   Do not repeatedly prompt within the chosen task scope.
    Host/Codex/OS execution permission gates remain mandatory when imposed
    externally. No standing consent for target connection, arbitrary
    network installs, untrusted code, deleting important files,

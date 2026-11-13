@@ -28,6 +28,19 @@ Explicit transport selection with a final interactive collection confirmation:
 
 These `collect.py` examples are the **legacy passive collector**. Target for SSH is a configured OpenSSH Host alias with a previously trusted host key. ADB requires a device serial from `adb devices`. Legacy TTL requires optional `pyserial` and only receives data. For **Agent-controlled interactive TTL**, use the persistent picocom adapter instead; see [device sessions](device-session.md). Opening a serial port may change handshake lines, so verify adapter wiring before running.
 
+## Permission questions before device discovery
+
+Before using `host_capabilities`, `project_workspace.py`, `adaptive.py`
+or any device commands, the Agent asks for local and target permissions
+(`none/read/read-write`) for the current task. Local read allows
+inspection, local read-write allows artifacts in `outputs/`; target read
+allows verified device probes, while target read-write preapproves only
+supported and reversible configuration changes with a reviewed plan.
+Then confirm the exact connection/monitoring plan once. Continue safe
+Python and device-shell diagnostics without per-command prompts.
+Untrusted scripts, privileged operations, network cutover, raw disks and
+firmware writes remain separately gated.
+
 ## Device Python and remote commands: no repeated approvals
 
 After confirming the exact device interface and read-only diagnostics plan once,
