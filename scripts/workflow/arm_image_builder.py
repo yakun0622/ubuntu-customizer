@@ -31,6 +31,7 @@ def sibling(name):
 workspace = sibling('project_workspace')
 baseline = sibling('arm_baseline')
 fat32 = sibling('arm_fat32')
+serial_init = sibling('w152d_serial_init')
 SECTOR = 512
 ALIGN = 2048
 MBR_BOOT_TYPE = 0x0C  # FAT32 LBA
@@ -38,10 +39,18 @@ MBR_ROOT_TYPE = 0x83  # Linux ext4
 MAX_ARCHIVE_MEMBERS = 250000
 MAX_ROOT_BYTES = 3 * 1024**3
 MAX_OVERLAY_BYTES = 256 * 1024**2
+MAX_DEB_BUNDLE_BYTES = 512 * 1024**2
 MAX_ROOT_MIB = 8192
 MAX_BOOT_MIB = 512
 BOOT_FILE_LIMIT = 128 * 1024**2
 NAME = re.compile(r'[a-z0-9][a-z0-9-]{0,47}\Z')
+SAFE_DEB_NAME = re.compile(r'[A-Za-z0-9][A-Za-z0-9.+_~%-]*\.deb\Z')
+SSH_PUBKEY_RE = re.compile(
+    r'(ssh-ed25519|ecdsa-sha2-nistp(?:256|384|521)|ssh-rsa|'
+    r'sk-ssh-ed25519@openssh\.com|sk-ecdsa-sha2-nistp256@openssh\.com) '
+    r'[A-Za-z0-9+/]+={0,3}(?: [^\r\n\x00]{1,128})?\Z'
+)
+DEB_AR_MAGIC = b'!<arch>\n'
 BOOT = {'kernel': 'Image', 'dtb': 'w152d.dtb', 'initramfs': 'initrd.img',
         'boot_script': 'boot.scr', 'boot_ini': 'boot.ini',
         'aml_autoscript': 'aml_autoscript', 'u_boot_sd': 'u-boot.sd'}
@@ -224,6 +233,109 @@ def apply_driver_overlay(archive, root, expected_sha256):
             'expanded_bytes': total}
 
 
+def apply_deb_bundle(archive, root, expected_sha256):
+    """Stage SHA-256-verified .deb archives into /var/cache/uc-debs for first-boot install."""
+    if not re.fullmatch(r'[a-fA-F0-9]{64}', expected_sha256 or ''):
+        raise ValueError('Debian package bundle requires a trusted SHA-256')
+    tarpath = workspace.checked_input(archive, max_bytes=MAX_DEB_BUNDLE_BYTES)
+    if sha256(tarpath) != expected_sha256.lower():
+        raise ValueError('Debian package bundle checksum mismatch')
+    total = 0
+    deb_count = 0
+    with tarfile.open(tarpath, 'r:gz') as tar:
+        entries = []
+        for member in tar:
+            name = _relative_tar_name(member.name)
+            if name is None:
+                continue
+            if name in ('var', 'var/cache', 'var/cache/uc-debs'):
+                if not member.isdir():
+                    raise ValueError('Debian bundle directory entry is not a directory')
+                continue
+            if not name.startswith('var/cache/uc-debs/'):
+                raise ValueError('Debian package bundle may populate var/cache/uc-debs only')
+            rel = name[len('var/cache/uc-debs/'):]
+            if '/' in rel or not SAFE_DEB_NAME.fullmatch(rel) or not member.isfile():
+                raise ValueError('Invalid .deb entry in package bundle: ' + name)
+            if member.size < len(DEB_AR_MAGIC) or total + member.size > MAX_DEB_BUNDLE_BYTES:
+                raise ValueError('Debian package bundle size out of bounds')
+            total += member.size
+            dest = root.joinpath(*name.split('/'))
+            if not dest.resolve(strict=False).is_relative_to(root.resolve()):
+                raise ValueError('Debian package bundle escapes staged root')
+            entries.append((member, dest))
+        if not entries:
+            raise ValueError('Debian package bundle contains no .deb files')
+        cache_dir = root / 'var/cache/uc-debs'
+        if cache_dir.is_symlink():
+            raise ValueError('var/cache/uc-debs is a symlink')
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        for member, dest in entries:
+            if dest.exists() or dest.is_symlink():
+                raise ValueError('Duplicate .deb file in staged root: ' + dest.name)
+            source = tar.extractfile(member)
+            if source is None:
+                raise ValueError('Missing .deb payload: ' + dest.name)
+            with source:
+                head = source.read(len(DEB_AR_MAGIC))
+                if head != DEB_AR_MAGIC:
+                    raise ValueError('Staged .deb lacks Debian ar header: ' + dest.name)
+                with dest.open('xb') as output:
+                    output.write(head)
+                    shutil.copyfileobj(source, output, 1024 * 1024)
+            dest.chmod(0o644)
+            if os.geteuid() == 0:
+                os.chown(dest, 0, 0)
+            deb_count += 1
+    return {'sha256': expected_sha256.lower(), 'bytes': tarpath.stat().st_size,
+            'expanded_bytes': total, 'deb_count': deb_count}
+
+
+def install_ssh_authorized_key(key_file, root):
+    """Install one validated OpenSSH public key and pubkey-only sshd drop-in."""
+    src = workspace.checked_input(key_file, max_bytes=8192)
+    raw_lines = [ln.strip() for ln in src.read_text(encoding='utf-8').splitlines()
+                 if ln.strip() and not ln.lstrip().startswith('#')]
+    if len(raw_lines) != 1:
+        raise ValueError('SSH authorized key file must contain exactly one public key line')
+    line = raw_lines[0]
+    match = SSH_PUBKEY_RE.fullmatch(line)
+    if not match:
+        raise ValueError('Invalid or unsafe OpenSSH public key line')
+    ssh_dir = root / 'root/.ssh'
+    if ssh_dir.is_symlink() or (root / 'root').is_symlink():
+        raise ValueError('root/.ssh traverses a symlink')
+    (root / 'root').mkdir(mode=0o700, exist_ok=True)
+    (root / 'root').chmod(0o700)
+    ssh_dir.mkdir(mode=0o700, exist_ok=True)
+    ssh_dir.chmod(0o700)
+    auth_keys = ssh_dir / 'authorized_keys'
+    if auth_keys.is_symlink():
+        raise ValueError('authorized_keys is a symlink')
+    normalized = line + '\n'
+    auth_keys.write_text(normalized, encoding='utf-8')
+    auth_keys.chmod(0o600)
+
+    dropin_dir = root / 'etc/ssh/sshd_config.d'
+    if dropin_dir.is_symlink():
+        raise ValueError('sshd_config.d is a symlink')
+    dropin_dir.mkdir(mode=0o755, parents=True, exist_ok=True)
+    dropin = dropin_dir / '99-uc-pubkey.conf'
+    dropin.write_text(
+        'PermitRootLogin prohibit-password\n'
+        'PubkeyAuthentication yes\n'
+        'PasswordAuthentication no\n'
+        'KbdInteractiveAuthentication no\n',
+        encoding='ascii',
+    )
+    dropin.chmod(0o644)
+    return {
+        'key_type': match.group(1),
+        'public_key_sha256': hashlib.sha256(normalized.encode('utf-8')).hexdigest(),
+        'password_authentication': False,
+    }
+
+
 def mbr_bytes(boot_mib, root_mib):
     """Create a conventional USB MBR with 1 MiB aligned FAT32/ext4 entries."""
     if not 64 <= boot_mib <= MAX_BOOT_MIB or not 256 <= root_mib <= MAX_ROOT_MIB:
@@ -271,11 +383,11 @@ def _tools(provided=None):
 def _run(argv, cwd, runner=subprocess.run):
     # External dependencies may read their runtimes/configurations. Launch the
     # caller-approved sandbox with only this project mounted for local data.
-    environment = {'PATH': '', 'HOME': str(cwd), 'TMPDIR': str(cwd),
+    environment = {'PATH': '', 'TMPDIR': str(cwd),
                    'MTOOLSRC': str(cwd / 'mtools.conf'),
                    'MKE2FS_CONFIG': str(cwd / 'mke2fs.conf'),
                    'LANG': 'C', 'LC_ALL': 'C'}
-    proc = runner(argv, cwd=cwd, env=environment, stdin=subprocess.DEVNULL,
+    proc = runner(argv, cwd=cwd, env=environment, stdin=subprocess.PIPE,
                   capture_output=True, text=True, timeout=180, check=False)
     if proc.returncode:
         raise RuntimeError('Offline filesystem command failed: ' + Path(argv[0]).name)
@@ -319,7 +431,8 @@ def read_candidate(value):
     parts = candidate.get('components')
     if not isinstance(parts, dict) or set(parts) - {'kernel', 'dtb', 'boot_script',
                                                   'initramfs', 'bootloader', 'firmware',
-                                                  'boot_ini', 'aml_autoscript', 'u_boot_sd'}:
+                                                  'boot_ini', 'aml_autoscript', 'u_boot_sd',
+                                                  'init_script'}:
         raise ValueError('Invalid board components')
     inputs = {}
     for key, item in parts.items():
@@ -332,9 +445,30 @@ def read_candidate(value):
     return manifest, candidate, inputs
 
 
+def install_serial_init(root, components, board, boot_mode):
+    """Install only the audited W152D bring-up init, never arbitrary guest code."""
+    if 'init_script' not in components:
+        return False
+    if (board != 'w152d' or boot_mode != 'vendor-script'
+            or components['init_script'].read_bytes() != serial_init.SCRIPT
+            or 'boot_script' not in components
+            or b'root=/dev/sda2' not in components['boot_script'].read_bytes()
+            or b' init=/bin/sh' in components['boot_script'].read_bytes()):
+        raise ValueError('Unverified W152D serial-init candidate')
+    target = root / 'usr/sbin/init'
+    if not target.parent.is_dir() or target.parent.is_symlink():
+        raise ValueError('Unexpected rootfs init directory')
+    with target.open('xb') as stream:
+        stream.write(serial_init.SCRIPT)
+    target.chmod(0o755)
+    return True
+
+
 def build(candidate_manifest, *, boot_mib=128, root_mib=1024,
           boot_mode='extlinux', cmdline='console=ttyS0,921600',
           overlay=None, overlay_sha256=None,
+          deb_bundle=None, deb_bundle_sha256=None,
+          ssh_authorized_key_file=None,
           tools=None, runner=subprocess.run, approved=False):
     """Build one non-overwriting USB IMG candidate; no direct device writes."""
     if not approved:
@@ -361,6 +495,8 @@ def build(candidate_manifest, *, boot_mib=128, root_mib=1024,
     mbr, boot_offset, root_offset, image_bytes = mbr_bytes(boot_mib, root_mib)
     if bool(overlay) != bool(overlay_sha256):
         raise ValueError('Driver overlay path and SHA-256 must be supplied together')
+    if bool(deb_bundle) != bool(deb_bundle_sha256):
+        raise ValueError('Debian package bundle path and SHA-256 must be supplied together')
     root_bytes = root_mib * 1024 * 1024
     # Use an immutable new revision directory and a private intermediate area.
     parent = workspace.output_path('arm-images', candidate['board'])
@@ -378,6 +514,11 @@ def build(candidate_manifest, *, boot_mib=128, root_mib=1024,
         inventory = unpack_rootfs(source, root, max_bytes=min(MAX_ROOT_BYTES, root_bytes))
         driver_overlay = (apply_driver_overlay(overlay, root, overlay_sha256)
                           if overlay is not None else None)
+        deb_overlay = (apply_deb_bundle(deb_bundle, root, deb_bundle_sha256)
+                       if deb_bundle is not None else None)
+        ssh_pubkey = (install_ssh_authorized_key(ssh_authorized_key_file, root)
+                      if ssh_authorized_key_file is not None else None)
+        install_serial_init(root, components, candidate['board'], boot_mode)
         # Minimum static rootfs initialization; never chroot or execute guest code.
         (root / 'etc').mkdir(exist_ok=True)
         (root / 'etc' / 'fstab').write_text('LABEL=UCROOT / ext4 defaults,noatime 0 1\n', encoding='ascii')
@@ -398,7 +539,11 @@ def build(candidate_manifest, *, boot_mib=128, root_mib=1024,
             # Portable, real FAT32 filesystem with VFAT long filename support.
             # Uses only Python stdlib; avoids three host executables on macOS.
             boot_contents = fat32.write_fat32(boot, bootimg, volume_label='UCBOOT')
-        _run([toolset['mke2fs'], '-F', '-t', 'ext4', '-L', 'UCROOT', '-d',
+        # The project-local mke2fs can run without an installed mke2fs.conf.
+        # Name the essential ext4 features explicitly; -t alone then falls
+        # back to a journal-less ext2 feature set on some hosts.
+        _run([toolset['mke2fs'], '-F', '-t', 'ext4', '-O', 'has_journal,extent',
+              '-L', 'UCROOT', '-d',
               str(root), str(rootimg)], tmp, runner)
         if 'mkfs.vfat' in toolset:
             for item in sorted(boot.rglob('*')):
@@ -435,14 +580,19 @@ def build(candidate_manifest, *, boot_mib=128, root_mib=1024,
             'bytes': image_bytes, 'sha256': sha256(img),
             'candidate_manifest_sha256': sha256(manifest_file),
             'rootfs': inventory, 'driver_overlay': driver_overlay,
+            'deb_bundle': deb_overlay, 'ssh_authorized_key': ssh_pubkey,
             'boot_filesystem_backend': ('legacy-mtools' if 'mkfs.vfat' in toolset
                                         else 'python-fat32'),
             'boot_filesystem_details': boot_contents,
             'userspace_init_present': has_init,
+            'userspace_init_kind': ('w152d-serial-bringup' if 'init_script' in components
+                                    else 'baseline-or-absent'),
             'boot_mode': boot_mode, 'boot_script_verified_on_hardware': False,
             'usb_boot_confirmed': False, 'deployment_allowed': False,
             'missing_gates': ['physical_usb_boot_log', 'bootloader_load_path',
-                              'board_driver_functionality'] + ([] if has_init else ['userspace_init']),
+                              'board_driver_functionality'] + (
+                                  ['serial_login_health'] if 'init_script' in components
+                                  else ([] if has_init else ['userspace_init'])),
             'notes': ['Image was assembled offline only; eMMC untouched',
                       'Bootloader payload never written to raw boot sectors',
                       'Vendor boot support and rootfs ownership need real device validation'],
@@ -465,6 +615,9 @@ def main(argv=None):
     p.add_argument('--cmdline', default='console=ttyS0,921600')
     p.add_argument('--driver-overlay', help='Project-local gzip tar of usr/lib/modules or firmware')
     p.add_argument('--driver-overlay-sha256', help='Trusted overlay archive SHA-256')
+    p.add_argument('--deb-bundle', help='Project-local gzip tar of var/cache/uc-debs/*.deb')
+    p.add_argument('--deb-bundle-sha256', help='Trusted .deb bundle SHA-256')
+    p.add_argument('--ssh-authorized-key-file', help='Project-local single-line OpenSSH public key')
     for name in ('mkfs.vfat', 'mcopy', 'mmd', 'mke2fs'):
         p.add_argument('--tool-' + name.replace('.', '-'), required=name == 'mke2fs',
                        help='Project-local executable; only mke2fs is required (Python FAT32 is default)')
@@ -477,6 +630,8 @@ def main(argv=None):
         result = build(args.candidate, boot_mib=args.boot_mib, root_mib=args.root_mib,
                        boot_mode=args.boot_mode, cmdline=args.cmdline,
                        overlay=args.driver_overlay, overlay_sha256=args.driver_overlay_sha256,
+                       deb_bundle=args.deb_bundle, deb_bundle_sha256=args.deb_bundle_sha256,
+                       ssh_authorized_key_file=args.ssh_authorized_key_file,
                        tools=tools, approved=args.approved)
         print(json.dumps(result, indent=2))
         return 0

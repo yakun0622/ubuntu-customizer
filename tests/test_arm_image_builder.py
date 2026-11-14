@@ -96,6 +96,7 @@ class ArmImageBuilderTests(unittest.TestCase):
             self.assertEqual(stream.read(2), b'\x53\xef')
         argv = [' '.join(map(str, command)) for command, _ in self.commands]
         self.assertTrue(any('mke2fs' in command and '-d' in command for command in argv))
+        self.assertTrue(any('-O has_journal,extent' in command for command in argv))
         self.assertTrue(any('boot.scr' in command for command in argv))
         self.assertFalse(any('/dev/' in command or 'dd ' in command or 'losetup' in command
                              for command in argv))
@@ -118,6 +119,20 @@ class ArmImageBuilderTests(unittest.TestCase):
         self.assertEqual(vbr[82:90], b'FAT32   ')
         self.assertEqual(vbr[71:82], b'UCBOOT     ')
         self.assertEqual(vbr[510:512], bytes.fromhex('55aa'))
+
+    def test_serial_init_accepts_only_fixed_w152d_payload_and_boot_root(self):
+        root = self.folder / 'rootfs'
+        (root / 'usr/sbin').mkdir(parents=True)
+        init_file = self.folder / 'serial-init'
+        init_file.write_bytes(img.serial_init.SCRIPT)
+        boot_file = self.folder / 'boot-script'
+        boot_file.write_bytes(b'root=/dev/sda2 rootwait rw\nbooti 0x0a000000 - 0x01000000\n')
+        components = {'init_script': init_file, 'boot_script': boot_file}
+        self.assertTrue(img.install_serial_init(root, components, 'w152d', 'vendor-script'))
+        self.assertEqual((root / 'usr/sbin/init').read_bytes(), img.serial_init.SCRIPT)
+        init_file.write_bytes(b'#!/bin/sh\nunsafe command\n')
+        with self.assertRaisesRegex(ValueError, 'Unverified W152D'):
+            img.install_serial_init(root, components, 'w152d', 'vendor-script')
 
     def test_partial_legacy_fat_tools_rejected(self):
         with self.assertRaisesRegex(ValueError, 'requires mkfs.vfat'):
@@ -189,6 +204,65 @@ class ArmImageBuilderTests(unittest.TestCase):
         dest = self.folder / 'safe-extract'
         img.unpack_rootfs(tarpath, dest)
         self.assertEqual((dest / 'etc/mtab').readlink().as_posix(), '../proc/mounts')
+
+    def test_deb_bundle_and_ssh_authorized_key_staging_and_guards(self):
+        deb_bundle = self.folder / 'debs.tar.gz'
+        with tarfile.open(deb_bundle, 'w:gz') as tar:
+            payload = b'!<arch>\ndebian-binary\n'
+            info = tarfile.TarInfo('var/cache/uc-debs/kmod_31_arm64.deb')
+            info.size = len(payload)
+            tar.addfile(info, io.BytesIO(payload))
+        deb_sha = img.sha256(deb_bundle)
+
+        key_file = self.folder / 'id_ed25519.pub'
+        key_line = 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIE6mxdrIYfeaIlG/E8i1O218DaFy0uDN2B32RZTPzXsA user@example'
+        key_file.write_text(key_line + '\n', encoding='utf-8')
+
+        captured = {}
+        orig_runner = self.runner
+
+        def inspect_runner(argv, **kwargs):
+            if Path(argv[0]).name == 'mke2fs':
+                root_dir = Path(argv[argv.index('-d') + 1])
+                captured['deb_exists'] = (root_dir / 'var/cache/uc-debs/kmod_31_arm64.deb').is_file()
+                captured['auth_keys'] = (root_dir / 'root/.ssh/authorized_keys').read_text('utf-8')
+                captured['sshd_dropin'] = (root_dir / 'etc/ssh/sshd_config.d/99-uc-pubkey.conf').read_text('utf-8')
+            return orig_runner(argv, **kwargs)
+
+        res = img.build(
+            self.candidate,
+            boot_mib=64,
+            root_mib=256,
+            boot_mode='vendor-script',
+            deb_bundle=str(deb_bundle),
+            deb_bundle_sha256=deb_sha,
+            ssh_authorized_key_file=str(key_file),
+            tools={'mke2fs': self.tools['mke2fs']},
+            runner=inspect_runner,
+            approved=True,
+        )
+        self.assertTrue(captured['deb_exists'])
+        self.assertEqual(captured['auth_keys'], key_line + '\n')
+        self.assertIn('PasswordAuthentication no', captured['sshd_dropin'])
+        self.assertEqual(res['deb_bundle']['deb_count'], 1)
+        self.assertEqual(res['ssh_authorized_key']['key_type'], 'ssh-ed25519')
+
+        # Reject authorized_keys command="" injection options and invalid .deb headers.
+        bad_key = self.folder / 'bad_key.pub'
+        bad_key.write_text('command="/bin/sh" ' + key_line + '\n', encoding='utf-8')
+        root = self.folder / 'key-root'
+        root.mkdir()
+        with self.assertRaisesRegex(ValueError, 'Invalid or unsafe OpenSSH'):
+            img.install_ssh_authorized_key(bad_key, root)
+
+        bad_deb = self.folder / 'bad-debs.tar.gz'
+        with tarfile.open(bad_deb, 'w:gz') as tar:
+            payload = b'not-an-ar-archive'
+            info = tarfile.TarInfo('var/cache/uc-debs/evil_1_arm64.deb')
+            info.size = len(payload)
+            tar.addfile(info, io.BytesIO(payload))
+        with self.assertRaisesRegex(ValueError, 'ar header'):
+            img.apply_deb_bundle(bad_deb, root, img.sha256(bad_deb))
 
 
 if __name__ == '__main__':

@@ -26,7 +26,8 @@ BASE_SPEC.loader.exec_module(baseline)
 
 BOARD = re.compile(r"[a-z0-9][a-z0-9-]{0,47}\Z")
 COMPONENTS = ("kernel", "dtb", "bootloader", "firmware", "initramfs",
-              "boot_script", "boot_ini", "aml_autoscript", "u_boot_sd")
+              "boot_script", "boot_ini", "aml_autoscript", "u_boot_sd",
+              "init_script")
 COMPONENT_LIMIT = 256 * 1024 * 1024
 
 

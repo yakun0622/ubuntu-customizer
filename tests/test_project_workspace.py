@@ -78,8 +78,8 @@ class WorkspaceTests(unittest.TestCase):
             local.mkdir()
             binary = local / "board.dtb"
             binary.write_bytes(b"safe")
-            self.assertEqual(workspace.checked_input("components/board.dtb", root), binary)
-            self.assertEqual(workspace.checked_project_dir("components", root), local)
+            self.assertEqual(workspace.checked_input("components/board.dtb", root), binary.resolve())
+            self.assertEqual(workspace.checked_project_dir("components", root), local.resolve())
             outside = Path(d) / "external.dtb"
             outside.write_bytes(b"external")
             (local / "escape.dtb").symlink_to(outside)
